@@ -5,21 +5,25 @@
  *   Execute como: Eu mesmo
  *   Acesso: Qualquer pessoa
  *
- * Questões NÃO são armazenadas aqui. Vêm diretamente do Moodle via API.
- * Esta planilha gerencia apenas:
+ * Todas as configurações estáticas (moodle_url, quiz_title, teacher_token, etc.)
+ * agora ficam no arquivo assets/config.json do app Flutter – NÃO são mais
+ * armazenadas nesta planilha.
+ *
+ * Esta planilha gerencia APENAS:
  *   - Estado do quiz (qual página está ativa, timer, quiz_id)
- *   - Pontuações dos estudantes (reportadas pelo cliente após feedback do Moodle)
+ *   - Pontuações dos estudantes
  *
  * Estrutura de Planilhas criada por setupSheets():
- *   config       – Configurações (moodle_url, quiz_title, default_question_time, question_time_options, teacher_token)
  *   quiz_state   – Estado atual (state, current_page, total_pages, quiz_id, …)
  *   scores       – Pontuações por estudante
  */
 
 // ── Constantes ──────────────────────────────────────────────────────────────
 
+// ⚠️ ALTERE este token e mantenha o MESMO valor em assets/config.json
+const TEACHER_TOKEN = 'Prof@UFU2024!';
+
 const SHEETS = {
-  CONFIG: 'config',
   STATE: 'quiz_state',
   SCORES: 'scores',
 };
@@ -32,7 +36,6 @@ function doGet(e) {
     let result;
 
     switch (action) {
-      case 'getConfig':       result = getConfig();             break;
       case 'getState':        result = getState();              break;
       case 'releaseQuestion': result = releaseQuestion(e);      break;
       case 'closeQuestion':   result = closeQuestion(e);        break;
@@ -73,51 +76,14 @@ function sheet(name) {
   return s;
 }
 
-function getConfigValue(key) {
-  const data = sheet(SHEETS.CONFIG).getDataRange().getValues();
-  for (const row of data) {
-    if (String(row[0]) === key) return row[1];
-  }
-  return null;
-}
-
-function setConfigValue(key, value) {
-  const s = sheet(SHEETS.CONFIG);
-  const data = s.getDataRange().getValues();
-  for (let i = 0; i < data.length; i++) {
-    if (String(data[i][0]) === key) {
-      s.getRange(i + 1, 2).setValue(value);
-      return;
-    }
-  }
-  s.appendRow([key, value]);
-}
-
 function requireTeacher(e) {
   const token = (e.parameter && e.parameter.token) || '';
-  const teacherToken = String(getConfigValue('teacher_token') || '');
-  if (!teacherToken || token !== teacherToken) {
+  if (!TEACHER_TOKEN || token !== TEACHER_TOKEN) {
     throw new Error('Não autorizado. Token de professor inválido.');
   }
 }
 
 // ── Actions ──────────────────────────────────────────────────────────────────
-
-/**
- * GET ?action=getConfig
- * Retorna todas as configurações (incluindo teacher_token).
- * Mantenha a URL do script em segredo – é a primeira linha de defesa.
- */
-function getConfig() {
-  const data = sheet(SHEETS.CONFIG).getDataRange().getValues();
-  const config = {};
-  for (const row of data) {
-    if (row[0] && String(row[0]) !== 'key') {
-      config[String(row[0])] = row[1];
-    }
-  }
-  return { success: true, ...config };
-}
 
 function getStateValue(key) {
   const data = sheet(SHEETS.STATE).getDataRange().getValues();
@@ -335,23 +301,11 @@ function _updateRanks() {
 
 /**
  * Execute ?action=setup UMA VEZ para criar a estrutura de planilhas.
+ * As configurações estáticas (moodle_url, teacher_token, etc.) agora ficam
+ * no assets/config.json do app Flutter – não são mais criadas aqui.
  */
 function setupSheets() {
   const spreadsheet = ss();
-
-  // ── config ──────────────────────────────────────────────────────────────
-  let cfg = spreadsheet.getSheetByName(SHEETS.CONFIG);
-  if (cfg) spreadsheet.deleteSheet(cfg);
-  cfg = spreadsheet.insertSheet(SHEETS.CONFIG);
-  cfg.getRange('A1:B1').setValues([['key', 'value']]);
-  cfg.getRange('A2:B6').setValues([
-    ['moodle_url',             'https://moodle.suainstituicao.edu.br'],
-    ['quiz_title',             'Quiz Interativo'],
-    ['default_question_time',  30],
-    ['question_time_options',  '15,20,30,45,60,90'],  // ← lista separada por vírgula
-    ['teacher_token',          'TROQUE_ESTE_TOKEN_AGORA'],  // ← ALTERE!
-  ]);
-  cfg.setFrozenRows(1);
 
   // ── quiz_state ──────────────────────────────────────────────────────────
   let st = spreadsheet.getSheetByName(SHEETS.STATE);
@@ -381,7 +335,7 @@ function setupSheets() {
   sc.setFrozenRows(1);
 
   // ── Formata cabeçalhos ───────────────────────────────────────────────────
-  [cfg, st, sc].forEach(s => {
+  [st, sc].forEach(s => {
     s.getRange(1, 1, 1, s.getLastColumn())
       .setBackground('#1A1A3E')
       .setFontColor('#6C63FF')
@@ -389,7 +343,7 @@ function setupSheets() {
   });
 
   // Remove sheets antigas não mais usadas
-  ['questions', 'answers'].forEach(name => {
+  ['config', 'questions', 'answers'].forEach(name => {
     const old = spreadsheet.getSheetByName(name);
     if (old) {
       try { spreadsheet.deleteSheet(old); } catch (_) {}
@@ -398,6 +352,6 @@ function setupSheets() {
 
   return {
     success: true,
-    message: 'Planilhas criadas! Copie a URL de implantação (Implantar → Gerenciar implantações) e configure no app via parâmetro ?gs=URL',
+    message: 'Planilhas criadas! Cole a URL de implantação no assets/config.json (campo gsheet_script_url).',
   };
 }

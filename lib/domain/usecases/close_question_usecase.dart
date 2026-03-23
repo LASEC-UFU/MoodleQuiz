@@ -1,3 +1,4 @@
+import '../entities/user_entity.dart';
 import '../repositories/i_quiz_repository.dart';
 
 /// S: Único propósito – encerrar a questão atual.
@@ -6,6 +7,6 @@ class CloseQuestionUseCase {
 
   const CloseQuestionUseCase(this._repository);
 
-  Future<void> call(String teacherToken) =>
-      _repository.closeQuestion(teacherToken);
+  Future<void> call(UserEntity user, int courseId) =>
+      _repository.closeQuestion(user, courseId);
 }

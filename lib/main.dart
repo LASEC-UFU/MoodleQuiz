@@ -7,8 +7,8 @@ import 'package:provider/provider.dart';
 import 'core/config/app_config.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
-import 'data/datasources/gsheet_datasource.dart';
 import 'data/datasources/moodle_datasource.dart';
+import 'data/datasources/moodle_state_datasource.dart';
 import 'data/repositories/auth_repository_impl.dart';
 import 'data/repositories/quiz_repository_impl.dart';
 import 'domain/usecases/close_question_usecase.dart';
@@ -27,28 +27,17 @@ Future<void> main() async {
   try {
     final raw = await rootBundle.loadString('assets/config.json');
     final map = jsonDecode(raw) as Map<String, dynamic>;
-    AppConfig.gsheetScriptUrl = (map['gsheet_script_url'] as String?)?.trim() ?? '';
-    AppConfig.studentUrl = (map['student_url'] as String?)?.trim() ?? AppConfig.studentUrl;
+    AppConfig.loadFromMap(map);
   } catch (_) {
-    // Arquivo ausente em dev local – segue com valor vazio
+    // Arquivo ausente em dev local – segue com valores padrão
   }
 
   // ── Instancia dependências ────────────────────────────────────────────────
   final moodleDs = MoodleDatasource();
-  final gsheetDs = GSheetDatasource();
-
-  // Carrega configurações do GSheets (moodle_url, quiz_title, teacher_token…)
-  if (AppConfig.isConfigured) {
-    try {
-      final cfg = await gsheetDs.getConfig();
-      AppConfig.loadFromMap(cfg);
-    } catch (_) {
-      // GSheets indisponível no boot – usa defaults
-    }
-  }
+  final stateDs = MoodleStateDatasource(moodleDs);
 
   final authRepo = AuthRepositoryImpl(moodleDs);
-  final quizRepo = QuizRepositoryImpl(gsheetDs, moodleDs);
+  final quizRepo = QuizRepositoryImpl(stateDs, moodleDs);
 
   final loginUseCase = LoginUseCase(authRepo);
   final releaseUseCase = ReleaseQuestionUseCase(quizRepo);
@@ -65,7 +54,6 @@ Future<void> main() async {
   runApp(
     MultiProvider(
       providers: [
-        Provider<IGSheetDatasource>.value(value: gsheetDs),
         ChangeNotifierProvider.value(value: authCtrl),
         ChangeNotifierProvider(
           create: (_) => ProfessorController(

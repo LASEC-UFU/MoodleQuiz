@@ -49,6 +49,10 @@ abstract class IMoodleDatasource {
   /// Usa core_enrol_get_enrolled_users filtrado pelo userId.
   Future<List<String>> getUserRolesInCourse(
       String baseUrl, String token, int courseId, int userId);
+
+  /// Lista as atividades Database de um curso.
+  Future<List<Map<String, dynamic>>> getDataActivitiesByCourse(
+      String baseUrl, String token, int courseId);
 }
 
 /// Implementação concreta – D: depende apenas de http.
@@ -71,8 +75,9 @@ class MoodleDatasource implements IMoodleDatasource {
     if (data['error'] != null) throw MoodleException(data['error'].toString());
 
     final token = data['token'] as String?;
-    if (token == null)
+    if (token == null) {
       throw MoodleException('Token não retornado pelo Moodle.');
+    }
 
     final siteInfo = await _callWs(
       baseUrl,
@@ -259,6 +264,22 @@ class MoodleDatasource implements IMoodleDatasource {
       }
     } on MoodleException {
       // Pode falhar se o usuário não tem permissão para ver participantes
+    }
+    return [];
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> getDataActivitiesByCourse(
+      String baseUrl, String token, int courseId) async {
+    final result = await _callWs(
+      baseUrl,
+      token,
+      'mod_data_get_databases_by_courses',
+      {'courseids[0]': courseId.toString()},
+    );
+    final databases = result['databases'];
+    if (databases is List) {
+      return databases.map((e) => Map<String, dynamic>.from(e as Map)).toList();
     }
     return [];
   }

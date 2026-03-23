@@ -22,7 +22,7 @@ class StudentController extends ChangeNotifier {
   // ── Estado do quiz ─────────────────────────────────────────────────────────
   QuizStateEntity _quizState = QuizStateEntity.empty();
   List<ScoreEntity> _scores = [];
-  String? _selectedChoice;   // valor Moodle da alternativa ("0", "1", …)
+  String? _selectedChoice; // valor Moodle da alternativa ("0", "1", …)
   bool _hasAnswered = false;
   bool _isSubmitting = false;
   bool _lastAnswerCorrect = false;
@@ -53,6 +53,7 @@ class StudentController extends ChangeNotifier {
       return null;
     }
   }
+
   bool get hasAnswered => _hasAnswered;
   bool get isSubmitting => _isSubmitting;
   bool get lastAnswerCorrect => _lastAnswerCorrect;
@@ -96,7 +97,12 @@ class StudentController extends ChangeNotifier {
     final choice = _selectedChoice;
     final q = _currentQuestion;
     final id = _attemptId;
-    if (choice == null || q == null || id == null || _hasAnswered) return;
+    final courseId = _quizState.courseId;
+    if (choice == null ||
+        q == null ||
+        id == null ||
+        _hasAnswered ||
+        courseId <= 0) return;
 
     _isSubmitting = true;
     notifyListeners();
@@ -107,6 +113,7 @@ class StudentController extends ChangeNotifier {
 
       _lastAnswerCorrect = await _submitAnswer(
         user: user,
+        courseId: courseId,
         attemptId: id,
         question: q,
         choiceValue: choice,
@@ -139,7 +146,8 @@ class StudentController extends ChangeNotifier {
 
   Future<void> _refreshState(UserEntity user) async {
     try {
-      final newState = await _quizRepo.getQuizState();
+      final newState = await _quizRepo.getQuizState(
+          user, _quizState.courseId > 0 ? _quizState.courseId : 0);
 
       // Nova questão liberada
       if (newState.isActive && newState.currentPage != _lastSeenPage) {
@@ -186,7 +194,8 @@ class StudentController extends ChangeNotifier {
       }
 
       _quizState = newState;
-      _scores = await _quizRepo.getScores();
+      final courseId = newState.courseId > 0 ? newState.courseId : 0;
+      _scores = await _quizRepo.getScores(user, courseId);
       _error = null;
       notifyListeners();
     } catch (e) {

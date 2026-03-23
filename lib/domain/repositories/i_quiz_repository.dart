@@ -18,12 +18,11 @@ abstract class IQuizRepository {
       {void Function(String)? onLog});
 
   /// Obtém e parseia a questão de uma página da tentativa.
-  Future<QuestionEntity> getQuestion(
-      UserEntity user, int attemptId, int page);
+  Future<QuestionEntity> getQuestion(UserEntity user, int attemptId, int page);
 
   /// Submete resposta ao Moodle e retorna se acertou.
-  Future<bool> submitPage(
-      UserEntity user, int attemptId, QuestionEntity question, String choiceValue);
+  Future<bool> submitPage(UserEntity user, int attemptId,
+      QuestionEntity question, String choiceValue);
 
   /// Finaliza a tentativa do usuário no Moodle.
   Future<void> finishAttempt(UserEntity user, int attemptId);
@@ -34,12 +33,13 @@ abstract class IQuizRepository {
       UserEntity user, int attemptId, int totalPages,
       {void Function(String)? onLog});
 
-  // ── GSheets: estado compartilhado ─────────────────────────────────────────
+  // ── Moodle State: estado compartilhado do quiz ────────────────────────────
 
-  Future<QuizStateEntity> getQuizState();
+  Future<QuizStateEntity> getQuizState(UserEntity user, int courseId);
 
   Future<void> releaseQuestion({
-    required String teacherToken,
+    required UserEntity user,
+    required int courseId,
     required int page,
     required int duration,
     required int totalPages,
@@ -47,19 +47,20 @@ abstract class IQuizRepository {
     required int quizId,
   });
 
-  Future<void> closeQuestion(String teacherToken);
+  Future<void> closeQuestion(UserEntity user, int courseId);
 
-  /// Estudante reporta pontuação ao GSheets após feedback do Moodle.
+  /// Estudante registra pontuação com bônus de tempo no mod_data.
   Future<void> submitScore({
     required UserEntity user,
+    required int courseId,
     required int score,
     required bool correct,
     required int page,
   });
 
-  Future<List<ScoreEntity>> getScores();
+  Future<List<ScoreEntity>> getScores(UserEntity user, int courseId);
 
-  Future<void> resetQuiz(String teacherToken);
+  Future<void> resetQuiz(UserEntity user, int courseId);
 
-  Future<void> setFinished(String teacherToken);
+  Future<void> setFinished(UserEntity user, int courseId);
 }

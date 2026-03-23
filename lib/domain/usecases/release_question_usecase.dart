@@ -1,3 +1,4 @@
+import '../entities/user_entity.dart';
 import '../repositories/i_quiz_repository.dart';
 
 /// S: Único propósito – liberar uma página de questão para os estudantes.
@@ -7,7 +8,8 @@ class ReleaseQuestionUseCase {
   const ReleaseQuestionUseCase(this._repository);
 
   Future<void> call({
-    required String teacherToken,
+    required UserEntity user,
+    required int courseId,
     required int page,
     required int duration,
     required int totalPages,
@@ -15,7 +17,8 @@ class ReleaseQuestionUseCase {
     required int quizId,
   }) {
     return _repository.releaseQuestion(
-      teacherToken: teacherToken,
+      user: user,
+      courseId: courseId,
       page: page,
       duration: duration,
       totalPages: totalPages,

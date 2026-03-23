@@ -11,16 +11,18 @@ class SubmitAnswerUseCase {
   /// Retorna se a resposta foi correta.
   Future<bool> call({
     required UserEntity user,
+    required int courseId,
     required int attemptId,
     required QuestionEntity question,
     required String choiceValue,
     required int baseScore,
   }) async {
-    final correct = await _repository.submitPage(
-        user, attemptId, question, choiceValue);
+    final correct =
+        await _repository.submitPage(user, attemptId, question, choiceValue);
 
     await _repository.submitScore(
       user: user,
+      courseId: courseId,
       score: correct ? baseScore : 0,
       correct: correct,
       page: question.page,

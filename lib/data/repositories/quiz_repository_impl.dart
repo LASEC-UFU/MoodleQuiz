@@ -6,19 +6,19 @@ import '../../domain/entities/quiz_state_entity.dart';
 import '../../domain/entities/score_entity.dart';
 import '../../domain/entities/user_entity.dart';
 import '../../domain/repositories/i_quiz_repository.dart';
-import '../datasources/gsheet_datasource.dart';
 import '../datasources/moodle_datasource.dart';
+import '../datasources/moodle_state_datasource.dart';
 import '../models/quiz_state_model.dart';
 import '../models/score_model.dart';
 
 /// L: Substitui IQuizRepository; D: depende de interfaces, não concretos.
 class QuizRepositoryImpl implements IQuizRepository {
-  final IGSheetDatasource _gsheet;
+  final IStateDatasource _state;
   final IMoodleDatasource _moodle;
 
   Map<String, int> _prevRanks = {};
 
-  QuizRepositoryImpl(this._gsheet, this._moodle);
+  QuizRepositoryImpl(this._state, this._moodle);
 
   // ── Moodle ─────────────────────────────────────────────────────────────────
 
@@ -31,8 +31,8 @@ class QuizRepositoryImpl implements IQuizRepository {
   @override
   Future<List<MoodleQuiz>> getQuizzesByCourse(
       UserEntity user, int courseId) async {
-    final list = await _moodle.getQuizzesByCourse(
-        user.baseUrl, user.token, courseId);
+    final list =
+        await _moodle.getQuizzesByCourse(user.baseUrl, user.token, courseId);
     return list.map(MoodleQuiz.fromJson).toList();
   }
 
@@ -43,7 +43,8 @@ class QuizRepositoryImpl implements IQuizRepository {
 
     // 1. Busca tentativa em andamento antes de criar
     log('Verificando tentativas existentes (status=unfinished)…');
-    final existingId = await _getUnfinishedAttemptId(user, quizId, onLog: onLog);
+    final existingId =
+        await _getUnfinishedAttemptId(user, quizId, onLog: onLog);
     if (existingId != null) {
       log('Tentativa existente reutilizada: ID $existingId');
       return existingId;
@@ -78,17 +79,20 @@ class QuizRepositoryImpl implements IQuizRepository {
       {String status = 'unfinished', void Function(String)? onLog}) async {
     void log(String m) => onLog?.call(m);
     try {
-      final attempts = await _moodle.getUserAttempts(
-          user.baseUrl, user.token, quizId, status: status);
+      final attempts = await _moodle
+          .getUserAttempts(user.baseUrl, user.token, quizId, status: status);
       log('  getUserAttempts($status): ${attempts.length} resultado(s)');
       for (final a in attempts) {
         log('    id=${a['id']} state=${a['state']}');
       }
       if (attempts.isNotEmpty) {
-        final inprogress = attempts.where((a) =>
-            a['state']?.toString() == 'inprogress' ||
-            a['state']?.toString() == 'overdue').toList();
-        final target = inprogress.isNotEmpty ? inprogress.first : attempts.first;
+        final inprogress = attempts
+            .where((a) =>
+                a['state']?.toString() == 'inprogress' ||
+                a['state']?.toString() == 'overdue')
+            .toList();
+        final target =
+            inprogress.isNotEmpty ? inprogress.first : attempts.first;
         return (target['id'] as num?)?.toInt();
       }
     } catch (e) {
@@ -100,8 +104,8 @@ class QuizRepositoryImpl implements IQuizRepository {
   @override
   Future<QuestionEntity> getQuestion(
       UserEntity user, int attemptId, int page) async {
-    final data = await _moodle.getAttemptData(
-        user.baseUrl, user.token, attemptId, page);
+    final data =
+        await _moodle.getAttemptData(user.baseUrl, user.token, attemptId, page);
 
     final questions = data['questions'] as List? ?? [];
     if (questions.isEmpty) {
@@ -141,7 +145,6 @@ class QuizRepositoryImpl implements IQuizRepository {
   Future<List<QuestionEntity>> loadQuestionsWithAnswers(
       UserEntity user, int attemptId, int totalPages,
       {void Function(String)? onLog}) async {
-
     void log(String msg) => onLog?.call(msg);
 
     // 1. Carrega todas as páginas usando nextpage do Moodle
@@ -259,11 +262,13 @@ class QuizRepositoryImpl implements IQuizRepository {
       }
       final correctValues = MoodleHtmlParser.parseCorrectValues(reviewHtml);
       log('  ✓ slot=${q.slot} gabarito: $correctValues');
-      final newChoices = q.choices.map((c) => ParsedChoice(
-        value: c.value,
-        text: c.text,
-        isCorrect: correctValues.contains(c.value),
-      )).toList();
+      final newChoices = q.choices
+          .map((c) => ParsedChoice(
+                value: c.value,
+                text: c.text,
+                isCorrect: correctValues.contains(c.value),
+              ))
+          .toList();
       result.add(QuestionEntity(
         slot: q.slot,
         page: q.page,
@@ -303,25 +308,28 @@ class QuizRepositoryImpl implements IQuizRepository {
   Future<void> finishAttempt(UserEntity user, int attemptId) =>
       _moodle.finishAttempt(user.baseUrl, user.token, attemptId);
 
-  // ── GSheets ────────────────────────────────────────────────────────────────
+  // ── Moodle State ───────────────────────────────────────────────────────────
 
   @override
-  Future<QuizStateEntity> getQuizState() async {
-    final data = await _gsheet.getState();
+  Future<QuizStateEntity> getQuizState(UserEntity user, int courseId) async {
+    final data = await _state.getState(user.baseUrl, user.token, courseId);
     return QuizStateModel.fromJson(data);
   }
 
   @override
   Future<void> releaseQuestion({
-    required String teacherToken,
+    required UserEntity user,
+    required int courseId,
     required int page,
     required int duration,
     required int totalPages,
     required String quizName,
     required int quizId,
   }) =>
-      _gsheet.releaseQuestion(
-        token: teacherToken,
+      _state.releaseQuestion(
+        baseUrl: user.baseUrl,
+        token: user.token,
+        courseId: courseId,
         page: page,
         duration: duration,
         totalPages: totalPages,
@@ -330,18 +338,21 @@ class QuizRepositoryImpl implements IQuizRepository {
       );
 
   @override
-  Future<void> closeQuestion(String teacherToken) =>
-      _gsheet.closeQuestion(teacherToken);
+  Future<void> closeQuestion(UserEntity user, int courseId) =>
+      _state.closeQuestion(user.baseUrl, user.token, courseId);
 
   @override
   Future<void> submitScore({
     required UserEntity user,
+    required int courseId,
     required int score,
     required bool correct,
     required int page,
   }) =>
-      _gsheet.submitScore(
+      _state.submitScore(
+        baseUrl: user.baseUrl,
         token: user.token,
+        courseId: courseId,
         studentId: user.id.toString(),
         studentName: user.fullname,
         score: score,
@@ -350,8 +361,8 @@ class QuizRepositoryImpl implements IQuizRepository {
       );
 
   @override
-  Future<List<ScoreEntity>> getScores() async {
-    final list = await _gsheet.getScores();
+  Future<List<ScoreEntity>> getScores(UserEntity user, int courseId) async {
+    final list = await _state.getScores(user.baseUrl, user.token, courseId);
     final result = list.map((j) {
       final id = j['student_id']?.toString() ?? '';
       return ScoreModel.fromJson(j, previousRank: _prevRanks[id]);
@@ -361,14 +372,14 @@ class QuizRepositoryImpl implements IQuizRepository {
   }
 
   @override
-  Future<void> resetQuiz(String teacherToken) async {
-    await _gsheet.resetQuiz(teacherToken);
+  Future<void> resetQuiz(UserEntity user, int courseId) async {
+    await _state.resetQuiz(user.baseUrl, user.token, courseId);
     _prevRanks = {};
   }
 
   @override
-  Future<void> setFinished(String teacherToken) =>
-      _gsheet.setFinished(teacherToken);
+  Future<void> setFinished(UserEntity user, int courseId) =>
+      _state.setFinished(user.baseUrl, user.token, courseId);
 
   // ── Privado ────────────────────────────────────────────────────────────────
 

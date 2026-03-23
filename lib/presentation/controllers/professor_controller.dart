@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import '../../core/config/app_config.dart';
 import '../../domain/entities/moodle_course.dart';
 import '../../domain/entities/moodle_quiz.dart';
 import '../../domain/entities/question_entity.dart';
@@ -18,6 +17,9 @@ class ProfessorController extends ChangeNotifier {
   final IQuizRepository _quizRepo;
   final ReleaseQuestionUseCase _releaseQuestion;
   final CloseQuestionUseCase _closeQuestion;
+
+  // ── Usuário autenticado ────────────────────────────────────────────────────────────────
+  UserEntity? _user;
 
   // ── Seleção ────────────────────────────────────────────────────────────────
   List<MoodleCourse> _courses = [];
@@ -65,6 +67,7 @@ class ProfessorController extends ChangeNotifier {
   // ── Seleção de curso / quiz ────────────────────────────────────────────────
 
   Future<void> loadCourses(UserEntity user) async {
+    _user = user;
     _setLoading(true);
     _error = null;
     try {
@@ -122,12 +125,15 @@ class ProfessorController extends ChangeNotifier {
   }
 
   Future<void> releaseQuestion(QuestionEntity q) async {
-    if (_selectedQuiz == null) return;
+    final user = _user;
+    final courseId = _selectedCourse?.id;
+    if (_selectedQuiz == null || user == null || courseId == null) return;
     _setLoading(true);
     _error = null;
     try {
       await _releaseQuestion(
-        teacherToken: AppConfig.teacherToken,
+        user: user,
+        courseId: courseId,
         page: q.page,
         duration: _selectedDuration,
         totalPages: _questions.length,
@@ -143,15 +149,21 @@ class ProfessorController extends ChangeNotifier {
   }
 
   Future<void> extendQuestion(int extraSeconds) async {
+    final user = _user;
+    final courseId = _selectedCourse?.id;
     final state = quizState;
-    if (!state.isActive || state.endsAt == null) return;
+    if (!state.isActive ||
+        state.endsAt == null ||
+        user == null ||
+        courseId == null) return;
     final remaining = state.endsAt!.difference(DateTime.now()).inSeconds;
     final newDuration = (remaining < 0 ? 0 : remaining) + extraSeconds;
     _setLoading(true);
     _error = null;
     try {
       await _releaseQuestion(
-        teacherToken: AppConfig.teacherToken,
+        user: user,
+        courseId: courseId,
         page: state.currentPage,
         duration: newDuration,
         totalPages: state.totalPages,
@@ -167,10 +179,13 @@ class ProfessorController extends ChangeNotifier {
   }
 
   Future<void> stopQuestion() async {
+    final user = _user;
+    final courseId = _selectedCourse?.id;
+    if (user == null || courseId == null) return;
     _setLoading(true);
     _error = null;
     try {
-      await _closeQuestion(AppConfig.teacherToken);
+      await _closeQuestion(user, courseId);
       await _refreshStateAfterWrite();
     } catch (e) {
       _error = e.toString();
@@ -180,10 +195,13 @@ class ProfessorController extends ChangeNotifier {
   }
 
   Future<void> finishQuiz() async {
+    final user = _user;
+    final courseId = _selectedCourse?.id;
+    if (user == null || courseId == null) return;
     _setLoading(true);
     _error = null;
     try {
-      await _quizRepo.setFinished(AppConfig.teacherToken);
+      await _quizRepo.setFinished(user, courseId);
       await _refreshStateAfterWrite();
     } catch (e) {
       _error = e.toString();
@@ -193,9 +211,12 @@ class ProfessorController extends ChangeNotifier {
   }
 
   Future<void> resetQuiz() async {
+    final user = _user;
+    final courseId = _selectedCourse?.id;
+    if (user == null || courseId == null) return;
     _setLoading(true);
     try {
-      await _quizRepo.resetQuiz(AppConfig.teacherToken);
+      await _quizRepo.resetQuiz(user, courseId);
       _scores = [];
       await _refreshStateAfterWrite();
     } catch (e) {
@@ -245,12 +266,15 @@ class ProfessorController extends ChangeNotifier {
   }
 
   Future<void> _refreshState() async {
-    // Impede chamadas simultâneas ao GSheets (causa "Too many simultaneous invocations")
+    final user = _user;
+    final courseId = _selectedCourse?.id;
+    if (user == null || courseId == null) return;
+    // Impede chamadas simultâneas ao Moodle
     if (_isRefreshing) return;
     _isRefreshing = true;
     try {
-      _quizState = await _quizRepo.getQuizState();
-      _scores = await _quizRepo.getScores();
+      _quizState = await _quizRepo.getQuizState(user, courseId);
+      _scores = await _quizRepo.getScores(user, courseId);
       _error = null;
       notifyListeners();
     } catch (e) {

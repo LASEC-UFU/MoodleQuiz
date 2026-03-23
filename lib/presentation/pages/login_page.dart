@@ -22,7 +22,6 @@ class _LoginPageState extends State<LoginPage> {
   final _userCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   bool _obscurePass = true;
-  bool _showAdvanced = false;
 
   @override
   void dispose() {
@@ -89,8 +88,7 @@ class _LoginPageState extends State<LoginPage> {
                           labelText: 'URL do Moodle',
                           prefixIcon: Icon(Icons.public),
                           hintText: 'https://moodle.suainstituicao.edu.br',
-                          hintStyle:
-                              TextStyle(color: AppTheme.textSecondary),
+                          hintStyle: TextStyle(color: AppTheme.textSecondary),
                         ),
                         validator: (v) {
                           if (v == null || v.trim().isEmpty) {
@@ -131,39 +129,13 @@ class _LoginPageState extends State<LoginPage> {
                                 ? Icons.visibility_off
                                 : Icons.visibility),
                             color: AppTheme.textSecondary,
-                            onPressed: () => setState(
-                                () => _obscurePass = !_obscurePass),
+                            onPressed: () =>
+                                setState(() => _obscurePass = !_obscurePass),
                           ),
                         ),
-                        validator: (v) => (v?.isEmpty ?? true)
-                            ? 'Informe a senha'
-                            : null,
+                        validator: (v) =>
+                            (v?.isEmpty ?? true) ? 'Informe a senha' : null,
                       ),
-
-                      // ── Avançado ─────────────────────────────────────────
-                      TextButton.icon(
-                        onPressed: () =>
-                            setState(() => _showAdvanced = !_showAdvanced),
-                        icon: Icon(
-                          _showAdvanced
-                              ? Icons.expand_less
-                              : Icons.expand_more,
-                          color: AppTheme.textSecondary,
-                        ),
-                        label: Text(
-                          'Configurações do servidor',
-                          style: const TextStyle(
-                              color: AppTheme.textSecondary, fontSize: 13),
-                        ),
-                      ),
-                      if (_showAdvanced)
-                        TextButton(
-                          onPressed: () => context.go(AppRouter.setup),
-                          child: const Text(
-                            'Alterar URL do Google Apps Script',
-                            style: TextStyle(color: AppTheme.accent),
-                          ),
-                        ),
 
                       // ── Erro ─────────────────────────────────────────────
                       if (auth.error != null) ...[
@@ -238,8 +210,7 @@ class _ErrorBox extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(message,
-                style: const TextStyle(
-                    color: AppTheme.danger, fontSize: 13)),
+                style: const TextStyle(color: AppTheme.danger, fontSize: 13)),
           ),
         ],
       ),
