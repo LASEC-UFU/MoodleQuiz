@@ -1,7 +1,5 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import '../../core/config/app_config.dart';
 
 /// Interface – S: apenas chamadas à API REST do Moodle.
 abstract class IMoodleDatasource {
@@ -52,34 +50,14 @@ class MoodleDatasource implements IMoodleDatasource {
   @override
   Future<Map<String, dynamic>> login(
       String baseUrl, String username, String password) async {
-    Map<String, dynamic> data;
-
-    if (kIsWeb && AppConfig.isConfigured) {
-      // Na web usamos o proxy GAS para evitar CORS no login
-      final uri = Uri.parse(AppConfig.gsheetScriptUrl).replace(
-        queryParameters: {
-          'action': 'moodleProxy',
-          'wsPath': '/login/token.php',
-          'baseUrl': baseUrl,
-          'username': username,
-          'password': password,
-          'service': 'moodle_mobile_app',
-        },
-      );
-      final resp = await _client.get(uri);
-      _assertOk(resp);
-      data = jsonDecode(resp.body) as Map<String, dynamic>;
-    } else {
-      final url = Uri.parse('$baseUrl/login/token.php');
-      final resp = await _client.post(url, body: {
-        'username': username,
-        'password': password,
-        'service': 'moodle_mobile_app',
-      });
-      _assertOk(resp);
-      data = jsonDecode(resp.body) as Map<String, dynamic>;
-    }
-
+    final url = Uri.parse('$baseUrl/login/token.php');
+    final resp = await _client.post(url, body: {
+      'username': username,
+      'password': password,
+      'service': 'moodle_mobile_app',
+    });
+    _assertOk(resp);
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
     if (data['error'] != null) throw MoodleException(data['error'].toString());
 
     final token = data['token'] as String?;
@@ -94,7 +72,8 @@ class MoodleDatasource implements IMoodleDatasource {
 
     final functions = <String>{};
     for (final fn in (siteInfo['functions'] as List? ?? [])) {
-      functions.add(fn['name'] as String);
+      final name = (fn as Map)['name']?.toString();
+      if (name != null && name.isNotEmpty) functions.add(name);
     }
 
     return {
@@ -109,7 +88,6 @@ class MoodleDatasource implements IMoodleDatasource {
   @override
   Future<List<Map<String, dynamic>>> getCourses(
       String baseUrl, String token, int userId) async {
-    // core_enrol_get_users_courses retorna uma lista JSON diretamente
     final result = await _callWs(
       baseUrl,
       token,
@@ -232,8 +210,7 @@ class MoodleDatasource implements IMoodleDatasource {
 
   // ── Privado ────────────────────────────────────────────────────────────────
 
-  /// Chama um web service Moodle via GET.
-  /// Na web usa o proxy GAS para contornar CORS; no desktop chama direto.
+  /// Chama um web service Moodle diretamente via GET.
   /// Se a resposta for uma lista JSON, retorna {'result': <lista>}.
   Future<Map<String, dynamic>> _callWs(
     String baseUrl,
@@ -241,28 +218,14 @@ class MoodleDatasource implements IMoodleDatasource {
     String function,
     Map<String, String> params,
   ) async {
-    final wsParams = {
-      'wstoken': token,
-      'wsfunction': function,
-      'moodlewsrestformat': 'json',
-      ...params,
-    };
-
-    final Uri uri;
-    if (kIsWeb && AppConfig.isConfigured) {
-      // Proxy via Google Apps Script — sem restrição de CORS
-      uri = Uri.parse(AppConfig.gsheetScriptUrl).replace(
-        queryParameters: {
-          'action': 'moodleProxy',
-          'baseUrl': baseUrl,
-          ...wsParams,
-        },
-      );
-    } else {
-      uri = Uri.parse('$baseUrl/webservice/rest/server.php')
-          .replace(queryParameters: wsParams);
-    }
-
+    final uri = Uri.parse('$baseUrl/webservice/rest/server.php').replace(
+      queryParameters: {
+        'wstoken': token,
+        'wsfunction': function,
+        'moodlewsrestformat': 'json',
+        ...params,
+      },
+    );
     final resp = await _client.get(uri);
     _assertOk(resp);
     final data = jsonDecode(resp.body);
