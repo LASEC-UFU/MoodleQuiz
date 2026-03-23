@@ -25,18 +25,36 @@ class ProfessorHomePage extends StatefulWidget {
 
 class _ProfessorHomePageState extends State<ProfessorHomePage> {
   int _questionIndex = 0; // índice da questão atualmente selecionada
+  late ProfessorController _prof;
+  QuizStatus? _prevStatus;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ProfessorController>().startPolling();
+      _prof = context.read<ProfessorController>();
+      _prevStatus = _prof.quizState.status;
+      _prof.addListener(_onProfessorStateChanged);
+      _prof.startPolling();
     });
+  }
+
+  /// Quando a questão passa de ativa → encerrada, avança automaticamente
+  /// para a próxima questão na lista (se existir).
+  void _onProfessorStateChanged() {
+    final status = _prof.quizState.status;
+    if (_prevStatus == QuizStatus.active &&
+        status != QuizStatus.active &&
+        _questionIndex < _prof.questions.length - 1) {
+      setState(() => _questionIndex += 1);
+    }
+    _prevStatus = status;
   }
 
   @override
   void dispose() {
-    context.read<ProfessorController>().stopPolling();
+    _prof.removeListener(_onProfessorStateChanged);
+    _prof.stopPolling();
     super.dispose();
   }
 
@@ -53,15 +71,13 @@ class _ProfessorHomePageState extends State<ProfessorHomePage> {
                       prof: prof,
                       auth: auth,
                       questionIndex: _questionIndex,
-                      onIndexChanged: (i) =>
-                          setState(() => _questionIndex = i),
+                      onIndexChanged: (i) => setState(() => _questionIndex = i),
                     )
                   : _MobileLayout(
                       prof: prof,
                       auth: auth,
                       questionIndex: _questionIndex,
-                      onIndexChanged: (i) =>
-                          setState(() => _questionIndex = i),
+                      onIndexChanged: (i) => setState(() => _questionIndex = i),
                     ),
             ),
           ),
@@ -100,8 +116,7 @@ class _DesktopLayout extends StatelessWidget {
             onSelect: onIndexChanged,
           ),
         ),
-        const VerticalDivider(
-            width: 1, color: AppTheme.bgCard),
+        const VerticalDivider(width: 1, color: AppTheme.bgCard),
         // Painel principal – controles
         Expanded(
           child: _ControlPanel(
@@ -197,15 +212,15 @@ class _ProfessorAppBar extends StatelessWidget {
               gradient: AppTheme.primaryGradient,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.school_rounded,
-                color: Colors.white, size: 20),
+            child:
+                const Icon(Icons.school_rounded, color: Colors.white, size: 20),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               prof.quizState.quizTitle.isNotEmpty
-                ? prof.quizState.quizTitle
-                : AppConfig.appName,
+                  ? prof.quizState.quizTitle
+                  : AppConfig.appName,
               style: const TextStyle(
                   color: AppTheme.textPrimary,
                   fontWeight: FontWeight.w800,
@@ -221,8 +236,7 @@ class _ProfessorAppBar extends StatelessWidget {
             onPressed: () => context.go(AppRouter.professorQrCode),
           ),
           IconButton(
-            icon: const Icon(Icons.bar_chart_rounded,
-                color: AppTheme.accent),
+            icon: const Icon(Icons.bar_chart_rounded, color: AppTheme.accent),
             tooltip: 'Ver Ranking',
             onPressed: () => context.push(AppRouter.professorRank),
           ),
@@ -276,8 +290,7 @@ class _QuestionListPanel extends StatelessWidget {
       itemCount: questions.length,
       itemBuilder: (_, i) {
         final q = questions[i];
-        final isActive =
-            quizState.currentPage == q.page && quizState.isActive;
+        final isActive = quizState.currentPage == q.page && quizState.isActive;
         final isSelected = i == selectedIndex;
 
         return GestureDetector(
@@ -288,12 +301,12 @@ class _QuestionListPanel extends StatelessWidget {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               gradient: isActive ? AppTheme.primaryGradient : null,
-              color: isActive ? null : (isSelected ? AppTheme.bgCard : AppTheme.bgCardAlt),
+              color: isActive
+                  ? null
+                  : (isSelected ? AppTheme.bgCard : AppTheme.bgCardAlt),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: isSelected
-                    ? AppTheme.primary
-                    : Colors.transparent,
+                color: isSelected ? AppTheme.primary : Colors.transparent,
                 width: 2,
               ),
             ),
@@ -326,13 +339,10 @@ class _QuestionListPanel extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: isActive
-                          ? Colors.white
-                          : AppTheme.textPrimary,
+                      color: isActive ? Colors.white : AppTheme.textPrimary,
                       fontSize: 13,
-                      fontWeight: isSelected
-                          ? FontWeight.w700
-                          : FontWeight.w500,
+                      fontWeight:
+                          isSelected ? FontWeight.w700 : FontWeight.w500,
                     ),
                   ),
                 ),
@@ -341,8 +351,10 @@ class _QuestionListPanel extends StatelessWidget {
                       color: Colors.white, size: 18),
               ],
             ),
-          ).animate(delay: Duration(milliseconds: i * 40)).fadeIn().slideX(
-              begin: -0.1, duration: 300.ms),
+          )
+              .animate(delay: Duration(milliseconds: i * 40))
+              .fadeIn()
+              .slideX(begin: -0.1, duration: 300.ms),
         );
       },
     );
@@ -367,10 +379,9 @@ class _ControlPanel extends StatelessWidget {
     final state = prof.quizState;
     final questions = prof.questions;
     final hasQuestions = questions.isNotEmpty;
-    final selectedQ =
-        hasQuestions && selectedIndex < questions.length
-            ? questions[selectedIndex]
-            : null;
+    final selectedQ = hasQuestions && selectedIndex < questions.length
+        ? questions[selectedIndex]
+        : null;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -395,8 +406,8 @@ class _ControlPanel extends StatelessWidget {
             OutlinedButton.icon(
               onPressed: prof.isLoading ? null : () => prof.extendQuestion(15),
               icon: const Icon(Icons.add_alarm_rounded, color: AppTheme.accent),
-              label: const Text('+15s',
-                  style: TextStyle(color: AppTheme.accent)),
+              label:
+                  const Text('+15s', style: TextStyle(color: AppTheme.accent)),
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: AppTheme.accent),
                 minimumSize: const Size(double.infinity, 44),
@@ -466,8 +477,7 @@ class _ControlPanel extends StatelessWidget {
           // ── Ver Ranking ──────────────────────────────────────────────
           OutlinedButton.icon(
             onPressed: () => context.push(AppRouter.professorRank),
-            icon: const Icon(Icons.leaderboard_rounded,
-                color: AppTheme.accent),
+            icon: const Icon(Icons.leaderboard_rounded, color: AppTheme.accent),
             label: const Text('Ver Ranking Completo',
                 style: TextStyle(color: AppTheme.accent)),
             style: OutlinedButton.styleFrom(
@@ -482,14 +492,12 @@ class _ControlPanel extends StatelessWidget {
 
           // ── Reset quiz ───────────────────────────────────────────────
           TextButton.icon(
-            onPressed: prof.isLoading
-                ? null
-                : () => _confirmReset(context, prof),
+            onPressed:
+                prof.isLoading ? null : () => _confirmReset(context, prof),
             icon: const Icon(Icons.refresh_rounded,
                 color: AppTheme.textSecondary, size: 18),
             label: const Text('Reiniciar Quiz',
-                style:
-                    TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
+                style: TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
           ),
 
           // ── Erro ─────────────────────────────────────────────────────
@@ -500,12 +508,11 @@ class _ControlPanel extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppTheme.danger.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                    color: AppTheme.danger.withValues(alpha: 0.4)),
+                border:
+                    Border.all(color: AppTheme.danger.withValues(alpha: 0.4)),
               ),
               child: Text(prof.error!,
-                  style: const TextStyle(
-                      color: AppTheme.danger, fontSize: 13)),
+                  style: const TextStyle(color: AppTheme.danger, fontSize: 13)),
             ),
           ],
 
@@ -562,16 +569,27 @@ class _StatusCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, color, icon) = switch (state.status) {
-      QuizStatus.active => ('Questão Ativa', AppTheme.success, Icons.play_circle_fill),
-      QuizStatus.closed => ('Questão Encerrada', AppTheme.warning, Icons.pause_circle_filled),
-      QuizStatus.finished => ('Quiz Finalizado', AppTheme.accent, Icons.emoji_events),
+      QuizStatus.active => (
+          'Questão Ativa',
+          AppTheme.success,
+          Icons.play_circle_fill
+        ),
+      QuizStatus.closed => (
+          'Questão Encerrada',
+          AppTheme.warning,
+          Icons.pause_circle_filled
+        ),
+      QuizStatus.finished => (
+          'Quiz Finalizado',
+          AppTheme.accent,
+          Icons.emoji_events
+        ),
       _ => ('Aguardando Início', AppTheme.textSecondary, Icons.hourglass_empty),
     };
 
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: AppTheme.cardDecoration(
-          glowing: state.isActive),
+      decoration: AppTheme.cardDecoration(glowing: state.isActive),
       child: Row(
         children: [
           Icon(icon, color: color, size: 24),
@@ -581,9 +599,7 @@ class _StatusCard extends StatelessWidget {
             children: [
               Text(label,
                   style: TextStyle(
-                      color: color,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15)),
+                      color: color, fontWeight: FontWeight.w700, fontSize: 15)),
               if (state.currentPage >= 0)
                 Text(
                   'Questão ${state.currentPage + 1}'
@@ -648,17 +664,13 @@ class _DurationSelector extends StatelessWidget {
                   color: selected ? null : AppTheme.bgCard,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: selected
-                        ? AppTheme.primary
-                        : AppTheme.bgCardAlt,
+                    color: selected ? AppTheme.primary : AppTheme.bgCardAlt,
                   ),
                 ),
                 child: Text(
                   '${sec}s',
                   style: TextStyle(
-                    color: selected
-                        ? Colors.white
-                        : AppTheme.textSecondary,
+                    color: selected ? Colors.white : AppTheme.textSecondary,
                     fontWeight: FontWeight.w700,
                     fontSize: 13,
                   ),
@@ -675,8 +687,7 @@ class _DurationSelector extends StatelessWidget {
 class _SelectedQuestionCard extends StatelessWidget {
   final QuestionEntity question;
   final int index;
-  const _SelectedQuestionCard(
-      {required this.question, required this.index});
+  const _SelectedQuestionCard({required this.question, required this.index});
 
   @override
   Widget build(BuildContext context) {
@@ -707,13 +718,11 @@ class _SelectedQuestionCard extends StatelessWidget {
             spacing: 6,
             runSpacing: 6,
             children: question.choices.asMap().entries.map((e) {
-              final label =
-                  String.fromCharCode(65 + e.key); // A, B, C…
+              final label = String.fromCharCode(65 + e.key); // A, B, C…
               final choice = e.value;
               final isCorrect = choice.isCorrect;
               return Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: isCorrect
                       ? AppTheme.success.withValues(alpha: 0.18)
@@ -740,9 +749,8 @@ class _SelectedQuestionCard extends StatelessWidget {
                         color: isCorrect
                             ? AppTheme.success
                             : AppTheme.textSecondary,
-                        fontWeight: isCorrect
-                            ? FontWeight.w700
-                            : FontWeight.normal,
+                        fontWeight:
+                            isCorrect ? FontWeight.w700 : FontWeight.normal,
                       ),
                     ),
                   ],
@@ -786,8 +794,7 @@ class _ActionButton extends StatelessWidget {
       style: ElevatedButton.styleFrom(
         backgroundColor: color,
         minimumSize: const Size(double.infinity, 52),
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -865,9 +872,7 @@ class _MiniRanking extends StatelessWidget {
             AppTheme.textSecondary,
             AppTheme.textSecondary,
           ];
-          final rankColor = e.key < 3
-              ? colors[e.key]
-              : AppTheme.textSecondary;
+          final rankColor = e.key < 3 ? colors[e.key] : AppTheme.textSecondary;
           return Padding(
             padding: const EdgeInsets.only(bottom: 6),
             child: Row(

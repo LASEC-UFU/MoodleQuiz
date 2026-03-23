@@ -34,6 +34,7 @@ class ProfessorController extends ChangeNotifier {
   List<ScoreEntity> _scores = [];
   int _selectedDuration = 30;
   bool _isLoading = false;
+  bool _isRefreshing = false; // guard contra chamadas simultâneas ao GSheets
   String? _error;
   List<String> _log = [];
   Timer? _pollTimer;
@@ -133,7 +134,7 @@ class ProfessorController extends ChangeNotifier {
         quizName: _selectedQuiz!.name,
         quizId: _selectedQuiz!.id,
       );
-      await _refreshState();
+      await _refreshStateAfterWrite();
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -157,7 +158,7 @@ class ProfessorController extends ChangeNotifier {
         quizName: state.quizTitle,
         quizId: _selectedQuiz?.id ?? 0,
       );
-      await _refreshState();
+      await _refreshStateAfterWrite();
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -170,7 +171,7 @@ class ProfessorController extends ChangeNotifier {
     _error = null;
     try {
       await _closeQuestion(AppConfig.teacherToken);
-      await _refreshState();
+      await _refreshStateAfterWrite();
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -183,7 +184,7 @@ class ProfessorController extends ChangeNotifier {
     _error = null;
     try {
       await _quizRepo.setFinished(AppConfig.teacherToken);
-      await _refreshState();
+      await _refreshStateAfterWrite();
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -196,7 +197,7 @@ class ProfessorController extends ChangeNotifier {
     try {
       await _quizRepo.resetQuiz(AppConfig.teacherToken);
       _scores = [];
-      await _refreshState();
+      await _refreshStateAfterWrite();
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -209,8 +210,9 @@ class ProfessorController extends ChangeNotifier {
   void startPolling() {
     _pollTimer?.cancel();
     _refreshState();
+    // 3 s é suficiente para o professor e evita sobrecarregar as quotas do Apps Script
     _pollTimer =
-        Timer.periodic(const Duration(seconds: 2), (_) => _refreshState());
+        Timer.periodic(const Duration(seconds: 3), (_) => _refreshState());
   }
 
   void stopPolling() {
@@ -228,7 +230,9 @@ class ProfessorController extends ChangeNotifier {
   Future<void> _loadAllQuestions(UserEntity user, int attemptId) async {
     try {
       final questions = await _quizRepo.loadQuestionsWithAnswers(
-        user, attemptId, 0,
+        user,
+        attemptId,
+        0,
         onLog: _addLog,
       );
       _questions = questions;
@@ -241,6 +245,9 @@ class ProfessorController extends ChangeNotifier {
   }
 
   Future<void> _refreshState() async {
+    // Impede chamadas simultâneas ao GSheets (causa "Too many simultaneous invocations")
+    if (_isRefreshing) return;
+    _isRefreshing = true;
     try {
       _quizState = await _quizRepo.getQuizState();
       _scores = await _quizRepo.getScores();
@@ -249,7 +256,15 @@ class ProfessorController extends ChangeNotifier {
     } catch (e) {
       _error = e.toString();
       notifyListeners();
+    } finally {
+      _isRefreshing = false;
     }
+  }
+
+  /// Aguarda o GSheets confirmar a escrita antes de ler o novo estado.
+  Future<void> _refreshStateAfterWrite() async {
+    await Future.delayed(const Duration(milliseconds: 800));
+    await _refreshState();
   }
 
   void clearError() {
