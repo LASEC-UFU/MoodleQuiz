@@ -92,64 +92,14 @@ class MoodleStateDatasource implements IStateDatasource {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  /// Buffer de logs para debug - facilita copiar todo o relatório
-  final StringBuffer _debugLog = StringBuffer();
-
-  void _log(String msg) {
-    final line = '[MoodleState] $msg';
-    print(line);
-    _debugLog.writeln(line);
-  }
-
-  void _logSeparator() {
-    const sep =
-        '═══════════════════════════════════════════════════════════════════';
-    print(sep);
-    _debugLog.writeln(sep);
-  }
-
-  String getDebugLog() => _debugLog.toString();
-
   /// Extrai string de forma segura de valores do Moodle que podem ser Map, String, etc.
-  String _safeString(dynamic value, [String context = '']) {
-    if (value == null) {
-      if (context.isNotEmpty) _log('  → $context: NULL');
-      return '';
-    }
-
-    if (value is String) {
-      if (context.isNotEmpty) _log('  → $context: String = "$value"');
-      return value;
-    }
-
-    if (value is num) {
-      if (context.isNotEmpty) _log('  → $context: num = $value');
-      return value.toString();
-    }
-
+  String _safeString(dynamic value) {
+    if (value == null) return '';
+    if (value is String) return value;
+    if (value is num) return value.toString();
     if (value is Map) {
-      if (context.isNotEmpty) {
-        _log('  → $context: Map (keys: ${value.keys.join(", ")})');
-        _log('     CONTEÚDO COMPLETO DO MAP: $value');
-      }
-      // Tenta diferentes chaves comuns do Moodle
-      final result = _safeString(
-          value['value'] ?? value['text'] ?? value['content'] ?? '', '');
-      if (context.isNotEmpty) _log('     EXTRAÍDO: "$result"');
-      return result;
-    }
-
-    if (value is List) {
-      if (context.isNotEmpty) {
-        _log('  → $context: List com ${value.length} items');
-        _log('     CONTEÚDO COMPLETO DA LISTA: $value');
-      }
-      return '';
-    }
-
-    if (context.isNotEmpty) {
-      _log('  → $context: TIPO DESCONHECIDO (${value.runtimeType})');
-      _log('     VALOR RAW: $value');
+      return _safeString(
+          value['value'] ?? value['text'] ?? value['content'] ?? '');
     }
     return '';
   }
@@ -158,42 +108,24 @@ class MoodleStateDatasource implements IStateDatasource {
 
   /// Busca o dataid da Database "mq_state" no curso. Cacheia o resultado.
   Future<void> _ensureDataId(String baseUrl, String token, int courseId) async {
-    _logSeparator();
-    _log('INÍCIO: Buscando Database "mq_state" no curso $courseId');
-    _logSeparator();
-
-    // Se já está em cache para este curso, usa
     if (_dataidByCourse.containsKey(courseId)) {
       _dataid = _dataidByCourse[courseId];
       _currentCourseId = courseId;
-      _log('✅ CACHE HIT: Database já conhecida, dataid=$_dataid');
       return;
     }
 
-    // Busca Database activities. Tenta primeiro com courseId específico;
-    // se não encontrar (aluno sem permissão de listagem no curso), tenta sem
-    // filtro (retorna todos os databases acessíveis ao usuário).
+    // Tenta primeiro com courseId específico; se não encontrar, tenta sem filtro
+    // (retorna todos os databases acessíveis ao usuário).
     final candidateCourseIds = courseId > 0 ? [courseId, 0] : [0];
 
     for (final cid in candidateCourseIds) {
-      _log(cid > 0
-          ? 'Chamando API: mod_data_get_databases_by_courses (courseId=$cid)...'
-          : 'Chamando API: mod_data_get_databases_by_courses (sem filtro de curso)...');
-
       final databases =
           await _moodle.getDataActivitiesByCourse(baseUrl, token, cid);
-      _log('Resposta: ${databases.length} databases encontradas');
 
-      for (int i = 0; i < databases.length; i++) {
-        final db = databases[i];
-        final name = _safeString(db['name'], 'Database[$i].name');
-        _log('  Database #$i: id=${db["id"]}, name="$name"');
-
+      for (final db in databases) {
+        final name = _safeString(db['name']);
         if (name.toLowerCase() == 'mq_state') {
           final id = (db['id'] as num?)?.toInt();
-          _logSeparator();
-          _log('✅ ENCONTROU mq_state! Database ID = $id');
-          _logSeparator();
           if (id != null && id > 0) {
             _dataid = id;
             _dataidByCourse[courseId] = id;
@@ -202,13 +134,8 @@ class MoodleStateDatasource implements IStateDatasource {
           }
         }
       }
-
-      _log('mq_state não encontrada nesta busca.');
     }
 
-    _logSeparator();
-    _log('❌ ERRO: Database "mq_state" NÃO ENCONTRADA');
-    _logSeparator();
     throw StateException(
         'Atividade Database "mq_state" não encontrada no curso.\n'
         'Crie uma atividade Database com nome exatamente "mq_state" (minúsculas) '
@@ -216,10 +143,6 @@ class MoodleStateDatasource implements IStateDatasource {
   }
 
   Future<void> _ensureFields(String baseUrl, String token, int courseId) async {
-    _logSeparator();
-    _log('INÍCIO: Buscando campos da Database mq_state');
-    _logSeparator();
-
     // Se mudou de curso, limpa cache de fields
     if (_currentCourseId != courseId) {
       _typeFieldId = null;
@@ -230,17 +153,12 @@ class MoodleStateDatasource implements IStateDatasource {
       _correctCountFieldId = null;
       _pagesFieldId = null;
       _stateEntryId = null;
-      _log('Cache de fields limpo (curso mudou)');
     }
 
-    if (_typeFieldId != null) {
-      _log('✅ CACHE HIT: Campos já conhecidos');
-      return;
-    }
+    if (_typeFieldId != null) return;
 
     await _ensureDataId(baseUrl, token, courseId);
 
-    _log('Chamando API: mod_data_get_fields para dataid=$_dataid');
     final result = await _callWs(
       baseUrl,
       token,
@@ -249,55 +167,34 @@ class MoodleStateDatasource implements IStateDatasource {
     );
 
     final fields = result['fields'] as List? ?? [];
-    _log('Resposta: ${fields.length} campos encontrados');
-    _log('');
 
-    for (int i = 0; i < fields.length; i++) {
-      final f = fields[i];
-      _log('Campo #$i:');
-      _log('  id: ${f["id"]}');
-      _log(
-          '  type: ${f["type"]}'); // Mostra o tipo do campo (text, textarea, number, etc)
-      _log('  Analisando campo "name"...');
-
-      final name = _safeString(f['name'], 'Field[$i].name');
-      _log('  Nome final extraído: "$name"');
-
+    for (final f in fields) {
+      final name = _safeString(f['name']);
       final id = (f['id'] as num).toInt();
 
       switch (name) {
         case 'type':
           _typeFieldId = id;
-          _log('  ✅ Mapeado: type → fieldId $id');
           break;
         case 'state_json':
           _stateJsonFieldId = id;
-          _log('  ✅ Mapeado: state_json → fieldId $id (tipo: ${f["type"]})');
           break;
         case 'student_id':
           _studentIdFieldId = id;
-          _log('  ✅ Mapeado: student_id → fieldId $id');
           break;
         case 'student_name':
           _studentNameFieldId = id;
-          _log('  ✅ Mapeado: student_name → fieldId $id');
           break;
         case 'score':
           _scoreFieldId = id;
-          _log('  ✅ Mapeado: score → fieldId $id');
           break;
         case 'correct_count':
           _correctCountFieldId = id;
-          _log('  ✅ Mapeado: correct_count → fieldId $id');
           break;
         case 'pages':
           _pagesFieldId = id;
-          _log('  ✅ Mapeado: pages → fieldId $id (tipo: ${f["type"]})');
           break;
-        default:
-          _log('  ⚠️  Campo ignorado (não usado pelo sistema)');
       }
-      _log('');
     }
 
     final missing = <String>[];
@@ -309,21 +206,6 @@ class MoodleStateDatasource implements IStateDatasource {
     if (_correctCountFieldId == null) missing.add('correct_count');
     if (_pagesFieldId == null) missing.add('pages');
 
-    _logSeparator();
-    if (missing.isEmpty) {
-      _log('✅ SUCESSO: Todos os 7 campos obrigatórios encontrados!');
-      _log('  - type: fieldId $_typeFieldId');
-      _log('  - state_json: fieldId $_stateJsonFieldId');
-      _log('  - student_id: fieldId $_studentIdFieldId');
-      _log('  - student_name: fieldId $_studentNameFieldId');
-      _log('  - score: fieldId $_scoreFieldId');
-      _log('  - correct_count: fieldId $_correctCountFieldId');
-      _log('  - pages: fieldId $_pagesFieldId');
-    } else {
-      _log('❌ ERRO: Campos ausentes: ${missing.join(", ")}');
-    }
-    _logSeparator();
-
     if (missing.isNotEmpty) {
       throw StateException(
           'Campos ausentes em mq_state: ${missing.join(', ')}.\n'
@@ -334,10 +216,6 @@ class MoodleStateDatasource implements IStateDatasource {
   /// Busca todas as entradas do banco e devolve como lista de mapas internos.
   Future<List<Map<String, dynamic>>> _fetchAllEntries(
       String baseUrl, String token) async {
-    _logSeparator();
-    _log('INÍCIO: Buscando entries da Database (dataid=$_dataid)');
-    _logSeparator();
-
     final result = await _callWs(
       baseUrl,
       token,
@@ -351,15 +229,10 @@ class MoodleStateDatasource implements IStateDatasource {
     );
 
     final entries = result['entries'] as List? ?? [];
-    _log('Resposta: ${entries.length} entries encontradas');
-    _log('');
 
     return entries.map((entry) {
       final entryId = (entry['id'] as num?)?.toInt() ?? 0;
-      _log('Entry ID $entryId:');
-
       final contents = entry['contents'] as List? ?? [];
-      _log('  Tem ${contents.length} campos preenchidos');
 
       final map = <String, dynamic>{
         '_entry_id': entryId,
@@ -372,53 +245,20 @@ class MoodleStateDatasource implements IStateDatasource {
         'pages': '',
       };
 
-      for (int i = 0; i < contents.length; i++) {
-        final c = contents[i];
+      for (final c in contents) {
         final fid = (c['fieldid'] as num?)?.toInt();
+        final val = _safeString(c['content']);
 
-        _log('  Campo fieldId=$fid:');
-
-        // Identifica qual campo é este
-        String fieldName = '?';
-        if (fid == _typeFieldId) fieldName = 'type';
-        if (fid == _stateJsonFieldId) fieldName = 'state_json';
-        if (fid == _studentIdFieldId) fieldName = 'student_id';
-        if (fid == _studentNameFieldId) fieldName = 'student_name';
-        if (fid == _scoreFieldId) fieldName = 'score';
-        if (fid == _correctCountFieldId) fieldName = 'correct_count';
-        if (fid == _pagesFieldId) fieldName = 'pages';
-
-        _log('    Nome: $fieldName');
-        _log('    Analisando conteúdo...');
-
-        final val = _safeString(c['content'], 'Entry[$entryId].$fieldName');
-
-        if (fid == _typeFieldId) {
-          map['type'] = val;
-        }
-        if (fid == _stateJsonFieldId) {
-          map['state_json'] = val;
-        }
-        if (fid == _studentIdFieldId) {
-          map['student_id'] = val;
-        }
-        if (fid == _studentNameFieldId) {
-          map['student_name'] = val;
-        }
-        if (fid == _scoreFieldId) {
-          map['score'] = int.tryParse(val) ?? 0;
-        }
-        if (fid == _correctCountFieldId) {
+        if (fid == _typeFieldId) map['type'] = val;
+        if (fid == _stateJsonFieldId) map['state_json'] = val;
+        if (fid == _studentIdFieldId) map['student_id'] = val;
+        if (fid == _studentNameFieldId) map['student_name'] = val;
+        if (fid == _scoreFieldId) map['score'] = int.tryParse(val) ?? 0;
+        if (fid == _correctCountFieldId)
           map['correct_count'] = int.tryParse(val) ?? 0;
-        }
-        if (fid == _pagesFieldId) {
-          map['pages'] = val;
-        }
+        if (fid == _pagesFieldId) map['pages'] = val;
       }
 
-      _log(
-          '  Entry $entryId mapeada: type=${map["type"]}, student_id=${map["student_id"]}');
-      _log('');
       return map;
     }).toList();
   }
@@ -428,14 +268,9 @@ class MoodleStateDatasource implements IStateDatasource {
   @override
   Future<Map<String, dynamic>> getState(
       String baseUrl, String token, int courseId) async {
-    _debugLog.clear(); // Limpa log anterior
-
     try {
       await _ensureFields(baseUrl, token, courseId);
       final entries = await _fetchAllEntries(baseUrl, token);
-
-      _logSeparator();
-      _log('BUSCANDO entry do tipo "state"...');
 
       final stateEntry = entries.firstWhere(
         (e) => e['type'] == 'state',
@@ -443,93 +278,40 @@ class MoodleStateDatasource implements IStateDatasource {
       );
 
       if (stateEntry.isEmpty) {
-        // Verifica se existe entry órfã (type vazio, sem student_id) — pode ser
-        // uma entry de estado criada anteriormente sem o campo type preenchido.
+        // Entry órfã sem type preenchido — será atualizada no próximo save
         final orphan = entries.firstWhere(
           (e) =>
               (e['type'] == '' || e['type'] == null) &&
               (e['student_id'] == '' || e['student_id'] == null),
           orElse: () => {},
         );
-
         if (orphan.isNotEmpty) {
           _stateEntryId = orphan['_entry_id'] as int?;
-          _log(
-              '⚠️  Nenhuma entry tipo "state", mas encontrada entry órfã ID $_stateEntryId. Será atualizada no próximo save.');
-        } else {
-          _log(
-              '⚠️  Nenhuma entry tipo "state" encontrada. Retornando estado vazio.');
         }
-
-        _logSeparator();
-        _printFullLog();
         return Map.from(_emptyState);
       }
 
-      _log('✅ Entry tipo "state" encontrada: ID ${stateEntry["_entry_id"]}');
       _stateEntryId = stateEntry['_entry_id'] as int?;
-
       final raw = stateEntry['state_json'] as String? ?? '';
-      _log('JSON bruto: ${raw.length} caracteres');
 
       if (raw.isNotEmpty) {
         try {
-          final parsed = Map<String, dynamic>.from(jsonDecode(raw) as Map);
-          _log('✅ JSON parseado com sucesso! Keys: ${parsed.keys.join(", ")}');
-          _logSeparator();
-          _printFullLog();
-          return parsed;
-        } catch (e) {
-          _log('❌ ERRO ao parsear JSON: $e');
-          _logSeparator();
-          _printFullLog();
-        }
+          return Map<String, dynamic>.from(jsonDecode(raw) as Map);
+        } catch (_) {}
       }
 
-      _log('Retornando estado vazio (JSON vazio ou inválido)');
-      _logSeparator();
-      _printFullLog();
       return Map.from(_emptyState);
-    } catch (e, stack) {
-      _logSeparator();
-      _log('❌ ERRO FATAL: $e');
-      _log('Stack trace: $stack');
-      _logSeparator();
-      _printFullLog();
+    } catch (e) {
       rethrow;
     }
   }
 
-  void _printFullLog() {
-    print('\n\n');
-    print(
-        '╔════════════════════════════════════════════════════════════════════╗');
-    print(
-        '║         LOG COMPLETO - COPIE E COLE TUDO ABAIXO DAQUI            ║');
-    print(
-        '╚════════════════════════════════════════════════════════════════════╝');
-    print(_debugLog.toString());
-    print(
-        '╔════════════════════════════════════════════════════════════════════╗');
-    print(
-        '║                     FIM DO LOG                                    ║');
-    print(
-        '╚════════════════════════════════════════════════════════════════════╝');
-    print('\n\n');
-  }
-
   Future<void> _writeState(
       String baseUrl, String token, Map<String, dynamic> state) async {
-    _log('_writeState: preparando dados...');
-
     final jsonStr = jsonEncode(state);
-    _log('  state_json (${jsonStr.length} chars)');
 
-    // O Moodle mod_data espera que os valores sejam JSON-encoded:
-    // - Strings simples: jsonEncode('state') → '"state"'
-    // - JSON strings (textarea): jsonEncode(jsonStr) → '"{\\"state\\"...}"'
-    //   Moodle faz json_decode no valor e armazena a string resultante.
-    //   Sem isso, JSON válido como {"state":"active"} vira stdClass e causa erro.
+    // O Moodle mod_data espera que os valores de textarea sejam JSON-encoded:
+    // jsonEncode(jsonStr) evita que PHP trate o JSON como objeto stdClass.
     final data = {
       'data[0][fieldid]': _typeFieldId!.toString(),
       'data[0][value]': jsonEncode('state'),
@@ -548,43 +330,16 @@ class MoodleStateDatasource implements IStateDatasource {
     };
 
     if (_stateEntryId == null) {
-      _log('  stateEntryId é null → chamando mod_data_add_entry');
-      _log('  databaseid: $_dataid');
-
-      final params = {
+      final res = await _callWs(baseUrl, token, 'mod_data_add_entry', {
         'databaseid': _dataid!.toString(),
         ...data,
-      };
-
-      _log('  Parâmetros completos sendo enviados:');
-      params.forEach((key, value) {
-        _log('    $key = "$value" (${value.runtimeType})');
       });
-
-      final res = await _callWs(baseUrl, token, 'mod_data_add_entry', params);
-
-      _log('  Resposta de mod_data_add_entry:');
-      _log('    Tipo: ${res.runtimeType}');
-      _log('    Keys: ${res.keys.join(", ")}');
-      _log('    CONTEÚDO COMPLETO: $res');
-
-      if (res.containsKey('newentryid')) {
-        _log(
-            '    Campo "newentryid": tipo=${res["newentryid"].runtimeType}, valor=${res["newentryid"]}');
-      }
-
       _stateEntryId = (res['newentryid'] as num?)?.toInt();
-      _log('  stateEntryId extraído: $_stateEntryId');
     } else {
-      _log(
-          '  stateEntryId existe: $_stateEntryId → chamando mod_data_update_entry');
-
       await _callWs(baseUrl, token, 'mod_data_update_entry', {
         'entryid': _stateEntryId!.toString(),
         ...data,
       });
-
-      _log('  mod_data_update_entry concluído');
     }
   }
 
@@ -599,54 +354,27 @@ class MoodleStateDatasource implements IStateDatasource {
     required String quizName,
     required int quizId,
   }) async {
-    _debugLog.clear(); // Limpa log anterior
+    await _ensureFields(baseUrl, token, courseId);
 
-    try {
-      _logSeparator();
-      _log('INÍCIO: releaseQuestion');
-      _log('  courseId: $courseId');
-      _log('  page: $page');
-      _log('  duration: $duration');
-      _log('  totalPages: $totalPages');
-      _log('  quizName: $quizName');
-      _log('  quizId: $quizId');
-      _logSeparator();
-
-      await _ensureFields(baseUrl, token, courseId);
-
-      // Garante que temos o stateEntryId se já existe
-      if (_stateEntryId == null) {
-        _log('stateEntryId é null, chamando getState...');
-        await getState(baseUrl, token, courseId);
-      }
-
-      final endsAt = DateTime.now()
-          .add(Duration(seconds: duration))
-          .toUtc()
-          .toIso8601String();
-
-      _log('Gravando novo estado: active, página $page');
-      await _writeState(baseUrl, token, {
-        'state': 'active',
-        'current_page': page,
-        'total_pages': totalPages,
-        'quiz_id': quizId,
-        'course_id': courseId,
-        'quiz_name': quizName,
-        'ends_at': endsAt,
-      });
-
-      _log('✅ releaseQuestion concluído com sucesso!');
-      _logSeparator();
-      _printFullLog();
-    } catch (e, stack) {
-      _logSeparator();
-      _log('❌ ERRO em releaseQuestion: $e');
-      _log('Stack trace: $stack');
-      _logSeparator();
-      _printFullLog();
-      rethrow;
+    // Garante que temos o stateEntryId se já existe
+    if (_stateEntryId == null) {
+      await getState(baseUrl, token, courseId);
     }
+
+    final endsAt = DateTime.now()
+        .add(Duration(seconds: duration))
+        .toUtc()
+        .toIso8601String();
+
+    await _writeState(baseUrl, token, {
+      'state': 'active',
+      'current_page': page,
+      'total_pages': totalPages,
+      'quiz_id': quizId,
+      'course_id': courseId,
+      'quiz_name': quizName,
+      'ends_at': endsAt,
+    });
   }
 
   @override
@@ -783,17 +511,6 @@ class MoodleStateDatasource implements IStateDatasource {
     String function,
     Map<String, String> params,
   ) async {
-    _log('_callWs: $function');
-    _log('  Parâmetros recebidos (${params.length} items):');
-    params.forEach((key, value) {
-      if (value.length > 100) {
-        _log(
-            '    $key = "${value.substring(0, 100)}..." (${value.length} chars)');
-      } else {
-        _log('    $key = "$value"');
-      }
-    });
-
     final uri = Uri.parse('$baseUrl/webservice/rest/server.php');
 
     final body = {
@@ -803,7 +520,6 @@ class MoodleStateDatasource implements IStateDatasource {
       ...params,
     };
 
-    _log('  Fazendo requisição HTTP (POST)...');
     final resp = await _client.post(
       uri,
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -811,31 +527,19 @@ class MoodleStateDatasource implements IStateDatasource {
     );
 
     if (resp.statusCode != 200) {
-      _log('  ❌ HTTP ${resp.statusCode}');
       throw StateException('Erro HTTP ${resp.statusCode}');
     }
 
-    _log('  ✅ HTTP 200 OK');
-    _log('  Body length: ${resp.body.length} bytes');
-    _log('  Body: ${resp.body}');
-
     final data = jsonDecode(resp.body);
-    _log('  Após jsonDecode: tipo=${data.runtimeType}');
 
     if (data is Map && data['exception'] != null) {
-      _log('  ❌ Moodle Exception: ${data["message"]}');
       throw StateException(
         data['message']?.toString() ?? 'Erro desconhecido no Moodle',
         code: data['errorcode']?.toString(),
       );
     }
 
-    if (data is Map<String, dynamic>) {
-      _log('  Retornando Map com ${data.length} keys');
-      return data;
-    }
-
-    _log('  Retornando Map wrapper');
+    if (data is Map<String, dynamic>) return data;
     return {'result': data};
   }
 }
