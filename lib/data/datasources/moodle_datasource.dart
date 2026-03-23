@@ -52,17 +52,38 @@ class MoodleDatasource implements IMoodleDatasource {
   @override
   Future<Map<String, dynamic>> login(
       String baseUrl, String username, String password) async {
-    final url = Uri.parse('$baseUrl/login/token.php');
-    final resp = await _client.post(url, body: {
-      'username': username,
-      'password': password,
-      'service': 'moodle_mobile_app',
-    });
-    _assertOk(resp);
-    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    Map<String, dynamic> data;
+
+    if (kIsWeb && AppConfig.isConfigured) {
+      // Na web usamos o proxy GAS para evitar CORS no login
+      final uri = Uri.parse(AppConfig.gsheetScriptUrl).replace(
+        queryParameters: {
+          'action': 'moodleProxy',
+          'wsPath': '/login/token.php',
+          'baseUrl': baseUrl,
+          'username': username,
+          'password': password,
+          'service': 'moodle_mobile_app',
+        },
+      );
+      final resp = await _client.get(uri);
+      _assertOk(resp);
+      data = jsonDecode(resp.body) as Map<String, dynamic>;
+    } else {
+      final url = Uri.parse('$baseUrl/login/token.php');
+      final resp = await _client.post(url, body: {
+        'username': username,
+        'password': password,
+        'service': 'moodle_mobile_app',
+      });
+      _assertOk(resp);
+      data = jsonDecode(resp.body) as Map<String, dynamic>;
+    }
+
     if (data['error'] != null) throw MoodleException(data['error'].toString());
 
-    final token = data['token'] as String;
+    final token = data['token'] as String?;
+    if (token == null) throw MoodleException('Token não retornado pelo Moodle.');
 
     final siteInfo = await _callWs(
       baseUrl,

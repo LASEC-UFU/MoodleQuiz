@@ -345,13 +345,16 @@ function moodleProxy(e) {
   const baseUrl = params.baseUrl;
   if (!baseUrl) return { error: 'baseUrl obrigatório' };
 
-  // Monta os query params para o Moodle (tudo exceto 'action' e 'baseUrl')
+  // wsPath permite usar endpoints diferentes (ex: /login/token.php)
+  const wsPath = params.wsPath || '/webservice/rest/server.php';
+
+  // Monta os query params para o Moodle (tudo exceto 'action', 'baseUrl' e 'wsPath')
   const moodleParams = Object.keys(params)
-    .filter(k => k !== 'action' && k !== 'baseUrl')
+    .filter(k => k !== 'action' && k !== 'baseUrl' && k !== 'wsPath')
     .map(k => encodeURIComponent(k) + '=' + encodeURIComponent(params[k]))
     .join('&');
 
-  const url = baseUrl + '/webservice/rest/server.php?' + moodleParams;
+  const url = baseUrl + wsPath + '?' + moodleParams;
 
   const resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
   const body = resp.getContentText();

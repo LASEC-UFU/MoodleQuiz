@@ -30,7 +30,7 @@ class AuthRepositoryImpl implements IAuthRepository {
         functions.any((f) => _teacherFunctions.contains(f));
 
     return UserEntity(
-      id: (data['userId'] as num).toInt(),
+      id: (data['userId'] as num?)?.toInt() ?? 0,
       username: username,
       fullname: data['fullname']?.toString() ?? username,
       token: data['token'] as String,
