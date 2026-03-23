@@ -360,6 +360,13 @@ class MoodleStateDatasource implements IStateDatasource {
 
       final map = <String, dynamic>{
         '_entry_id': entryId,
+        'type': '',
+        'state_json': '',
+        'student_id': '',
+        'student_name': '',
+        'score': 0,
+        'correct_count': 0,
+        'pages': '',
       };
 
       for (int i = 0; i < contents.length; i++) {
@@ -515,22 +522,26 @@ class MoodleStateDatasource implements IStateDatasource {
     final jsonStr = jsonEncode(state);
     _log('  state_json (${jsonStr.length} chars)');
 
+    // O Moodle mod_data espera que os valores sejam JSON-encoded:
+    // - Strings simples: jsonEncode('state') → '"state"'
+    // - JSON strings (textarea): jsonEncode(jsonStr) → '"{\\"state\\"...}"'
+    //   Moodle faz json_decode no valor e armazena a string resultante.
+    //   Sem isso, JSON válido como {"state":"active"} vira stdClass e causa erro.
     final data = {
       'data[0][fieldid]': _typeFieldId!.toString(),
-      'data[0][value]': 'state',
+      'data[0][value]': jsonEncode('state'),
       'data[1][fieldid]': _stateJsonFieldId!.toString(),
-      'data[1][value]': jsonStr,
-      // campos de score ficam vazios na entrada de estado — Moodle aceita
+      'data[1][value]': jsonEncode(jsonStr),
       'data[2][fieldid]': _studentIdFieldId!.toString(),
-      'data[2][value]': '',
+      'data[2][value]': jsonEncode(''),
       'data[3][fieldid]': _studentNameFieldId!.toString(),
-      'data[3][value]': '',
+      'data[3][value]': jsonEncode(''),
       'data[4][fieldid]': _scoreFieldId!.toString(),
       'data[4][value]': '0',
       'data[5][fieldid]': _correctCountFieldId!.toString(),
       'data[5][value]': '0',
       'data[6][fieldid]': _pagesFieldId!.toString(),
-      'data[6][value]': '[]',
+      'data[6][value]': jsonEncode('[]'),
     };
 
     if (_stateEntryId == null) {
@@ -692,19 +703,19 @@ class MoodleStateDatasource implements IStateDatasource {
       await _callWs(baseUrl, token, 'mod_data_add_entry', {
         'databaseid': _dataid!.toString(),
         'data[0][fieldid]': _typeFieldId!.toString(),
-        'data[0][value]': 'score',
+        'data[0][value]': jsonEncode('score'),
         'data[1][fieldid]': _stateJsonFieldId!.toString(),
-        'data[1][value]': '',
+        'data[1][value]': jsonEncode(''),
         'data[2][fieldid]': _studentIdFieldId!.toString(),
-        'data[2][value]': studentId,
+        'data[2][value]': jsonEncode(studentId),
         'data[3][fieldid]': _studentNameFieldId!.toString(),
-        'data[3][value]': studentName,
+        'data[3][value]': jsonEncode(studentName),
         'data[4][fieldid]': _scoreFieldId!.toString(),
         'data[4][value]': score.toString(),
         'data[5][fieldid]': _correctCountFieldId!.toString(),
         'data[5][value]': correct ? '1' : '0',
         'data[6][fieldid]': _pagesFieldId!.toString(),
-        'data[6][value]': jsonEncode([page]),
+        'data[6][value]': jsonEncode(jsonEncode([page])),
       });
     } else {
       // Acumula — ignora se a página já foi submetida
@@ -724,19 +735,19 @@ class MoodleStateDatasource implements IStateDatasource {
       await _callWs(baseUrl, token, 'mod_data_update_entry', {
         'entryid': entryId.toString(),
         'data[0][fieldid]': _typeFieldId!.toString(),
-        'data[0][value]': 'score',
+        'data[0][value]': jsonEncode('score'),
         'data[1][fieldid]': _stateJsonFieldId!.toString(),
-        'data[1][value]': '',
+        'data[1][value]': jsonEncode(''),
         'data[2][fieldid]': _studentIdFieldId!.toString(),
-        'data[2][value]': studentId,
+        'data[2][value]': jsonEncode(studentId),
         'data[3][fieldid]': _studentNameFieldId!.toString(),
-        'data[3][value]': studentName,
+        'data[3][value]': jsonEncode(studentName),
         'data[4][fieldid]': _scoreFieldId!.toString(),
         'data[4][value]': newScore.toString(),
         'data[5][fieldid]': _correctCountFieldId!.toString(),
         'data[5][value]': newCorrect.toString(),
         'data[6][fieldid]': _pagesFieldId!.toString(),
-        'data[6][value]': jsonEncode(newPages),
+        'data[6][value]': jsonEncode(jsonEncode(newPages)),
       });
     }
   }
