@@ -92,15 +92,27 @@ class MoodleStateDatasource implements IStateDatasource {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
+  /// Log para debug de problemas com tipos dinâmicos do Moodle
+  void _logDebug(String label, dynamic value) {
+    print('🔍 [$label] Type: ${value.runtimeType}, Value: $value');
+  }
+
   /// Extrai string de forma segura de valores do Moodle que podem ser Map, String, etc.
-  String _safeString(dynamic value) {
+  String _safeString(dynamic value, [String context = '']) {
+    if (context.isNotEmpty) {
+      _logDebug('_safeString($context)', value);
+    }
+
     if (value == null) return '';
     if (value is String) return value;
     if (value is num) return value.toString();
     if (value is Map) {
       // Alguns campos do Moodle retornam {value: "texto"}
-      return _safeString(value['value'] ?? value['text'] ?? '');
+      _logDebug('_safeString($context) - Map keys', value.keys.toList());
+      return _safeString(value['value'] ?? value['text'] ?? '', context);
     }
+
+    _logDebug('_safeString($context) - FALLBACK to empty', value);
     return '';
   }
 
@@ -108,22 +120,34 @@ class MoodleStateDatasource implements IStateDatasource {
 
   /// Busca o dataid da Database "mq_state" no curso. Cacheia o resultado.
   Future<void> _ensureDataId(String baseUrl, String token, int courseId) async {
+    print('🔍 _ensureDataId: courseId=$courseId');
+
     // Se já está em cache para este curso, usa
     if (_dataidByCourse.containsKey(courseId)) {
       _dataid = _dataidByCourse[courseId];
       _currentCourseId = courseId;
+      print('✅ _ensureDataId: usando cache, dataid=$_dataid');
       return;
     }
 
     // Busca Database activities do curso
+    print('🔍 _ensureDataId: buscando Database activities...');
     final databases =
         await _moodle.getDataActivitiesByCourse(baseUrl, token, courseId);
 
+    print('🔍 _ensureDataId: encontradas ${databases.length} databases');
+
     // Procura pela atividade chamada "mq_state"
-    for (final db in databases) {
-      final name = _safeString(db['name']);
+    for (int i = 0; i < databases.length; i++) {
+      final db = databases[i];
+      print('🔍 _ensureDataId: database[$i] = $db');
+
+      final name = _safeString(db['name'], 'database[$i].name');
+      print('🔍 _ensureDataId: database[$i] name após parse = "$name"');
+
       if (name.toLowerCase() == 'mq_state') {
         final id = (db['id'] as num?)?.toInt();
+        print('✅ _ensureDataId: encontrou mq_state! id=$id');
         if (id != null && id > 0) {
           _dataid = id;
           _dataidByCourse[courseId] = id;
@@ -140,6 +164,8 @@ class MoodleStateDatasource implements IStateDatasource {
   }
 
   Future<void> _ensureFields(String baseUrl, String token, int courseId) async {
+    print('🔍 _ensureFields: courseId=$courseId');
+
     // Se mudou de curso, limpa cache de fields
     if (_currentCourseId != courseId) {
       _typeFieldId = null;
@@ -150,12 +176,17 @@ class MoodleStateDatasource implements IStateDatasource {
       _correctCountFieldId = null;
       _pagesFieldId = null;
       _stateEntryId = null;
+      print('🔍 _ensureFields: limpou cache de fields (curso mudou)');
     }
 
-    if (_typeFieldId != null) return;
+    if (_typeFieldId != null) {
+      print('✅ _ensureFields: usando cache de fields');
+      return;
+    }
 
     await _ensureDataId(baseUrl, token, courseId);
 
+    print('🔍 _ensureFields: buscando fields do dataid=$_dataid');
     final result = await _callWs(
       baseUrl,
       token,
@@ -163,9 +194,19 @@ class MoodleStateDatasource implements IStateDatasource {
       {'databaseid': _dataid!.toString()},
     );
 
-    for (final f in (result['fields'] as List? ?? [])) {
-      final name = _safeString(f['name']);
+    final fields = result['fields'] as List? ?? [];
+    print('🔍 _ensureFields: encontrados ${fields.length} fields');
+
+    for (int i = 0; i < fields.length; i++) {
+      final f = fields[i];
+      print('🔍 _ensureFields: field[$i] = $f');
+
+      final name = _safeString(f['name'], 'field[$i].name');
+      print('🔍 _ensureFields: field[$i] name após parse = "$name"');
+
       final id = (f['id'] as num).toInt();
+      print('🔍 _ensureFields: field[$i] id = $id');
+
       switch (name) {
         case 'type':
           _typeFieldId = id;
@@ -210,6 +251,8 @@ class MoodleStateDatasource implements IStateDatasource {
   /// Busca todas as entradas do banco e devolve como lista de mapas internos.
   Future<List<Map<String, dynamic>>> _fetchAllEntries(
       String baseUrl, String token) async {
+    print('🔍 _fetchAllEntries: dataid=$_dataid');
+
     final result = await _callWs(
       baseUrl,
       token,
@@ -221,14 +264,33 @@ class MoodleStateDatasource implements IStateDatasource {
         'returncontents': '1',
       },
     );
-    return (result['entries'] as List? ?? []).map((entry) {
+
+    final entries = result['entries'] as List? ?? [];
+    print('🔍 _fetchAllEntries: encontradas ${entries.length} entries');
+
+    return entries.map((entry) {
+      final entryId = (entry['id'] as num?)?.toInt() ?? 0;
+      print('🔍 _fetchAllEntries: processando entry id=$entryId');
+
       final contents = entry['contents'] as List? ?? [];
+      print(
+          '🔍 _fetchAllEntries: entry $entryId tem ${contents.length} contents');
+
       final map = <String, dynamic>{
-        '_entry_id': (entry['id'] as num?)?.toInt() ?? 0,
+        '_entry_id': entryId,
       };
-      for (final c in contents) {
+
+      for (int i = 0; i < contents.length; i++) {
+        final c = contents[i];
+        print('🔍 _fetchAllEntries: entry $entryId content[$i] = $c');
+
         final fid = (c['fieldid'] as num?)?.toInt();
-        final val = _safeString(c['content']);
+        print('🔍 _fetchAllEntries: entry $entryId content[$i] fieldid=$fid');
+
+        final val = _safeString(c['content'], 'entry[$entryId].content[$i]');
+        print(
+            '🔍 _fetchAllEntries: entry $entryId content[$i] value após parse = "$val"');
+
         if (fid == _typeFieldId) {
           map['type'] = val;
         }
@@ -251,6 +313,8 @@ class MoodleStateDatasource implements IStateDatasource {
           map['pages'] = val;
         }
       }
+
+      print('🔍 _fetchAllEntries: entry $entryId mapeado = $map');
       return map;
     }).toList();
   }
