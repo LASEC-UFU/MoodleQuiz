@@ -37,8 +37,20 @@ class QuizRepositoryImpl implements IQuizRepository {
   }
 
   @override
-  Future<int> startAttempt(UserEntity user, int quizId) =>
-      _moodle.startAttempt(user.baseUrl, user.token, quizId);
+  Future<int> startAttempt(UserEntity user, int quizId) async {
+    // Verifica se já existe uma tentativa em progresso para reaproveitar
+    try {
+      final attempts = await _moodle.getUserAttempts(
+          user.baseUrl, user.token, quizId, status: 'unfinished');
+      if (attempts.isNotEmpty) {
+        final existingId = (attempts.first['id'] as num?)?.toInt();
+        if (existingId != null) return existingId;
+      }
+    } catch (_) {
+      // Se getUserAttempts falhar, tenta startAttempt normalmente
+    }
+    return _moodle.startAttempt(user.baseUrl, user.token, quizId);
+  }
 
   @override
   Future<QuestionEntity> getQuestion(

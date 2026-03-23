@@ -17,6 +17,10 @@ abstract class IMoodleDatasource {
   /// Inicia (ou retoma) uma tentativa. Retorna o attemptId.
   Future<int> startAttempt(String baseUrl, String token, int quizId);
 
+  /// Lista tentativas do usuário para um quiz. status: 'all'|'finished'|'unfinished'.
+  Future<List<Map<String, dynamic>>> getUserAttempts(
+      String baseUrl, String token, int quizId, {String status = 'all'});
+
   /// Retorna dados de uma página da tentativa (inclui HTML das questões).
   Future<Map<String, dynamic>> getAttemptData(
       String baseUrl, String token, int attemptId, int page);
@@ -143,6 +147,19 @@ class MoodleDatasource implements IMoodleDatasource {
         'page': page.toString(),
       },
     );
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> getUserAttempts(
+      String baseUrl, String token, int quizId,
+      {String status = 'all'}) async {
+    final result = await _callWs(baseUrl, token, 'mod_quiz_get_user_attempts', {
+      'quizid': quizId.toString(),
+      'status': status,
+      'includepreviews': '0',
+    });
+    final attempts = result['attempts'] as List? ?? [];
+    return attempts.map((e) => Map<String, dynamic>.from(e as Map)).toList();
   }
 
   @override

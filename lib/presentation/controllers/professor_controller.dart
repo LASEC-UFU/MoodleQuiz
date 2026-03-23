@@ -35,6 +35,7 @@ class ProfessorController extends ChangeNotifier {
   int _selectedDuration = 30;
   bool _isLoading = false;
   String? _error;
+  List<String> _log = [];
   Timer? _pollTimer;
 
   ProfessorController({
@@ -57,6 +58,7 @@ class ProfessorController extends ChangeNotifier {
   int get selectedDuration => _selectedDuration;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  List<String> get log => List.unmodifiable(_log);
   bool get isSetup => _selectedQuiz != null && _questions.isNotEmpty;
 
   // ── Seleção de curso / quiz ────────────────────────────────────────────────
@@ -95,11 +97,16 @@ class ProfessorController extends ChangeNotifier {
     _questions = [];
     _setLoading(true);
     _error = null;
+    _log = [];
     try {
+      _addLog('Iniciando attempt para quiz ${quiz.id}…');
       _attemptId = await _quizRepo.startAttempt(user, quiz.id);
+      _addLog('Attempt ID: $_attemptId — carregando questões…');
       await _loadAllQuestions(user, _attemptId!);
+      _addLog('Questões carregadas: ${_questions.length}');
     } catch (e) {
       _error = e.toString();
+      _addLog('ERRO: $_error');
     } finally {
       _setLoading(false);
     }
@@ -212,12 +219,21 @@ class ProfessorController extends ChangeNotifier {
 
   // ── Privado ────────────────────────────────────────────────────────────────
 
+  void _addLog(String msg) {
+    _log.add('[${DateTime.now().toIso8601String().substring(11, 19)}] $msg');
+    notifyListeners();
+  }
+
   Future<void> _loadAllQuestions(UserEntity user, int attemptId) async {
-    // Usa uma única attempt: carrega todas as questões, finaliza e busca revisão.
-    // loadQuestionsWithAnswers usa nextpage do Moodle, suportando qualquer
-    // configuração (1 questão/página ou todas na mesma página).
-    final questions = await _quizRepo.loadQuestionsWithAnswers(user, attemptId, 0);
-    _questions = questions;
+    _addLog('loadQuestionsWithAnswers — attempt $attemptId');
+    try {
+      final questions = await _quizRepo.loadQuestionsWithAnswers(user, attemptId, 0);
+      _addLog('Total de questões retornadas: ${questions.length}');
+      _questions = questions;
+    } catch (e) {
+      _addLog('ERRO em loadQuestionsWithAnswers: $e');
+      rethrow;
+    }
     notifyListeners();
   }
 

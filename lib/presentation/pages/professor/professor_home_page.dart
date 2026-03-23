@@ -97,6 +97,7 @@ class _DesktopLayout extends StatelessWidget {
             questions: prof.questions,
             selectedIndex: questionIndex,
             quizState: prof.quizState,
+            log: prof.log,
             onSelect: onIndexChanged,
           ),
         ),
@@ -153,6 +154,7 @@ class _MobileLayout extends StatelessWidget {
                   questions: prof.questions,
                   selectedIndex: questionIndex,
                   quizState: prof.quizState,
+                  log: prof.log,
                   onSelect: onIndexChanged,
                 ),
                 _ControlPanel(
@@ -247,22 +249,27 @@ class _QuestionListPanel extends StatelessWidget {
   final List<QuestionEntity> questions;
   final int selectedIndex;
   final QuizStateEntity quizState;
+  final List<String> log;
   final void Function(int) onSelect;
 
   const _QuestionListPanel({
     required this.questions,
     required this.selectedIndex,
     required this.quizState,
+    required this.log,
     required this.onSelect,
   });
 
   @override
   Widget build(BuildContext context) {
     if (questions.isEmpty) {
-      return const Center(
-        child: Text('Nenhuma questão encontrada.',
-            style: TextStyle(color: AppTheme.textSecondary)),
-      );
+      if (log.isEmpty) {
+        return const Center(
+          child: Text('Nenhuma questão encontrada.',
+              style: TextStyle(color: AppTheme.textSecondary)),
+        );
+      }
+      return _LogPanel(log: log);
     }
 
     return ListView.builder(
@@ -483,6 +490,12 @@ class _ControlPanel extends StatelessWidget {
                   style: const TextStyle(
                       color: AppTheme.danger, fontSize: 13)),
             ),
+          ],
+
+          // ── Log (visível no mobile quando sem questões) ───────────────
+          if (!hasQuestions && prof.log.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            SizedBox(height: 200, child: _LogPanel(log: prof.log)),
           ],
 
           // ── Mini ranking ─────────────────────────────────────────────
@@ -758,6 +771,53 @@ class _ActionButton extends StatelessWidget {
         minimumSize: const Size(double.infinity, 52),
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+}
+
+class _LogPanel extends StatelessWidget {
+  final List<String> log;
+  const _LogPanel({required this.log});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.bgDark,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppTheme.bgCard),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.terminal_rounded, color: AppTheme.accent, size: 14),
+              SizedBox(width: 6),
+              Text('Log de carregamento',
+                  style: TextStyle(
+                      color: AppTheme.accent,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: ListView.builder(
+              itemCount: log.length,
+              itemBuilder: (_, i) => Text(
+                log[i],
+                style: const TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 11,
+                    fontFamily: 'monospace'),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
