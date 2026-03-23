@@ -51,6 +51,7 @@ class QuizRepositoryImpl implements IQuizRepository {
       throw Exception('Nenhuma questão encontrada na página $page');
     }
 
+    // Usa a primeira questão da página (compatibilidade com callers existentes)
     final qMap = Map<String, dynamic>.from(questions.first as Map);
     final html = qMap['html'] as String? ?? '';
     final slot = (qMap['slot'] as num? ?? 1).toInt();
@@ -75,70 +76,108 @@ class QuizRepositoryImpl implements IQuizRepository {
     );
   }
 
+  /// Carrega todas as questões do quiz usando UMA attempt, depois a finaliza
+  /// e busca as respostas corretas via revisão. Usa nextpage do Moodle para
+  /// navegar corretamente independente de quantas questões há por página.
   @override
   Future<List<QuestionEntity>> loadQuestionsWithAnswers(
       UserEntity user, int attemptId, int totalPages) async {
-    // 1. Carrega todas as questões
+
+    // 1. Carrega todas as páginas usando nextpage do Moodle
     final allQuestions = <QuestionEntity>[];
-    for (int page = 0; page < totalPages; page++) {
+    // Map de slot → page para uso na revisão
+    final slotToPage = <int, int>{};
+    int page = 0;
+
+    while (page >= 0) {
       try {
-        final q = await getQuestion(user, attemptId, page);
-        allQuestions.add(q);
+        final data = await _moodle.getAttemptData(
+            user.baseUrl, user.token, attemptId, page);
+
+        final questions = data['questions'] as List? ?? [];
+        for (final q in questions) {
+          final qMap = Map<String, dynamic>.from(q as Map);
+          final html = qMap['html'] as String? ?? '';
+          final slot = (qMap['slot'] as num? ?? 1).toInt();
+          final qPage = (qMap['page'] as num? ?? page).toInt();
+
+          final parsed = MoodleHtmlParser.parse(
+            html: html,
+            attemptId: attemptId,
+            slot: slot,
+            token: user.token,
+            baseUrl: user.baseUrl,
+          );
+
+          allQuestions.add(QuestionEntity(
+            slot: parsed.slot,
+            page: qPage,
+            text: parsed.text,
+            choices: parsed.choices,
+            imageUrls: parsed.imageUrls,
+            inputBaseName: parsed.inputBaseName,
+            seqCheck: parsed.seqCheck,
+            type: parsed.type,
+          ));
+          slotToPage[slot] = qPage;
+        }
+
+        // nextpage == -1 significa última página
+        final nextPage = (data['nextpage'] as num? ?? -1).toInt();
+        page = nextPage;
       } catch (_) {
         break;
       }
     }
 
-    // 2. Finaliza a tentativa para liberar o acesso à revisão
+    if (allQuestions.isEmpty) return allQuestions;
+
+    // 2. Finaliza a attempt para liberar revisão
     try {
       await _moodle.finishAttempt(user.baseUrl, user.token, attemptId);
     } catch (_) {
-      // Se não conseguir finalizar, retorna as questões sem marcação
       return allQuestions;
     }
 
-    // 3. Para cada página, busca a revisão e marca isCorrect nas choices
-    final enriched = <QuestionEntity>[];
-    for (final q in allQuestions) {
+    // 3. Busca revisão e marca isCorrect — agrupa por página
+    final reviewPages = slotToPage.values.toSet();
+    final reviewHtmlBySlot = <int, String>{};
+
+    for (final reviewPage in reviewPages) {
       try {
         final review = await _moodle.getAttemptReview(
-            user.baseUrl, user.token, attemptId, q.page);
-        final questions = review['questions'] as List? ?? [];
-        String reviewHtml = '';
-        for (final rq in questions) {
+            user.baseUrl, user.token, attemptId, reviewPage);
+        for (final rq in (review['questions'] as List? ?? [])) {
           final rqMap = rq as Map;
-          if ((rqMap['slot'] as num?)?.toInt() == q.slot) {
-            reviewHtml = rqMap['html'] as String? ?? '';
-            break;
+          final slot = (rqMap['slot'] as num?)?.toInt();
+          final html = rqMap['html'] as String? ?? '';
+          if (slot != null && html.isNotEmpty) {
+            reviewHtmlBySlot[slot] = html;
           }
         }
-
-        if (reviewHtml.isNotEmpty) {
-          final correctValues = MoodleHtmlParser.parseCorrectValues(reviewHtml);
-          final newChoices = q.choices.map((c) => ParsedChoice(
-            value: c.value,
-            text: c.text,
-            isCorrect: correctValues.contains(c.value),
-          )).toList();
-          enriched.add(QuestionEntity(
-            slot: q.slot,
-            page: q.page,
-            text: q.text,
-            choices: newChoices,
-            imageUrls: q.imageUrls,
-            inputBaseName: q.inputBaseName,
-            seqCheck: q.seqCheck,
-            type: q.type,
-          ));
-        } else {
-          enriched.add(q);
-        }
-      } catch (_) {
-        enriched.add(q);
-      }
+      } catch (_) {}
     }
 
-    return enriched;
+    return allQuestions.map((q) {
+      final reviewHtml = reviewHtmlBySlot[q.slot] ?? '';
+      if (reviewHtml.isEmpty) return q;
+      final correctValues = MoodleHtmlParser.parseCorrectValues(reviewHtml);
+      final newChoices = q.choices.map((c) => ParsedChoice(
+        value: c.value,
+        text: c.text,
+        isCorrect: correctValues.contains(c.value),
+      )).toList();
+      return QuestionEntity(
+        slot: q.slot,
+        page: q.page,
+        text: q.text,
+        choices: newChoices,
+        imageUrls: q.imageUrls,
+        inputBaseName: q.inputBaseName,
+        seqCheck: q.seqCheck,
+        type: q.type,
+      );
+    }).toList();
   }
 
   @override

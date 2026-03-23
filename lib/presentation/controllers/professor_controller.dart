@@ -213,36 +213,12 @@ class ProfessorController extends ChangeNotifier {
   // ── Privado ────────────────────────────────────────────────────────────────
 
   Future<void> _loadAllQuestions(UserEntity user, int attemptId) async {
-    // Primeiro, determina o total de páginas carregando uma a uma
-    final allQuestions = <QuestionEntity>[];
-    int page = 0;
-    while (true) {
-      try {
-        final q = await _quizRepo.getQuestion(user, attemptId, page);
-        allQuestions.add(q);
-        page++;
-      } catch (_) {
-        break;
-      }
-    }
-    _questions = allQuestions;
+    // Usa uma única attempt: carrega todas as questões, finaliza e busca revisão.
+    // loadQuestionsWithAnswers usa nextpage do Moodle, suportando qualquer
+    // configuração (1 questão/página ou todas na mesma página).
+    final questions = await _quizRepo.loadQuestionsWithAnswers(user, attemptId, 0);
+    _questions = questions;
     notifyListeners();
-
-    // Depois, carrega novamente com respostas corretas via nova attempt
-    if (allQuestions.isNotEmpty) {
-      try {
-        final newAttemptId = await _quizRepo.startAttempt(user, _selectedQuiz!.id);
-        _attemptId = newAttemptId;
-        final withAnswers = await _quizRepo.loadQuestionsWithAnswers(
-            user, newAttemptId, allQuestions.length);
-        if (withAnswers.isNotEmpty) {
-          _questions = withAnswers;
-          notifyListeners();
-        }
-      } catch (_) {
-        // Se falhar, mantém as questões sem marcação de correto
-      }
-    }
   }
 
   Future<void> _refreshState() async {
