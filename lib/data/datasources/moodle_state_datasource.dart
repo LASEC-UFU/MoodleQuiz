@@ -170,37 +170,40 @@ class MoodleStateDatasource implements IStateDatasource {
       return;
     }
 
-    // Busca Database activities do curso
-    _log('Chamando API: mod_data_get_databases_by_courses...');
-    final databases =
-        await _moodle.getDataActivitiesByCourse(baseUrl, token, courseId);
+    // Busca Database activities. Tenta primeiro com courseId específico;
+    // se não encontrar (aluno sem permissão de listagem no curso), tenta sem
+    // filtro (retorna todos os databases acessíveis ao usuário).
+    final candidateCourseIds = courseId > 0 ? [courseId, 0] : [0];
 
-    _log('Resposta: ${databases.length} databases encontradas no curso');
+    for (final cid in candidateCourseIds) {
+      _log(cid > 0
+          ? 'Chamando API: mod_data_get_databases_by_courses (courseId=$cid)...'
+          : 'Chamando API: mod_data_get_databases_by_courses (sem filtro de curso)...');
 
-    // Procura pela atividade chamada "mq_state"
-    for (int i = 0; i < databases.length; i++) {
-      final db = databases[i];
-      _log('');
-      _log('Database #$i:');
-      _log('  id: ${db["id"]}');
-      _log('  Analisando campo "name"...');
+      final databases =
+          await _moodle.getDataActivitiesByCourse(baseUrl, token, cid);
+      _log('Resposta: ${databases.length} databases encontradas');
 
-      final name = _safeString(db['name'], 'Database[$i].name');
+      for (int i = 0; i < databases.length; i++) {
+        final db = databases[i];
+        final name = _safeString(db['name'], 'Database[$i].name');
+        _log('  Database #$i: id=${db["id"]}, name="$name"');
 
-      _log('  Nome final extraído: "$name"');
-
-      if (name.toLowerCase() == 'mq_state') {
-        final id = (db['id'] as num?)?.toInt();
-        _logSeparator();
-        _log('✅ ENCONTROU mq_state! Database ID = $id');
-        _logSeparator();
-        if (id != null && id > 0) {
-          _dataid = id;
-          _dataidByCourse[courseId] = id;
-          _currentCourseId = courseId;
-          return;
+        if (name.toLowerCase() == 'mq_state') {
+          final id = (db['id'] as num?)?.toInt();
+          _logSeparator();
+          _log('✅ ENCONTROU mq_state! Database ID = $id');
+          _logSeparator();
+          if (id != null && id > 0) {
+            _dataid = id;
+            _dataidByCourse[courseId] = id;
+            _currentCourseId = courseId;
+            return;
+          }
         }
       }
+
+      _log('mq_state não encontrada nesta busca.');
     }
 
     _logSeparator();

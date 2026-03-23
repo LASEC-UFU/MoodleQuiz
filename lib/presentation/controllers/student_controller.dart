@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import '../../core/config/app_config.dart';
 import '../../domain/entities/question_entity.dart';
 import '../../domain/entities/quiz_state_entity.dart';
 import '../../domain/entities/score_entity.dart';
@@ -149,10 +148,11 @@ class StudentController extends ChangeNotifier {
 
   Future<void> _refreshState(UserEntity user) async {
     try {
-      // Prioridade: courseId vindo do config.json > courseId do estado já lido > 0
-      final courseId = AppConfig.courseId > 0
-          ? AppConfig.courseId
-          : (_quizState.courseId > 0 ? _quizState.courseId : 0);
+      // Aluno não usa courseId fixo do config — o professor pode estar em qualquer curso.
+      // Usa o courseId do estado já lido (escrito pelo professor no state_json),
+      // ou 0 para fazer discovery sem filtro de curso (encontra o mq_state em
+      // qualquer curso acessível ao aluno).
+      final courseId = _quizState.courseId > 0 ? _quizState.courseId : 0;
 
       final newState = await _quizRepo.getQuizState(user, courseId);
 
@@ -206,7 +206,8 @@ class StudentController extends ChangeNotifier {
       }
 
       _quizState = newState;
-      final scoreCourseId = newState.courseId > 0 ? newState.courseId : courseId;
+      final scoreCourseId =
+          newState.courseId > 0 ? newState.courseId : courseId;
       _scores = await _quizRepo.getScores(user, scoreCourseId);
       // Não limpa _error aqui — pode ter sido setado pelo bloco de questão acima
       notifyListeners();

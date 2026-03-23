@@ -12,6 +12,7 @@ class AppConfig {
   static String quizTitle = 'Quiz Interativo';
   static int defaultQuestionTime = 30;
   static List<int> questionTimeOptions = [15, 20, 30, 45, 60, 90, 120];
+
   /// ID do curso Moodle onde está o mq_state. Opcional — 0 força auto-discovery.
   static int courseId = 0;
 

@@ -195,8 +195,7 @@ class _TopBar extends StatelessWidget {
           ),
           Text(
             fullname.split(' ').first,
-            style:
-                const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
           ),
           const SizedBox(width: 8),
           IconButton(
@@ -342,8 +341,7 @@ class _ScoreSummaryCard extends StatelessWidget {
           Text(
             '${score.correctCount}'
             '${totalPages > 0 ? '/$totalPages' : ''} corretas',
-            style: const TextStyle(
-                color: AppTheme.textSecondary, fontSize: 14),
+            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
           ),
           const SizedBox(width: 16),
           const Icon(Icons.leaderboard_rounded,
@@ -444,8 +442,7 @@ class _ClosedQuestionView extends StatelessWidget {
               const SizedBox(height: 24),
               const Text(
                 'Aguardando próxima questão...',
-                style:
-                    TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+                style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
               ),
             ],
           ),
