@@ -41,6 +41,8 @@ function doGet(e) {
       case 'resetQuiz':       result = resetQuiz(e);            break;
       case 'setFinished':     result = setFinished(e);          break;
       case 'setup':           result = setupSheets();           break;
+      // ── Proxy Moodle (contorna CORS no browser) ──────────────────────
+      case 'moodleProxy':     result = moodleProxy(e);          break;
       default:
         result = { error: 'Ação desconhecida: ' + action };
     }
@@ -329,6 +331,36 @@ function _updateRanks() {
   rows.forEach((item, idx) => {
     sc.getRange(item.row, 6).setValue(idx + 1);
   });
+}
+
+// ── Proxy Moodle (resolve CORS no browser) ───────────────────────────────────
+
+/**
+ * GET ?action=moodleProxy&baseUrl=https://moodle.ufu.br&wsfunction=X&wstoken=T&...
+ * Repassa qualquer chamada à API REST do Moodle server-side (sem CORS).
+ * O GAS executa como servidor, portanto não há restrição de origem.
+ */
+function moodleProxy(e) {
+  const params = e.parameter || {};
+  const baseUrl = params.baseUrl;
+  if (!baseUrl) return { error: 'baseUrl obrigatório' };
+
+  // Monta os query params para o Moodle (tudo exceto 'action' e 'baseUrl')
+  const moodleParams = Object.keys(params)
+    .filter(k => k !== 'action' && k !== 'baseUrl')
+    .map(k => encodeURIComponent(k) + '=' + encodeURIComponent(params[k]))
+    .join('&');
+
+  const url = baseUrl + '/webservice/rest/server.php?' + moodleParams;
+
+  const resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+  const body = resp.getContentText();
+
+  try {
+    return JSON.parse(body);
+  } catch (_) {
+    return { error: 'Resposta inválida do Moodle', raw: body.substring(0, 200) };
+  }
 }
 
 // ── Configuração inicial ─────────────────────────────────────────────────────

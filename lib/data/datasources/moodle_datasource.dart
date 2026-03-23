@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import '../../core/config/app_config.dart';
 
 /// Interface – S: apenas chamadas à API REST do Moodle.
 abstract class IMoodleDatasource {
@@ -192,6 +194,7 @@ class MoodleDatasource implements IMoodleDatasource {
   // ── Privado ────────────────────────────────────────────────────────────────
 
   /// Chama um web service Moodle via GET.
+  /// Na web usa o proxy GAS para contornar CORS; no desktop chama direto.
   /// Se a resposta for uma lista JSON, retorna {'result': <lista>}.
   Future<Map<String, dynamic>> _callWs(
     String baseUrl,
@@ -199,14 +202,28 @@ class MoodleDatasource implements IMoodleDatasource {
     String function,
     Map<String, String> params,
   ) async {
-    final uri = Uri.parse('$baseUrl/webservice/rest/server.php').replace(
-      queryParameters: {
-        'wstoken': token,
-        'wsfunction': function,
-        'moodlewsrestformat': 'json',
-        ...params,
-      },
-    );
+    final wsParams = {
+      'wstoken': token,
+      'wsfunction': function,
+      'moodlewsrestformat': 'json',
+      ...params,
+    };
+
+    final Uri uri;
+    if (kIsWeb && AppConfig.isConfigured) {
+      // Proxy via Google Apps Script — sem restrição de CORS
+      uri = Uri.parse(AppConfig.gsheetScriptUrl).replace(
+        queryParameters: {
+          'action': 'moodleProxy',
+          'baseUrl': baseUrl,
+          ...wsParams,
+        },
+      );
+    } else {
+      uri = Uri.parse('$baseUrl/webservice/rest/server.php')
+          .replace(queryParameters: wsParams);
+    }
+
     final resp = await _client.get(uri);
     _assertOk(resp);
     final data = jsonDecode(resp.body);
