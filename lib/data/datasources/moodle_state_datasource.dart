@@ -521,10 +521,17 @@ class MoodleStateDatasource implements IStateDatasource {
       _log('  stateEntryId é null → chamando mod_data_add_entry');
       _log('  databaseid: $_dataid');
 
-      final res = await _callWs(baseUrl, token, 'mod_data_add_entry', {
+      final params = {
         'databaseid': _dataid!.toString(),
         ...data,
+      };
+
+      _log('  Parâmetros completos sendo enviados:');
+      params.forEach((key, value) {
+        _log('    $key = "$value" (${value.runtimeType})');
       });
+
+      final res = await _callWs(baseUrl, token, 'mod_data_add_entry', params);
 
       _log('  Resposta de mod_data_add_entry:');
       _log('    Tipo: ${res.runtimeType}');
@@ -747,6 +754,15 @@ class MoodleStateDatasource implements IStateDatasource {
     Map<String, String> params,
   ) async {
     _log('_callWs: $function');
+    _log('  Parâmetros recebidos (${params.length} items):');
+    params.forEach((key, value) {
+      if (value.length > 100) {
+        _log(
+            '    $key = "${value.substring(0, 100)}..." (${value.length} chars)');
+      } else {
+        _log('    $key = "$value"');
+      }
+    });
 
     final uri = Uri.parse('$baseUrl/webservice/rest/server.php').replace(
       queryParameters: {
