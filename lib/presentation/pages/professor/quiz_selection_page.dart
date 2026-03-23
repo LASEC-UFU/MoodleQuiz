@@ -60,7 +60,7 @@ class _Header extends StatelessWidget {
       children: [
         IconButton(
           icon: const Icon(Icons.arrow_back, color: AppTheme.textPrimary),
-          onPressed: () => context.pop(),
+          onPressed: () => context.go(AppRouter.professorCourses),
         ),
         const SizedBox(width: 8),
         Container(
