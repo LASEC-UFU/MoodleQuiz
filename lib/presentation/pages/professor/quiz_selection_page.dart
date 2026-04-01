@@ -109,10 +109,50 @@ class _QuizList extends StatelessWidget {
       );
     }
 
-    return ListView.separated(
-      itemCount: quizzes.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (context, i) => _QuizTile(quiz: quizzes[i]),
+    final compatible = quizzes.where((q) => q.isCompatible).toList();
+    final incompatible = quizzes.where((q) => !q.isCompatible).toList();
+
+    return ListView(
+      children: [
+        if (compatible.isNotEmpty) ...[
+          ...compatible.map((q) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _QuizTile(quiz: q),
+              )),
+        ],
+        if (incompatible.isNotEmpty) ...[
+          if (compatible.isNotEmpty) const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppTheme.warning.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppTheme.warning.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.warning_amber_rounded,
+                    size: 16, color: AppTheme.warning),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Questionários incompatíveis (configuração necessária no Moodle):',
+                    style: TextStyle(
+                        color: AppTheme.warning,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...incompatible.map((q) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _QuizTile(quiz: q),
+              )),
+        ],
+      ],
     );
   }
 }
@@ -126,70 +166,151 @@ class _QuizTile extends StatelessWidget {
     final timeLabel = quiz.timeLimit != null
         ? '${(quiz.timeLimit! ~/ 60)} min'
         : 'Sem limite';
+    final compatible = quiz.isCompatible;
+    final reasons = quiz.incompatibilityReasons;
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () async {
-          final user = context.read<AuthController>().user;
-          if (user == null) return;
-          final router = GoRouter.of(context);
-          await context.read<ProfessorController>().selectQuiz(user, quiz);
-          router.go(AppRouter.professor);
-        },
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: AppTheme.cardDecoration(),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  gradient: AppTheme.primaryGradient,
-                  borderRadius: BorderRadius.circular(12),
+        onTap: compatible
+            ? () async {
+                final user = context.read<AuthController>().user;
+                if (user == null) return;
+                final router = GoRouter.of(context);
+                await context
+                    .read<ProfessorController>()
+                    .selectQuiz(user, quiz);
+                router.go(AppRouter.professor);
+              }
+            : () => _showIncompatibleDialog(context, reasons),
+        child: Opacity(
+          opacity: compatible ? 1.0 : 0.5,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: AppTheme.cardDecoration(),
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    gradient: compatible
+                        ? AppTheme.primaryGradient
+                        : const LinearGradient(
+                            colors: [Color(0xFF555555), Color(0xFF444444)]),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    compatible ? Icons.quiz : Icons.block,
+                    color: Colors.white,
+                    size: 24,
+                  ),
                 ),
-                child: const Icon(Icons.quiz, color: Colors.white, size: 24),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(quiz.name,
-                        style: const TextStyle(
-                            color: AppTheme.textPrimary,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(Icons.timer_outlined,
-                            size: 14, color: AppTheme.textSecondary),
-                        const SizedBox(width: 4),
-                        Text(timeLabel,
-                            style: const TextStyle(
-                                color: AppTheme.textSecondary, fontSize: 12)),
-                        const SizedBox(width: 16),
-                        const Icon(Icons.repeat,
-                            size: 14, color: AppTheme.textSecondary),
-                        const SizedBox(width: 4),
-                        Text(
-                            quiz.attempts == 0
-                                ? 'Ilimitadas'
-                                : '${quiz.attempts} tent.',
-                            style: const TextStyle(
-                                color: AppTheme.textSecondary, fontSize: 12)),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(quiz.name,
+                          style: const TextStyle(
+                              color: AppTheme.textPrimary,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(Icons.timer_outlined,
+                              size: 14, color: AppTheme.textSecondary),
+                          const SizedBox(width: 4),
+                          Text(timeLabel,
+                              style: const TextStyle(
+                                  color: AppTheme.textSecondary, fontSize: 12)),
+                          const SizedBox(width: 16),
+                          const Icon(Icons.repeat,
+                              size: 14, color: AppTheme.textSecondary),
+                          const SizedBox(width: 4),
+                          Text(
+                              quiz.attempts == 0
+                                  ? 'Ilimitadas'
+                                  : '${quiz.attempts} tent.',
+                              style: const TextStyle(
+                                  color: AppTheme.textSecondary, fontSize: 12)),
+                        ],
+                      ),
+                      if (!compatible) ...[
+                        const SizedBox(height: 6),
+                        ...reasons.map((r) => Row(
+                              children: [
+                                Icon(Icons.warning_amber_rounded,
+                                    size: 12, color: AppTheme.warning),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(r,
+                                      style: TextStyle(
+                                          color: AppTheme.warning,
+                                          fontSize: 11)),
+                                ),
+                              ],
+                            )),
                       ],
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              const Icon(Icons.chevron_right, color: AppTheme.textSecondary),
-            ],
+                Icon(
+                  compatible ? Icons.chevron_right : Icons.info_outline,
+                  color: compatible
+                      ? AppTheme.textSecondary
+                      : AppTheme.warning,
+                ),
+              ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+
+  void _showIncompatibleDialog(BuildContext context, List<String> reasons) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppTheme.bgCard,
+        title: const Text('Questionário Incompatível',
+            style: TextStyle(color: AppTheme.textPrimary)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Este questionário precisa de ajustes no Moodle para funcionar com o MoodleQuiz Live:',
+              style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            ...reasons.map((r) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('• ',
+                          style: TextStyle(
+                              color: AppTheme.warning, fontSize: 13)),
+                      Expanded(
+                        child: Text(r,
+                            style: const TextStyle(
+                                color: AppTheme.textPrimary, fontSize: 13)),
+                      ),
+                    ],
+                  ),
+                )),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
       ),
     );
   }

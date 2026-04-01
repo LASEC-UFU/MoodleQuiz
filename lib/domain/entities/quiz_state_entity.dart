@@ -6,12 +6,11 @@ enum QuizStatus { waiting, active, closed, finished }
 /// Snapshot do estado atual do quiz no servidor (Google Sheets).
 class QuizStateEntity extends Equatable {
   final QuizStatus status;
-  final int currentPage; // índice sequencial da questão (0-based); -1 = nenhuma
-  final int
-      currentSlot; // slot Moodle da questão ativa (para buscar no attempt)
-  final int totalPages; // total de questões no quiz
-  final int quizId; // id do quiz Moodle
-  final int courseId; // id do curso Moodle
+  final int currentPage;
+  final int currentSlot;
+  final int totalPages;
+  final int quizId;
+  final int courseId;
   final String quizTitle;
   final DateTime? startedAt;
   final DateTime? endsAt;

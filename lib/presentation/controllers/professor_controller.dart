@@ -128,7 +128,6 @@ class ProfessorController extends ChangeNotifier {
     final user = _user;
     final courseId = _selectedCourse?.id;
     if (_selectedQuiz == null || user == null || courseId == null) return;
-    // courseId = curso selecionado = mesmo curso onde o mq_state está
     final index = _questions.indexOf(q);
     final page = index >= 0 ? index : _questions.length;
     _setLoading(true);
@@ -220,14 +219,30 @@ class ProfessorController extends ChangeNotifier {
   Future<void> resetQuiz() async {
     final user = _user;
     final courseId = _selectedCourse?.id;
+    final quiz = _selectedQuiz;
     if (user == null || courseId == null) return;
     _setLoading(true);
     try {
       await _quizRepo.resetQuiz(user, courseId);
       _scores = [];
+      _questions = [];
+      _attemptId = null;
+      _log = [];
+      // Recria a tentativa e recarrega questões para resolver qualquer
+      // tentativa travada (ex: preview do Moodle) ou attempt deletado
+      if (quiz != null) {
+        _addLog('━━ Recarregando questões após reiniciar ━━');
+        _addLog('Buscando/criando attempt…');
+        _attemptId =
+            await _quizRepo.startAttempt(user, quiz.id, onLog: _addLog);
+        _addLog('Attempt ID: $_attemptId');
+        await _loadAllQuestions(user, _attemptId!);
+        _addLog('━━ Concluído: ${_questions.length} questão(ões) prontas ━━');
+      }
       await _refreshStateAfterWrite();
     } catch (e) {
       _error = e.toString();
+      _addLog('ERRO ao reiniciar: $_error');
     } finally {
       _setLoading(false);
     }

@@ -55,7 +55,12 @@ class MoodleHtmlParser {
     final images = _extractImages(html, token, baseUrl);
     final seqCheck = _extractSeqCheck(html);
 
-    final inputBase = 'q$attemptId:${slot}_answer';
+    // Extrai o nome real dos inputs do HTML em vez de hardcodar.
+    // O Moodle usa o question_usage.id (uniqueid), que pode diferir do attemptId.
+    final extractedBase = _extractInputBaseName(html);
+    final hardcoded = 'q$attemptId:${slot}_answer';
+    final inputBase = extractedBase ?? hardcoded;
+
     final type = choices.length == 2
         ? 'truefalse'
         : (choices.isEmpty ? 'other' : 'multichoice');
@@ -328,11 +333,56 @@ class MoodleHtmlParser {
   // ── Extração do sequencecheck ─────────────────────────────────────────────
 
   static String _extractSeqCheck(String html) {
-    final re = RegExp(
-      r'<input[^>]+name="[^"]*:sequencecheck"[^>]*value="([^"]+)"',
+    // Passo 1: encontra o <input> inteiro que contenha :sequencecheck no name
+    // (independente da ordem dos atributos)
+    final inputRe = RegExp(
+      r'<input\b[^>]*name="[^"]*:sequencecheck"[^>]*/?>',
       caseSensitive: false,
     );
-    return re.firstMatch(html)?.group(1) ?? '1';
+    final inputTag = inputRe.firstMatch(html)?.group(0) ?? '';
+    if (inputTag.isEmpty) return '1';
+
+    // Passo 2: extrai value= de dentro desse elemento
+    final valueRe = RegExp(r'\bvalue="([^"]*)"', caseSensitive: false);
+    return valueRe.firstMatch(inputTag)?.group(1) ?? '1';
+  }
+
+  // ── Extração do inputBaseName real ─────────────────────────────────────────
+
+  /// Extrai o name real dos inputs do HTML do Moodle.
+  /// O Moodle usa `q{usageId}:{slot}_answer` nos radio buttons.
+  /// O usageId (uniqueid) pode ser diferente do attemptId.
+  static String? _extractInputBaseName(String html) {
+    final attrRe = RegExp(r'([\w-]+)="([^"]*)"', caseSensitive: false);
+
+    // 1) Tenta extrair o name de um <input type="radio">
+    final radioRe = RegExp(
+        r'<input\b[^>]*type="radio"[^>]*/?>', caseSensitive: false);
+    for (final m in radioRe.allMatches(html)) {
+      final inputTag = m.group(0)!;
+      for (final a in attrRe.allMatches(inputTag)) {
+        final key = a.group(1)!.toLowerCase();
+        final val = a.group(2)!;
+        if (key == 'name' && val.isNotEmpty) return val;
+      }
+    }
+
+    // 2) Fallback: deduz do input :sequencecheck
+    //    ex: name="q12345:1_:sequencecheck" → "q12345:1_answer"
+    final allInputsRe = RegExp(r'<input\b[^>]*/?>',  caseSensitive: false);
+    for (final m in allInputsRe.allMatches(html)) {
+      final inputTag = m.group(0)!;
+      if (!inputTag.contains(':sequencecheck')) continue;
+      for (final a in attrRe.allMatches(inputTag)) {
+        final key = a.group(1)!.toLowerCase();
+        final val = a.group(2)!;
+        if (key == 'name' && val.contains(':sequencecheck')) {
+          return val.replaceFirst(':sequencecheck', 'answer');
+        }
+      }
+    }
+
+    return null;
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

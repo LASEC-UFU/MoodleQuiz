@@ -175,6 +175,11 @@ class _DesktopRanking extends StatelessWidget {
     final top3 = scores.take(3).toList();
     final rest = scores.skip(3).toList();
 
+    // Quando não há lista (< 4 participantes), centraliza o pódio
+    if (rest.isEmpty) {
+      return Center(child: _PodiumSection(top3: top3));
+    }
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -403,8 +408,7 @@ class _PodiumColumn extends StatelessWidget {
           // Acertos
           Text(
             '${player!.correctCount}/${player!.totalAnswered} ✓',
-            style: const TextStyle(
-                color: AppTheme.textSecondary, fontSize: 11),
+            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11),
           ).animate(delay: delay + 250.ms).fadeIn(),
         ] else
           SizedBox(height: isCrown ? 90 : 70),
@@ -438,12 +442,8 @@ class _PodiumColumn extends StatelessWidget {
                   )
                 ],
               ),
-            )
-                .animate(delay: delay)
-                .slideY(
-                    begin: 1.0,
-                    duration: 600.ms,
-                    curve: Curves.easeOutBack),
+            ).animate(delay: delay).slideY(
+                begin: 1.0, duration: 600.ms, curve: Curves.easeOutBack),
             // Número do rank
             Padding(
               padding: const EdgeInsets.only(top: 12),
@@ -483,8 +483,7 @@ class _ScoreList extends StatelessWidget {
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       itemCount: scores.length,
-      itemBuilder: (_, i) =>
-          _ScoreRow(score: scores[i], rank: startRank + i),
+      itemBuilder: (_, i) => _ScoreRow(score: scores[i], rank: startRank + i),
     );
   }
 }
@@ -583,15 +582,16 @@ class _ScoreRow extends StatelessWidget {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(4),
                         child: TweenAnimationBuilder<double>(
-                          tween: Tween(begin: 0, end: score.totalAnswered > 0
-                              ? score.correctCount / score.totalAnswered
-                              : 0),
+                          tween: Tween(
+                              begin: 0,
+                              end: score.totalAnswered > 0
+                                  ? score.correctCount / score.totalAnswered
+                                  : 0),
                           duration: const Duration(milliseconds: 800),
                           builder: (_, val, __) => LinearProgressIndicator(
                             value: val,
                             backgroundColor: AppTheme.bgCardAlt,
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(barColor),
+                            valueColor: AlwaysStoppedAnimation<Color>(barColor),
                             minHeight: 5,
                           ),
                         ),
@@ -628,8 +628,8 @@ class _ScoreRow extends StatelessWidget {
                 ),
               ),
               const Text('pts',
-                  style: TextStyle(
-                      color: AppTheme.textSecondary, fontSize: 10)),
+                  style:
+                      TextStyle(color: AppTheme.textSecondary, fontSize: 10)),
             ],
           ),
 

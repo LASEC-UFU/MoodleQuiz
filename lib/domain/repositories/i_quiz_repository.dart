@@ -21,6 +21,7 @@ abstract class IQuizRepository {
   Future<QuestionEntity> getQuestion(UserEntity user, int attemptId, int slot);
 
   /// Submete resposta ao Moodle e retorna se acertou.
+  /// Finaliza a tentativa internamente se o quiz usa "deferred feedback".
   Future<bool> submitPage(UserEntity user, int attemptId,
       QuestionEntity question, String choiceValue);
 

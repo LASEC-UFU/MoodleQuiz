@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -363,7 +364,7 @@ class _QuestionListPanel extends StatelessWidget {
 
 // ── Painel de controle ────────────────────────────────────────────────────────
 
-class _ControlPanel extends StatelessWidget {
+class _ControlPanel extends StatefulWidget {
   final ProfessorController prof;
   final AuthController auth;
   final int selectedIndex;
@@ -375,7 +376,17 @@ class _ControlPanel extends StatelessWidget {
   });
 
   @override
+  State<_ControlPanel> createState() => _ControlPanelState();
+}
+
+class _ControlPanelState extends State<_ControlPanel> {
+  bool _showCorrectAnswer = false;
+
+  @override
   Widget build(BuildContext context) {
+    final prof = widget.prof;
+    final auth = widget.auth;
+    final selectedIndex = widget.selectedIndex;
     final state = prof.quizState;
     final questions = prof.questions;
     final hasQuestions = questions.isNotEmpty;
@@ -428,7 +439,37 @@ class _ControlPanel extends StatelessWidget {
 
           // ── Questão selecionada ──────────────────────────────────────
           if (selectedQ != null) ...[
-            _SelectedQuestionCard(question: selectedQ, index: selectedIndex),
+            _SelectedQuestionCard(
+              question: selectedQ,
+              index: selectedIndex,
+              showCorrect: _showCorrectAnswer,
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: Checkbox(
+                    value: _showCorrectAnswer,
+                    onChanged: (v) =>
+                        setState(() => _showCorrectAnswer = v ?? false),
+                    activeColor: AppTheme.success,
+                    side: const BorderSide(color: AppTheme.textSecondary),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () =>
+                      setState(() => _showCorrectAnswer = !_showCorrectAnswer),
+                  child: const Text(
+                    'Mostrar resposta correta',
+                    style: TextStyle(
+                        color: AppTheme.textSecondary, fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 16),
           ],
 
@@ -516,10 +557,10 @@ class _ControlPanel extends StatelessWidget {
             ),
           ],
 
-          // ── Log de carregamento — sempre visível no painel de controle ──
+          // ── Log de carregamento — toggle com botão ──
           if (prof.log.isNotEmpty) ...[
             const SizedBox(height: 12),
-            SizedBox(height: 220, child: _LogPanel(log: prof.log)),
+            _CollapsibleLogPanel(log: prof.log),
           ],
 
           // ── Mini ranking ─────────────────────────────────────────────
@@ -687,7 +728,12 @@ class _DurationSelector extends StatelessWidget {
 class _SelectedQuestionCard extends StatelessWidget {
   final QuestionEntity question;
   final int index;
-  const _SelectedQuestionCard({required this.question, required this.index});
+  final bool showCorrect;
+  const _SelectedQuestionCard({
+    required this.question,
+    required this.index,
+    this.showCorrect = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -720,7 +766,7 @@ class _SelectedQuestionCard extends StatelessWidget {
             children: question.choices.asMap().entries.map((e) {
               final label = String.fromCharCode(65 + e.key); // A, B, C…
               final choice = e.value;
-              final isCorrect = choice.isCorrect;
+              final isCorrect = showCorrect && choice.isCorrect;
               return Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
@@ -800,6 +846,85 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
+class _CollapsibleLogPanel extends StatefulWidget {
+  final List<String> log;
+  const _CollapsibleLogPanel({required this.log});
+
+  @override
+  State<_CollapsibleLogPanel> createState() => _CollapsibleLogPanelState();
+}
+
+class _CollapsibleLogPanelState extends State<_CollapsibleLogPanel> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        InkWell(
+          onTap: () => setState(() => _expanded = !_expanded),
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppTheme.bgDark,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppTheme.bgCard),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.terminal_rounded,
+                    color: AppTheme.accent, size: 14),
+                const SizedBox(width: 6),
+                const Expanded(
+                  child: Text('Log de carregamento',
+                      style: TextStyle(
+                          color: AppTheme.accent,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700)),
+                ),
+                if (_expanded)
+                  IconButton(
+                    icon: const Icon(Icons.copy_rounded, size: 14),
+                    color: AppTheme.textSecondary,
+                    tooltip: 'Copiar log',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                        minWidth: 28, minHeight: 28),
+                    onPressed: () {
+                      Clipboard.setData(
+                          ClipboardData(text: widget.log.join('\n')));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Log copiado!'),
+                          duration: Duration(seconds: 1),
+                        ),
+                      );
+                    },
+                  ),
+                const SizedBox(width: 4),
+                Text(
+                  '${widget.log.length} linhas',
+                  style: const TextStyle(
+                      color: AppTheme.textSecondary, fontSize: 11),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  _expanded ? Icons.expand_less : Icons.expand_more,
+                  color: AppTheme.accent,
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_expanded)
+          SizedBox(height: 220, child: _LogPanel(log: widget.log)),
+      ],
+    );
+  }
+}
+
 class _LogPanel extends StatelessWidget {
   final List<String> log;
   const _LogPanel({required this.log});
@@ -807,41 +932,21 @@ class _LogPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(top: 4),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppTheme.bgDark,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppTheme.bgCard),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.terminal_rounded, color: AppTheme.accent, size: 14),
-              SizedBox(width: 6),
-              Text('Log de carregamento',
-                  style: TextStyle(
-                      color: AppTheme.accent,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700)),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: ListView.builder(
-              itemCount: log.length,
-              itemBuilder: (_, i) => Text(
-                log[i],
-                style: const TextStyle(
-                    color: AppTheme.textSecondary,
-                    fontSize: 11,
-                    fontFamily: 'monospace'),
-              ),
-            ),
-          ),
-        ],
+      child: SingleChildScrollView(
+        child: SelectableText(
+          log.join('\n'),
+          style: const TextStyle(
+              color: AppTheme.textSecondary,
+              fontSize: 11,
+              fontFamily: 'monospace'),
+        ),
       ),
     );
   }

@@ -28,75 +28,123 @@ class ProfessorRevealPage extends StatelessWidget {
                   orElse: () => prof.questions.first,
                 );
 
-        return Scaffold(
-          body: Container(
-            decoration: const BoxDecoration(gradient: AppTheme.bgGradient),
-            child: SafeArea(
-              child: Column(
-                children: [
-                  // ── AppBar ────────────────────────────────────────────
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 10),
-                    child: Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                              color: AppTheme.textSecondary, size: 20),
-                          onPressed: () => context.pop(),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            state.currentPage >= 0
-                                ? 'Gabarito — Questão ${state.currentPage + 1}'
-                                    '${state.totalPages > 0 ? ' de ${state.totalPages}' : ''}'
-                                : 'Gabarito',
-                            style: const TextStyle(
-                                color: AppTheme.textPrimary,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 17),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // ── Conteúdo ─────────────────────────────────────────
-                  Expanded(
-                    child: question == null
-                        ? const Center(
-                            child: Text('Nenhuma questão disponível.',
-                                style:
-                                    TextStyle(color: AppTheme.textSecondary)),
-                          )
-                        : _QuestionReveal(question: question),
-                  ),
-                ],
-              ),
-            ),
-          ),
+        return _RevealScaffold(
+          state: state,
+          question: question,
         );
       },
     );
   }
 }
 
-class _QuestionReveal extends StatefulWidget {
-  final QuestionEntity question;
-  const _QuestionReveal({required this.question});
+class _RevealScaffold extends StatefulWidget {
+  final dynamic state;
+  final QuestionEntity? question;
+  const _RevealScaffold({required this.state, required this.question});
 
   @override
-  State<_QuestionReveal> createState() => _QuestionRevealState();
+  State<_RevealScaffold> createState() => _RevealScaffoldState();
 }
 
-class _QuestionRevealState extends State<_QuestionReveal> {
-  static const _letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+class _RevealScaffoldState extends State<_RevealScaffold> {
   bool _showFeedback = false;
 
   @override
   Widget build(BuildContext context) {
+    final state = widget.state;
     final question = widget.question;
+    final hasFeedback =
+        question != null && question.generalFeedback.isNotEmpty;
+
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(gradient: AppTheme.bgGradient),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // ── AppBar ────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 10),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                          color: AppTheme.textSecondary, size: 20),
+                      onPressed: () => context.pop(),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        state.currentPage >= 0
+                            ? 'Gabarito — Questão ${state.currentPage + 1}'
+                                '${state.totalPages > 0 ? ' de ${state.totalPages}' : ''}'
+                            : 'Gabarito',
+                        style: const TextStyle(
+                            color: AppTheme.textPrimary,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 17),
+                      ),
+                    ),
+                    if (hasFeedback)
+                      TextButton.icon(
+                        onPressed: () =>
+                            setState(() => _showFeedback = !_showFeedback),
+                        icon: Icon(
+                          _showFeedback
+                              ? Icons.list_alt_rounded
+                              : Icons.feedback_outlined,
+                          size: 16,
+                        ),
+                        label: Text(
+                          _showFeedback
+                              ? 'Ver alternativas'
+                              : 'Ver feedback geral',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppTheme.textSecondary,
+                          backgroundColor: AppTheme.bgCardAlt,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16)),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+
+              // ── Conteúdo ─────────────────────────────────────────
+              Expanded(
+                child: question == null
+                    ? const Center(
+                        child: Text('Nenhuma questão disponível.',
+                            style:
+                                TextStyle(color: AppTheme.textSecondary)),
+                      )
+                    : _QuestionReveal(
+                        question: question,
+                        showFeedback: _showFeedback,
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _QuestionReveal extends StatelessWidget {
+  final QuestionEntity question;
+  final bool showFeedback;
+  const _QuestionReveal({required this.question, required this.showFeedback});
+
+  static const _letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+
+  @override
+  Widget build(BuildContext context) {
     final isMobile = Responsive.isMobile(context);
 
     return SingleChildScrollView(
@@ -153,35 +201,8 @@ class _QuestionRevealState extends State<_QuestionReveal> {
 
               const SizedBox(height: 16),
 
-              // ── Botão toggle ─────────────────────────────────────────
-              Center(
-                child: TextButton.icon(
-                  onPressed: () =>
-                      setState(() => _showFeedback = !_showFeedback),
-                  icon: Icon(
-                    _showFeedback
-                        ? Icons.list_alt_rounded
-                        : Icons.feedback_outlined,
-                    size: 18,
-                  ),
-                  label: Text(
-                    _showFeedback ? 'Ver alternativas' : 'Ver feedback geral',
-                  ),
-                  style: TextButton.styleFrom(
-                    foregroundColor: AppTheme.textSecondary,
-                    backgroundColor: AppTheme.bgCardAlt,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 18, vertical: 10),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20)),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
               // ── Alternativas ou Feedback ──────────────────────────────
-              if (!_showFeedback)
+              if (!showFeedback)
                 ...question.choices.asMap().entries.map((e) {
                   final idx = e.key;
                   final choice = e.value;

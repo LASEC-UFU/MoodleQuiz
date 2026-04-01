@@ -2,18 +2,17 @@
 
 import 'package:flutter/foundation.dart';
 
+import '../../core/utils/debug_logger.dart';
 import '../../domain/entities/moodle_course.dart';
 import '../../domain/entities/question_entity.dart';
 import '../../domain/entities/quiz_state_entity.dart';
 import '../../domain/entities/score_entity.dart';
 import '../../domain/entities/user_entity.dart';
 import '../../domain/repositories/i_quiz_repository.dart';
-import '../../domain/usecases/submit_answer_usecase.dart';
 
 /// Gerencia estado do estudante: seleÃ§Ã£o de disciplina + tentativa Moodle + polling.
 class StudentController extends ChangeNotifier {
   final IQuizRepository _quizRepo;
-  final SubmitAnswerUseCase _submitAnswer;
 
   // â”€â”€ SeleÃ§Ã£o de disciplina â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   List<MoodleCourse> _courses = [];
@@ -31,20 +30,20 @@ class StudentController extends ChangeNotifier {
   QuizStateEntity _quizState = QuizStateEntity.empty();
   List<ScoreEntity> _scores = [];
   String? _selectedChoice;
+  String? _selectedChoiceText; // texto legível capturado no momento da seleção
   bool _hasAnswered = false;
   bool _isSubmitting = false;
   bool _lastAnswerCorrect = false;
   bool _isLoadingQuestion = false;
   String? _error;
+  String? _attemptError; // erro ao criar tentativa (não bloqueia polling)
   Timer? _pollTimer;
   int _lastSeenSlot = 0;
   bool _autoSubmitted = false;
 
   StudentController({
     required IQuizRepository quizRepo,
-    required SubmitAnswerUseCase submitAnswer,
-  })  : _quizRepo = quizRepo,
-        _submitAnswer = submitAnswer;
+  }) : _quizRepo = quizRepo;
 
   // â”€â”€ Getters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   List<MoodleCourse> get courses => _courses;
@@ -58,11 +57,13 @@ class StudentController extends ChangeNotifier {
   QuestionEntity? get currentQuestion => _currentQuestion;
   List<ScoreEntity> get scores => _scores;
   String? get selectedChoice => _selectedChoice;
+  String? get selectedChoiceText => _selectedChoiceText;
   bool get hasAnswered => _hasAnswered;
   bool get isSubmitting => _isSubmitting;
   bool get lastAnswerCorrect => _lastAnswerCorrect;
   bool get isLoadingQuestion => _isLoadingQuestion;
   String? get error => _error;
+  String? get attemptError => _attemptError;
 
   ScoreEntity? myScore(String userId) {
     try {
@@ -99,6 +100,8 @@ class StudentController extends ChangeNotifier {
     _currentQuestion = null;
     _scores = [];
     _error = null;
+    _attemptError = null;
+    _selectedChoiceText = null;
     notifyListeners();
     _checkAndStartPolling(user);
   }
@@ -132,9 +135,10 @@ class StudentController extends ChangeNotifier {
     try {
       _attemptId = await _quizRepo.startAttempt(user, quizId);
       _currentQuizId = quizId;
+      _attemptError = null; // sucesso — limpa aviso anterior
     } catch (e) {
-      _error = e.toString();
-      notifyListeners();
+      // Não bloqueia o polling, mas avisa o aluno sobre o problema.
+      _attemptError = e.toString();
     }
   }
 
@@ -154,10 +158,19 @@ class StudentController extends ChangeNotifier {
   void selectChoice(String choiceValue) {
     if (_hasAnswered || !_quizState.isActive) return;
     _selectedChoice = choiceValue;
+    // Captura o texto legível agora, enquanto _currentQuestion está disponível
+    try {
+      _selectedChoiceText = _currentQuestion?.choices
+          .firstWhere((c) => c.value == choiceValue)
+          .text;
+    } catch (_) {
+      _selectedChoiceText = null;
+    }
     notifyListeners();
   }
 
   Future<void> submitAnswer(UserEntity user) async {
+    final dlog = DebugLogger.instance;
     final choice = _selectedChoice;
     final q = _currentQuestion;
     final id = _attemptId;
@@ -166,7 +179,16 @@ class StudentController extends ChangeNotifier {
         q == null ||
         id == null ||
         _hasAnswered ||
+        _isSubmitting ||
         courseId == null) {
+      dlog.log('STUDENT', 'submitAnswer cancelado — pré-condição falhou', data: {
+        'choice': choice,
+        'question': q != null ? 'slot=${q.slot}' : 'null',
+        'attemptId': id,
+        'hasAnswered': _hasAnswered,
+        'isSubmitting': _isSubmitting,
+        'courseId': courseId,
+      });
       return;
     }
 
@@ -176,16 +198,39 @@ class StudentController extends ChangeNotifier {
       final bonus = _quizState.secondsRemaining * 10;
       final baseScore = 1000 + bonus;
 
-      _lastAnswerCorrect = await _submitAnswer(
+      dlog.separator('STUDENT SUBMIT');
+      dlog.log('STUDENT', 'Submetendo resposta', data: {
+        'attemptId': id,
+        'slot': q.slot,
+        'page': q.page,
+        'choiceValue': choice,
+        'choiceText': _selectedChoiceText ?? '?',
+        'timeBonus': bonus,
+        'baseScore': baseScore,
+        'inputBaseName': q.inputBaseName,
+        'seqCheck': q.seqCheck,
+      });
+
+      // Moodle é a única fonte de verdade.
+      final correct = await _quizRepo.submitPage(user, id, q, choice);
+
+      dlog.log('STUDENT', '★ Resultado: ${correct ? "CORRETO ✓" : "INCORRETO ✗"}', data: {
+        'score_a_registrar': correct ? baseScore : 0,
+      });
+
+      // Registra pontuação no leaderboard
+      await _quizRepo.submitScore(
         user: user,
         courseId: courseId,
-        attemptId: id,
-        question: q,
-        choiceValue: choice,
-        baseScore: baseScore,
+        score: correct ? baseScore : 0,
+        correct: correct,
+        page: q.page,
       );
+
+      _lastAnswerCorrect = correct;
       _hasAnswered = true;
     } catch (e) {
+      dlog.log('STUDENT', '✗ ERRO ao submeter: $e');
       _error = e.toString();
     } finally {
       _isSubmitting = false;
@@ -215,8 +260,26 @@ class StudentController extends ChangeNotifier {
     try {
       final newState = await _quizRepo.getQuizState(user, courseId);
 
-      if (newState.isActive && newState.currentSlot != _lastSeenSlot) {
+      // Detecta reset do quiz (voltou ao estado 'waiting' após uma rodada)
+      if (newState.isWaiting && _lastSeenSlot > 0) {
+        _lastSeenSlot = 0;
         _selectedChoice = null;
+        _selectedChoiceText = null;
+        _hasAnswered = false;
+        _lastAnswerCorrect = false;
+        _autoSubmitted = false;
+        _currentQuestion = null;
+        _attemptId = null;
+        _currentQuizId = null;
+        _attemptError = null;
+        _scores = [];
+      }
+
+      if (newState.isActive && newState.currentSlot != _lastSeenSlot) {
+        // Marca o slot imediatamente para evitar re-entradas no próximo poll
+        _lastSeenSlot = newState.currentSlot;
+        _selectedChoice = null;
+        _selectedChoiceText = null;
         _hasAnswered = false;
         _lastAnswerCorrect = false;
         _autoSubmitted = false;
@@ -233,7 +296,31 @@ class StudentController extends ChangeNotifier {
           try {
             _currentQuestion =
                 await _quizRepo.getQuestion(user, id, newState.currentSlot);
-            _lastSeenSlot = newState.currentSlot;
+            _error = null;
+          } catch (e) {
+            _error = e.toString();
+          } finally {
+            _isLoadingQuestion = false;
+          }
+        }
+      }
+
+      // Retry: se a questão não foi carregada no ciclo anterior (attempt ou
+      // getQuestion falharam), tenta novamente sem resetar o estado do aluno.
+      if (newState.isActive &&
+          newState.currentSlot == _lastSeenSlot &&
+          _currentQuestion == null &&
+          !_isLoadingQuestion) {
+        if (_attemptId == null && newState.quizId > 0) {
+          await ensureAttempt(user, newState.quizId);
+        }
+        final id = _attemptId;
+        if (id != null && newState.currentSlot > 0) {
+          _isLoadingQuestion = true;
+          notifyListeners();
+          try {
+            _currentQuestion =
+                await _quizRepo.getQuestion(user, id, newState.currentSlot);
             _error = null;
           } catch (e) {
             _error = e.toString();
@@ -245,6 +332,7 @@ class StudentController extends ChangeNotifier {
 
       if (newState.isClosed &&
           !_hasAnswered &&
+          !_isSubmitting &&
           !_autoSubmitted &&
           _selectedChoice != null) {
         _autoSubmitted = true;
@@ -275,4 +363,3 @@ class StudentController extends ChangeNotifier {
     super.dispose();
   }
 }
-

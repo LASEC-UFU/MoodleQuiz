@@ -14,7 +14,6 @@ import 'data/repositories/quiz_repository_impl.dart';
 import 'domain/usecases/close_question_usecase.dart';
 import 'domain/usecases/login_usecase.dart';
 import 'domain/usecases/release_question_usecase.dart';
-import 'domain/usecases/submit_answer_usecase.dart';
 import 'presentation/controllers/auth_controller.dart';
 import 'presentation/controllers/professor_controller.dart';
 import 'presentation/controllers/student_controller.dart';
@@ -42,7 +41,6 @@ Future<void> main() async {
   final loginUseCase = LoginUseCase(authRepo);
   final releaseUseCase = ReleaseQuestionUseCase(quizRepo);
   final closeUseCase = CloseQuestionUseCase(quizRepo);
-  final submitUseCase = SubmitAnswerUseCase(quizRepo);
 
   final authCtrl = AuthController(
     loginUseCase: loginUseCase,
@@ -65,7 +63,6 @@ Future<void> main() async {
         ChangeNotifierProvider(
           create: (_) => StudentController(
             quizRepo: quizRepo,
-            submitAnswer: submitUseCase,
           ),
         ),
       ],

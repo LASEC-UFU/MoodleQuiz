@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import '../../core/utils/debug_logger.dart';
 import '../../core/utils/moodle_html_parser.dart';
 import '../../domain/entities/moodle_course.dart';
 import '../../domain/entities/moodle_quiz.dart';
@@ -57,7 +60,8 @@ class QuizRepositoryImpl implements IQuizRepository {
       log('Nova tentativa criada: ID $id');
       return id;
     } on MoodleException catch (e) {
-      log('Moodle recusou (${e.errorCode ?? e.message}) — buscando novamente…');
+      log('Moodle recusou [${e.errorCode ?? '?'}]: ${e.message}');
+
       // "quizalreadystarted": já existe tentativa aberta não listada antes
       final retryId = await _getUnfinishedAttemptId(user, quizId, onLog: onLog);
       if (retryId != null) {
@@ -71,16 +75,84 @@ class QuizRepositoryImpl implements IQuizRepository {
         log('Tentativa encontrada (all): ID $anyId');
         return anyId;
       }
+
+      // Verifica se há tentativa de preview bloqueando
+      log('Verificando tentativas de pré-visualização…');
+      final previewAttempts = await _moodle.getUserAttempts(
+          user.baseUrl, user.token, quizId,
+          status: 'all', userId: user.id, includePreviews: true);
+      final previews = previewAttempts
+          .where((a) =>
+              (a['preview'] == 1 || a['preview'] == true) &&
+              (a['state']?.toString() == 'inprogress' ||
+                  a['state']?.toString() == 'overdue'))
+          .toList();
+      log('Previews em andamento: ${previews.length}');
+
+      if (previews.isNotEmpty) {
+        // Estratégia 1: forcenew=1 — o Moodle deleta previews internamente
+        log('Tentando startAttempt com forcenew=1 (deleta previews automaticamente)…');
+        try {
+          final freshId = await _moodle
+              .startAttempt(user.baseUrl, user.token, quizId, forcenew: true);
+          log('Nova tentativa criada com forcenew: ID $freshId');
+          return freshId;
+        } catch (forceErr) {
+          log('forcenew falhou [${forceErr is MoodleException ? forceErr.errorCode ?? "?" : "?"}]: $forceErr');
+        }
+
+        // Estratégia 2: deletar preview via API
+        for (final preview in previews) {
+          final pid = (preview['id'] as num?)?.toInt() ?? 0;
+          log('Tentando deletar preview ID $pid…');
+          try {
+            await _moodle.deleteAttempt(user.baseUrl, user.token, pid);
+            log('Preview $pid deletado — criando nova tentativa…');
+            final freshId =
+                await _moodle.startAttempt(user.baseUrl, user.token, quizId);
+            log('Nova tentativa criada: ID $freshId');
+            return freshId;
+          } catch (deleteErr) {
+            log('deleteAttempt($pid) falhou [${deleteErr is MoodleException ? deleteErr.errorCode ?? "?" : "?"}]: $deleteErr');
+          }
+        }
+
+        // Estratégia 3: finalizar preview com timeup
+        for (final preview in previews) {
+          final pid = (preview['id'] as num?)?.toInt() ?? 0;
+          log('Tentando finalizar preview ID $pid com timeup…');
+          try {
+            await _moodle.finishAttempt(user.baseUrl, user.token, pid,
+                timeup: true);
+            log('Preview $pid finalizado — criando nova tentativa…');
+            final freshId =
+                await _moodle.startAttempt(user.baseUrl, user.token, quizId);
+            log('Nova tentativa criada: ID $freshId');
+            return freshId;
+          } catch (finishErr) {
+            log('finishAttempt($pid) falhou [${finishErr is MoodleException ? finishErr.errorCode ?? "?" : "?"}]: $finishErr');
+          }
+        }
+
+        throw MoodleException(
+          'Existe uma tentativa de pré-visualização bloqueando o quiz (ID: ${previews.map((p) => p["id"]).join(", ")}). '
+          'Acesse Moodle → Quiz → Resultados → Tentativas e delete a tentativa de pré-visualização, depois clique em Reiniciar Quiz.',
+          errorCode: 'previewblocking',
+        );
+      }
       rethrow;
     }
   }
 
   Future<int?> _getUnfinishedAttemptId(UserEntity user, int quizId,
-      {String status = 'unfinished', void Function(String)? onLog}) async {
+      {String status = 'unfinished',
+      bool includePreviews = false,
+      void Function(String)? onLog}) async {
     void log(String m) => onLog?.call(m);
     try {
-      final attempts = await _moodle
-          .getUserAttempts(user.baseUrl, user.token, quizId, status: status);
+      final attempts = await _moodle.getUserAttempts(
+          user.baseUrl, user.token, quizId,
+          status: status, userId: user.id, includePreviews: includePreviews);
       log('  getUserAttempts($status): ${attempts.length} resultado(s)');
       for (final a in attempts) {
         log('    id=${a['id']} state=${a['state']}');
@@ -91,9 +163,9 @@ class QuizRepositoryImpl implements IQuizRepository {
                 a['state']?.toString() == 'inprogress' ||
                 a['state']?.toString() == 'overdue')
             .toList();
-        final target =
-            inprogress.isNotEmpty ? inprogress.first : attempts.first;
-        return (target['id'] as num?)?.toInt();
+        // Nunca retorna tentativa finalizada — apenas inprogress/overdue
+        if (inprogress.isEmpty) return null;
+        return (inprogress.first['id'] as num?)?.toInt();
       }
     } catch (e) {
       log('  getUserAttempts($status) ERRO: $e');
@@ -104,6 +176,10 @@ class QuizRepositoryImpl implements IQuizRepository {
   @override
   Future<QuestionEntity> getQuestion(
       UserEntity user, int attemptId, int slot) async {
+    final dlog = DebugLogger.instance;
+    dlog.separator('GET QUESTION');
+    dlog.log('QUESTION', 'Buscando questão slot=$slot attemptId=$attemptId');
+
     // Tenta page=0 primeiro (cobre quizzes com todas as questões na mesma página)
     Map<String, dynamic>? qMap = await _findQuestionBySlot(
         user.baseUrl, user.token, attemptId, slot,
@@ -111,18 +187,28 @@ class QuizRepositoryImpl implements IQuizRepository {
 
     // Fallback: quiz com 1 questão por página (slot N está na página N-1)
     if (qMap == null && slot > 1) {
+      dlog.log('QUESTION', 'Não encontrada na page=0, tentando page=${slot - 1}');
       qMap = await _findQuestionBySlot(
           user.baseUrl, user.token, attemptId, slot,
           moodlePage: slot - 1);
     }
 
     if (qMap == null) {
+      dlog.log('QUESTION', '✗ Questão slot=$slot NÃO encontrada');
       throw Exception(
           'Questão com slot $slot não encontrada na tentativa $attemptId');
     }
 
     final html = qMap['html'] as String? ?? '';
     final actualSlot = (qMap['slot'] as num? ?? slot).toInt();
+
+    dlog.log('QUESTION', 'HTML recebido do Moodle', data: {
+      'slot': actualSlot,
+      'page': qMap['page'],
+      'state': qMap['state'],
+      'htmlLength': html.length,
+      'htmlPreview': html.length > 300 ? '${html.substring(0, 300)}…' : html,
+    });
 
     final parsed = MoodleHtmlParser.parse(
       html: html,
@@ -132,9 +218,24 @@ class QuizRepositoryImpl implements IQuizRepository {
       baseUrl: user.baseUrl,
     );
 
+    dlog.log('QUESTION', 'Questão parseada', data: {
+      'inputBaseName': parsed.inputBaseName,
+      'hardcoded_seria': 'q$attemptId:${actualSlot}_answer',
+      'base_difere': parsed.inputBaseName != 'q$attemptId:${actualSlot}_answer'
+          ? '⚠️ SIM — ID real ≠ attemptId!'
+          : 'não (iguais)',
+      'seqCheck': parsed.seqCheck,
+      'type': parsed.type,
+      'choicesCount': parsed.choices.length,
+      'choices': parsed.choices
+          .map((c) => 'value="${c.value}" text="${c.text}"')
+          .join(' | '),
+    });
+
     return QuestionEntity(
       slot: parsed.slot,
-      page: slot, // mantém slot como referência de página
+      page: (qMap['page'] as num? ?? 0)
+          .toInt(), // página real do Moodle (0-based)
       text: parsed.text,
       htmlText: parsed.htmlText,
       choices: parsed.choices,
@@ -287,6 +388,13 @@ class QuizRepositoryImpl implements IQuizRepository {
       }
       final correctValues = MoodleHtmlParser.parseCorrectValues(reviewHtml);
       log('  ✓ slot=${q.slot} gabarito: $correctValues');
+
+      // Debug: log detalhado do gabarito para o DebugLogger
+      DebugLogger.instance.log('GABARITO', 'slot=${q.slot} correctValues=$correctValues', data: {
+        'choices': q.choices.map((c) => 'value="${c.value}" text="${c.text}"').join(' | '),
+        'reviewHtmlLength': reviewHtml.length,
+        'reviewContainsRightAnswer': reviewHtml.contains('rightanswer'),
+      });
       final newChoices = q.choices
           .map((c) => ParsedChoice(
                 value: c.value,
@@ -315,20 +423,146 @@ class QuizRepositoryImpl implements IQuizRepository {
   @override
   Future<bool> submitPage(UserEntity user, int attemptId,
       QuestionEntity question, String choiceValue) async {
+    final dlog = DebugLogger.instance;
+    dlog.separator('SUBMIT PAGE');
+
+    // Log detalhado do que está sendo enviado
+    final choiceText = question.choices
+        .where((c) => c.value == choiceValue)
+        .map((c) => c.text)
+        .firstOrNull ?? '?';
+
+    dlog.log('SUBMIT', 'Dados da questão', data: {
+      'attemptId': attemptId,
+      'slot': question.slot,
+      'page': question.page,
+      'type': question.type,
+      'inputBaseName': question.inputBaseName,
+      'seqCheck': question.seqCheck,
+      'choiceValue': choiceValue,
+      'choiceText': choiceText,
+      'totalChoices': question.choices.length,
+      'allChoices': question.choices
+          .map((c) => 'value="${c.value}" text="${c.text}" correct=${c.isCorrect}')
+          .join(' | '),
+    });
+
+    final answerKey = question.inputBaseName;
+    final seqCheckKey =
+        question.inputBaseName.replaceFirst('answer', ':sequencecheck');
+    // No Moodle, variáveis de comportamento usam prefixo "-" (hífen),
+    // enquanto metadados do engine usam ":" (e.g. :sequencecheck).
+    // O botão "Verificar" do quiz se chama -submit, não :submit.
+    final submitKey =
+        question.inputBaseName.replaceFirst('answer', '-submit');
+
     final answerData = {
-      question.inputBaseName: choiceValue,
-      question.inputBaseName.replaceFirst('_answer', ':sequencecheck'):
-          question.seqCheck,
+      answerKey: choiceValue,
+      seqCheckKey: question.seqCheck,
+      submitKey: '1',
     };
 
-    final result = await _moodle.processAttempt(
-        user.baseUrl, user.token, attemptId, answerData);
+    dlog.log('SUBMIT', 'Payload para Moodle', data: {
+      answerKey: choiceValue,
+      seqCheckKey: question.seqCheck,
+      submitKey: '1',
+    });
 
-    // Moodle retorna o estado mas o feedback de "correto/errado" está na
-    // revisão da tentativa. Usamos mod_quiz_get_attempt_review para verificar.
-    // Por ora, checamos via get_attempt_data re-fetching.
-    return await _checkAnswerCorrect(
-        user, attemptId, question.slot, choiceValue, result);
+    // Salva e avalia a resposta sem fechar a tentativa.
+    await _moodle.processAttempt(
+        user.baseUrl, user.token, attemptId, answerData,
+        page: question.page);
+
+    // Lê o estado da questão após a avaliação.
+    try {
+      dlog.log('SUBMIT', 'Lendo estado pós-avaliação (getAttemptData page=${question.page})…');
+      final data = await _moodle.getAttemptData(
+          user.baseUrl, user.token, attemptId, question.page);
+
+      final questions = data['questions'] as List? ?? [];
+      dlog.log('SUBMIT', 'getAttemptData retornou ${questions.length} questão(ões)');
+
+      for (final q in questions) {
+        final qMap = q as Map;
+        final qSlot = (qMap['slot'] as num?)?.toInt();
+        final state = qMap['state']?.toString() ?? '';
+        final status = qMap['status']?.toString() ?? '';
+        final stateclass = qMap['stateclass']?.toString() ?? '';
+        final seqCheckApi = qMap['sequencecheck']?.toString() ?? '';
+        final flagged = qMap['flagged'];
+        final qHtml = qMap['html'] as String? ?? '';
+
+        dlog.log('SUBMIT', 'Questão retornada', data: {
+          'slot': qSlot,
+          'state': state,
+          'stateclass': stateclass,
+          'status': status,
+          'sequencecheck': seqCheckApi,
+          'flagged': flagged,
+          'htmlLength': qHtml.length,
+        });
+
+        if (qSlot == question.slot) {
+          // Analisa o HTML para pistas de avaliação
+          final htmlHasCorrect = qHtml.contains('class="correct"') ||
+              qHtml.contains('class="gradedright"');
+          final htmlHasIncorrect = qHtml.contains('class="incorrect"') ||
+              qHtml.contains('class="gradedwrong"') ||
+              qHtml.contains('class="notanswered"');
+          final htmlHasRightAnswer = qHtml.contains('rightanswer');
+          final htmlHasFeedback = qHtml.contains('class="feedback"') ||
+              qHtml.contains('specificfeedback') ||
+              qHtml.contains('generalfeedback');
+          // Verifica se o div principal tem a classe de estado
+          final divClassMatch = RegExp(r'class="que\s+multichoice\s+immediatefeedback\s+(\w+)"').firstMatch(qHtml);
+          final queStateClass = divClassMatch?.group(1) ?? '';
+
+          dlog.log('SUBMIT', '★ Diagnóstico completo', data: {
+            'state_api': state.isEmpty ? '(vazio)' : state,
+            'stateclass_api': stateclass.isEmpty ? '(vazio)' : stateclass,
+            'status_api': status,
+            'queStateClass_html': queStateClass.isEmpty ? '(não encontrado)' : queStateClass,
+            'html_correct': htmlHasCorrect,
+            'html_incorrect': htmlHasIncorrect,
+            'html_rightanswer': htmlHasRightAnswer,
+            'html_feedback': htmlHasFeedback,
+            'htmlPreview_200': qHtml.length > 200 ? qHtml.substring(0, 200) : qHtml,
+          });
+
+          // 1) Prioridade: campo state da API
+          if (state == 'gradedright') return true;
+          if (state == 'gradedwrong' || state == 'gradedpartial') return false;
+
+          // 2) Fallback: stateclass da API
+          if (stateclass == 'correct') return true;
+          if (stateclass == 'incorrect' || stateclass == 'notanswered') return false;
+
+          // 3) Fallback: classe no div principal do HTML
+          if (queStateClass == 'correct') return true;
+          if (queStateClass == 'incorrect' || queStateClass == 'notanswered') return false;
+
+          // 4) Fallback: pistas genéricas no HTML
+          if (htmlHasCorrect && !htmlHasIncorrect) return true;
+          if (htmlHasIncorrect) return false;
+          if (htmlHasRightAnswer) {
+            // Se tem "rightanswer" no HTML, foi avaliado como errado
+            // (Moodle mostra a resposta certa apenas quando errou)
+            return false;
+          }
+
+          dlog.log('SUBMIT', '⚠ Nenhum indicador de correção encontrado. Possíveis causas:');
+          dlog.log('SUBMIT', '  1) Quiz usa deferred feedback (não avalia na hora)');
+          dlog.log('SUBMIT', '  2) Opções de revisão não mostram "Se está correto" durante tentativa');
+
+          break;
+        }
+      }
+    } catch (e) {
+      dlog.log('SUBMIT', '✗ ERRO ao ler estado pós-avaliação: $e');
+    }
+
+    dlog.log('SUBMIT', '→ Retornando FALSE (nenhum gradedright detectado)');
+    return false;
   }
 
   @override
@@ -377,25 +611,68 @@ class QuizRepositoryImpl implements IQuizRepository {
     required int score,
     required bool correct,
     required int page,
-  }) =>
-      _state.submitScore(
-        baseUrl: user.baseUrl,
-        token: user.token,
-        courseId: courseId,
-        studentId: user.id.toString(),
-        studentName: user.fullname,
-        score: score,
-        correct: correct,
-        page: page,
-      );
+  }) async {
+    final dl = DebugLogger.instance;
+    dl.log('SCORE', 'submitScore chamado', data: {
+      'studentId': user.id,
+      'score': score,
+      'correct': correct,
+      'page': page,
+    });
+    await _state.submitScore(
+      baseUrl: user.baseUrl,
+      token: user.token,
+      courseId: courseId,
+      studentId: user.id.toString(),
+      studentName: user.fullname,
+      score: score,
+      correct: correct,
+      page: page,
+    );
+    dl.log('SCORE', 'submitScore concluído ✓');
+  }
 
   @override
   Future<List<ScoreEntity>> getScores(UserEntity user, int courseId) async {
     final list = await _state.getScores(user.baseUrl, user.token, courseId);
-    final result = list.map((j) {
+
+    // Ordena por score desc para atribuir rank
+    final sorted = [...list];
+    sorted.sort((a, b) {
+      final sa = (a['score'] as num? ?? 0).toInt();
+      final sb = (b['score'] as num? ?? 0).toInt();
+      return sb.compareTo(sa);
+    });
+
+    final result = sorted.indexed.map(((int, Map<String, dynamic>) entry) {
+      final rank = entry.$1 + 1;
+      final j = entry.$2;
       final id = j['student_id']?.toString() ?? '';
-      return ScoreModel.fromJson(j, previousRank: _prevRanks[id]);
+      // total_answered = número de páginas respondidas
+      int totalAnswered = 0;
+      try {
+        final pages = j['pages'];
+        if (pages is String && pages.isNotEmpty) {
+          final decoded = jsonDecode(pages);
+          if (decoded is Map) {
+            // Novo formato: {"0": {"s": 1230, "c": 1}, ...}
+            totalAnswered = decoded.length;
+          } else if (decoded is List) {
+            // Formato legado: [0, 1, 2]
+            totalAnswered = decoded.length;
+          }
+        } else if (pages is List) {
+          totalAnswered = pages.length;
+        } else if (pages is Map) {
+          totalAnswered = pages.length;
+        }
+      } catch (_) {}
+      return ScoreModel.fromJson(
+        {...j, 'rank': rank, 'total_answered': totalAnswered},
+        previousRank: _prevRanks[id],
+      );
     }).toList();
+
     _prevRanks = {for (final s in result) s.studentId: s.rank};
     return result;
   }
@@ -409,37 +686,4 @@ class QuizRepositoryImpl implements IQuizRepository {
   @override
   Future<void> setFinished(UserEntity user, int courseId) =>
       _state.setFinished(user.baseUrl, user.token, courseId);
-
-  // ── Privado ────────────────────────────────────────────────────────────────
-
-  /// Verifica se a resposta submetida foi correta consultando o Moodle.
-  /// O Moodle com comportamento "immediate feedback" inclui a marcação
-  /// correct/incorrect na resposta retornada após process_attempt.
-  Future<bool> _checkAnswerCorrect(UserEntity user, int attemptId, int slot,
-      String choiceValue, Map<String, dynamic> processResult) async {
-    try {
-      // Tenta extrair o feedback de gradedright/gradedwrong do HTML retornado
-      final state = processResult['state']?.toString() ?? '';
-      if (state == 'complete' || state == 'gradedright') return true;
-      if (state == 'gradedwrong' || state == 'gradedpartial') return false;
-
-      // Fallback: re-fetch a página para verificar marcação de correto
-      // (funciona quando o quiz usa "immediate feedback")
-      final page = (slot - 1); // aproximação slot→page
-      final data = await _moodle.getAttemptData(
-          user.baseUrl, user.token, attemptId, page);
-      final questions = data['questions'] as List? ?? [];
-      for (final q in questions) {
-        final qMap = q as Map;
-        if ((qMap['slot'] as num?)?.toInt() == slot) {
-          final html = qMap['html'] as String? ?? '';
-          if (html.contains('correct') && !html.contains('incorrect')) {
-            return true;
-          }
-          return false;
-        }
-      }
-    } catch (_) {}
-    return false;
-  }
 }

@@ -371,8 +371,8 @@ class MoodleStateDatasource implements IStateDatasource {
 
     await _writeState(baseUrl, token, {
       'state': 'active',
-      'current_page': page, // índice sequencial da questão (0-based)
-      'current_slot': slot, // slot Moodle único — usado pelo aluno para buscar
+      'current_page': page,
+      'current_slot': slot,
       'total_pages': totalPages,
       'quiz_id': quizId,
       'course_id': courseId,
@@ -409,6 +409,7 @@ class MoodleStateDatasource implements IStateDatasource {
               'student_name': e['student_name'] ?? '',
               'score': e['score'] ?? 0,
               'correct_count': e['correct_count'] ?? 0,
+              'pages': e['pages'] ?? '[]',
             })
         .toList();
   }
@@ -433,56 +434,70 @@ class MoodleStateDatasource implements IStateDatasource {
       orElse: () => {},
     );
 
+    // Dados por página: {"0": {"s": 1230, "c": 1}, "1": {"s": 0, "c": 0}}
+    // Permite re-submissão (ex: após correção de bug) sem perder/duplicar dados.
+    Map<String, dynamic> pageData = {};
+
+    if (existing.isNotEmpty) {
+      try {
+        final raw = existing['pages'] as String? ?? '{}';
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) {
+          pageData = Map<String, dynamic>.from(decoded);
+        } else if (decoded is List) {
+          // Migração de formato antigo [0, 1] → {"0": {"s": 0, "c": 0}, ...}
+          for (final p in decoded) {
+            pageData[p.toString()] = {'s': 0, 'c': 0};
+          }
+        }
+      } catch (_) {}
+    }
+
+    // Atualiza (ou insere) dados desta página
+    pageData[page.toString()] = {
+      's': score,
+      'c': correct ? 1 : 0,
+    };
+
+    // Recalcula totais a partir dos dados por página
+    int totalScore = 0;
+    int totalCorrect = 0;
+    for (final v in pageData.values) {
+      if (v is Map) {
+        totalScore += (v['s'] as num? ?? 0).toInt();
+        totalCorrect += (v['c'] as num? ?? 0).toInt();
+      }
+    }
+
+    final pagesJson = jsonEncode(jsonEncode(pageData));
+
+    final data = {
+      'data[0][fieldid]': _typeFieldId!.toString(),
+      'data[0][value]': jsonEncode('score'),
+      'data[1][fieldid]': _stateJsonFieldId!.toString(),
+      'data[1][value]': jsonEncode(''),
+      'data[2][fieldid]': _studentIdFieldId!.toString(),
+      'data[2][value]': jsonEncode(studentId),
+      'data[3][fieldid]': _studentNameFieldId!.toString(),
+      'data[3][value]': jsonEncode(studentName),
+      'data[4][fieldid]': _scoreFieldId!.toString(),
+      'data[4][value]': totalScore.toString(),
+      'data[5][fieldid]': _correctCountFieldId!.toString(),
+      'data[5][value]': totalCorrect.toString(),
+      'data[6][fieldid]': _pagesFieldId!.toString(),
+      'data[6][value]': pagesJson,
+    };
+
     if (existing.isEmpty) {
-      // Primeira resposta deste aluno
       await _callWs(baseUrl, token, 'mod_data_add_entry', {
         'databaseid': _dataid!.toString(),
-        'data[0][fieldid]': _typeFieldId!.toString(),
-        'data[0][value]': jsonEncode('score'),
-        'data[1][fieldid]': _stateJsonFieldId!.toString(),
-        'data[1][value]': jsonEncode(''),
-        'data[2][fieldid]': _studentIdFieldId!.toString(),
-        'data[2][value]': jsonEncode(studentId),
-        'data[3][fieldid]': _studentNameFieldId!.toString(),
-        'data[3][value]': jsonEncode(studentName),
-        'data[4][fieldid]': _scoreFieldId!.toString(),
-        'data[4][value]': score.toString(),
-        'data[5][fieldid]': _correctCountFieldId!.toString(),
-        'data[5][value]': correct ? '1' : '0',
-        'data[6][fieldid]': _pagesFieldId!.toString(),
-        'data[6][value]': jsonEncode(jsonEncode([page])),
+        ...data,
       });
     } else {
-      // Acumula — ignora se a página já foi submetida
-      List<int> prevPages = [];
-      try {
-        prevPages = (jsonDecode(existing['pages'] as String? ?? '[]') as List)
-            .map((e) => (e as num).toInt())
-            .toList();
-      } catch (_) {}
-      if (prevPages.contains(page)) return;
-
       final entryId = existing['_entry_id'] as int;
-      final newScore = (existing['score'] as int) + score;
-      final newCorrect = (existing['correct_count'] as int) + (correct ? 1 : 0);
-      final newPages = [...prevPages, page];
-
       await _callWs(baseUrl, token, 'mod_data_update_entry', {
         'entryid': entryId.toString(),
-        'data[0][fieldid]': _typeFieldId!.toString(),
-        'data[0][value]': jsonEncode('score'),
-        'data[1][fieldid]': _stateJsonFieldId!.toString(),
-        'data[1][value]': jsonEncode(''),
-        'data[2][fieldid]': _studentIdFieldId!.toString(),
-        'data[2][value]': jsonEncode(studentId),
-        'data[3][fieldid]': _studentNameFieldId!.toString(),
-        'data[3][value]': jsonEncode(studentName),
-        'data[4][fieldid]': _scoreFieldId!.toString(),
-        'data[4][value]': newScore.toString(),
-        'data[5][fieldid]': _correctCountFieldId!.toString(),
-        'data[5][value]': newCorrect.toString(),
-        'data[6][fieldid]': _pagesFieldId!.toString(),
-        'data[6][value]': jsonEncode(jsonEncode(newPages)),
+        ...data,
       });
     }
   }

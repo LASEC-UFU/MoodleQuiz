@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+import '../../core/utils/debug_logger.dart';
+
 /// Interface – S: apenas chamadas à API REST do Moodle.
 abstract class IMoodleDatasource {
   Future<Map<String, dynamic>> login(
@@ -14,24 +16,31 @@ abstract class IMoodleDatasource {
   Future<List<Map<String, dynamic>>> getQuizzesByCourse(
       String baseUrl, String token, int courseId);
 
-  /// Inicia (ou retoma) uma tentativa. Retorna o attemptId.
-  Future<int> startAttempt(String baseUrl, String token, int quizId);
+  /// Inicia (ou retoma) uma tentativa. [forcenew] força nova tentativa deletando previews existentes.
+  Future<int> startAttempt(String baseUrl, String token, int quizId,
+      {bool forcenew = false});
 
   /// Lista tentativas do usuário para um quiz. status: 'all'|'finished'|'unfinished'.
   Future<List<Map<String, dynamic>>> getUserAttempts(
       String baseUrl, String token, int quizId,
-      {String status = 'all'});
+      {String status = 'all', int userId = 0, bool includePreviews = false});
 
   /// Retorna dados de uma página da tentativa (inclui HTML das questões).
   Future<Map<String, dynamic>> getAttemptData(
       String baseUrl, String token, int attemptId, int page);
 
-  /// Submete as respostas de uma página. Retorna o estado da tentativa.
+  /// Submete as respostas de uma página. [finish]+[timeup]=true finaliza a tentativa
+  /// num único request, contornando o erro "trabalhos não salvos".
   Future<Map<String, dynamic>> processAttempt(String baseUrl, String token,
-      int attemptId, Map<String, String> answerData);
+      int attemptId, Map<String, String> answerData,
+      {int page = -1, bool finish = false, bool timeup = false});
 
-  /// Finaliza a tentativa.
-  Future<void> finishAttempt(String baseUrl, String token, int attemptId);
+  /// Finaliza a tentativa. [timeup] força o encerramento mesmo com questões não salvas.
+  Future<void> finishAttempt(String baseUrl, String token, int attemptId,
+      {bool timeup = false});
+
+  /// Deleta uma tentativa (funciona para previews que não podem ser finalizadas via API).
+  Future<void> deleteAttempt(String baseUrl, String token, int attemptId);
 
   /// Obtém a revisão de uma tentativa finalizada (inclui HTML com marcações correct/incorrect).
   Future<Map<String, dynamic>> getAttemptReview(
@@ -134,13 +143,12 @@ class MoodleDatasource implements IMoodleDatasource {
   }
 
   @override
-  Future<int> startAttempt(String baseUrl, String token, int quizId) async {
-    final result = await _callWs(
-      baseUrl,
-      token,
-      'mod_quiz_start_attempt',
-      {'quizid': quizId.toString()},
-    );
+  Future<int> startAttempt(String baseUrl, String token, int quizId,
+      {bool forcenew = false}) async {
+    final params = <String, String>{'quizid': quizId.toString()};
+    if (forcenew) params['forcenew'] = '1';
+    final result =
+        await _callWs(baseUrl, token, 'mod_quiz_start_attempt', params);
     final attempt = result['attempt'];
     if (attempt == null) throw MoodleException('Falha ao iniciar tentativa');
     return (attempt['id'] as num).toInt();
@@ -163,22 +171,30 @@ class MoodleDatasource implements IMoodleDatasource {
   @override
   Future<List<Map<String, dynamic>>> getUserAttempts(
       String baseUrl, String token, int quizId,
-      {String status = 'all'}) async {
-    final result = await _callWs(baseUrl, token, 'mod_quiz_get_user_attempts', {
+      {String status = 'all',
+      int userId = 0,
+      bool includePreviews = false}) async {
+    final params = <String, String>{
       'quizid': quizId.toString(),
       'status': status,
-      'includepreviews': '0',
-    });
+      'includepreviews': includePreviews ? '1' : '0',
+    };
+    if (userId > 0) params['userid'] = userId.toString();
+    final result =
+        await _callWs(baseUrl, token, 'mod_quiz_get_user_attempts', params);
     final attempts = result['attempts'] as List? ?? [];
     return attempts.map((e) => Map<String, dynamic>.from(e as Map)).toList();
   }
 
   @override
   Future<Map<String, dynamic>> processAttempt(String baseUrl, String token,
-      int attemptId, Map<String, String> answerData) async {
+      int attemptId, Map<String, String> answerData,
+      {int page = -1, bool finish = false, bool timeup = false}) async {
+    final dlog = DebugLogger.instance;
     final params = <String, String>{
       'attemptid': attemptId.toString(),
-      'finishattempt': '0',
+      'finishattempt': finish ? '1' : '0',
+      if (timeup && finish) 'timeup': '1',
     };
     int i = 0;
     for (final entry in answerData.entries) {
@@ -186,7 +202,23 @@ class MoodleDatasource implements IMoodleDatasource {
       params['data[$i][value]'] = entry.value;
       i++;
     }
-    return _callWs(baseUrl, token, 'mod_quiz_process_attempt', params);
+
+    dlog.log('PROCESS', 'processAttempt → attemptId=$attemptId page=$page finish=$finish', data: {
+      'answerData': answerData.toString(),
+      'params_enviados': params.entries
+          .where((e) => e.key.startsWith('data'))
+          .map((e) => '${e.key}=${e.value}')
+          .join(', '),
+    });
+
+    final result = await _callWs(baseUrl, token, 'mod_quiz_process_attempt', params, usePost: true);
+
+    dlog.log('PROCESS', 'processAttempt ← resposta recebida', data: {
+      'state': result['state']?.toString() ?? '(não retornado)',
+      'warnings': (result['warnings'] as List?)?.map((w) => w.toString()).join('; ') ?? 'nenhum',
+    });
+
+    return result;
   }
 
   @override
@@ -204,8 +236,8 @@ class MoodleDatasource implements IMoodleDatasource {
   }
 
   @override
-  Future<void> finishAttempt(
-      String baseUrl, String token, int attemptId) async {
+  Future<void> finishAttempt(String baseUrl, String token, int attemptId,
+      {bool timeup = false}) async {
     await _callWs(
       baseUrl,
       token,
@@ -213,7 +245,19 @@ class MoodleDatasource implements IMoodleDatasource {
       {
         'attemptid': attemptId.toString(),
         'finishattempt': '1',
+        if (timeup) 'timeup': '1',
       },
+    );
+  }
+
+  @override
+  Future<void> deleteAttempt(
+      String baseUrl, String token, int attemptId) async {
+    await _callWs(
+      baseUrl,
+      token,
+      'mod_quiz_delete_attempt',
+      {'attemptid': attemptId.toString()},
     );
   }
 
@@ -293,29 +337,49 @@ class MoodleDatasource implements IMoodleDatasource {
 
   // ── Privado ────────────────────────────────────────────────────────────────
 
-  /// Chama um web service Moodle diretamente via GET.
+  /// Chama um web service Moodle via GET (leitura) ou POST (escrita).
   /// Se a resposta for uma lista JSON, retorna {'result': [lista]}.
   Future<Map<String, dynamic>> _callWs(
     String baseUrl,
     String token,
     String function,
-    Map<String, String> params,
-  ) async {
-    final uri = Uri.parse('$baseUrl/webservice/rest/server.php').replace(
-      queryParameters: {
-        'wstoken': token,
-        'wsfunction': function,
-        'moodlewsrestformat': 'json',
-        ...params,
-      },
-    );
-    final resp = await _client.get(uri);
+    Map<String, String> params, {
+    bool usePost = false,
+  }) async {
+    final dlog = DebugLogger.instance;
+    final allParams = {
+      'wstoken': token,
+      'wsfunction': function,
+      'moodlewsrestformat': 'json',
+      ...params,
+    };
+
+    http.Response resp;
+    if (usePost) {
+      final uri = Uri.parse('$baseUrl/webservice/rest/server.php');
+      resp = await _client.post(uri, body: allParams);
+    } else {
+      final uri = Uri.parse('$baseUrl/webservice/rest/server.php').replace(
+        queryParameters: allParams,
+      );
+      resp = await _client.get(uri);
+    }
+
     _assertOk(resp);
     final data = jsonDecode(resp.body);
     if (data is Map && data['exception'] != null) {
       final code = data['errorcode']?.toString() ?? '';
+      final msg = data['message']?.toString() ?? '';
+      final debugInfo = data['debuginfo']?.toString() ?? '';
+      dlog.log('API_ERROR', '$function → ERRO', data: {
+        'method': usePost ? 'POST' : 'GET',
+        'exception': data['exception']?.toString() ?? '',
+        'errorcode': code,
+        'message': msg,
+        'debuginfo': debugInfo,
+      });
       throw MoodleException(
-          _friendlyError(code, data['message']?.toString() ?? ''),
+          _friendlyError(code, msg.isNotEmpty ? '$function/$msg' : function),
           errorCode: code);
     }
     if (data is Map<String, dynamic>) return data;
@@ -335,6 +399,10 @@ class MoodleDatasource implements IMoodleDatasource {
       'nopermissions': 'Sem permissão para realizar esta operação.',
       'invalidrecordunknown': 'Registro não encontrado no Moodle.',
       'servicenotavailable': 'Serviço Moodle não encontrado.',
+      'attempterror':
+          'Limite de tentativas atingido. Configure o questionário Moodle para tentativas ilimitadas (Nota → Tentativas permitidas = Ilimitado).',
+      'nomoreattempts':
+          'Limite de tentativas atingido. Configure o questionário Moodle para tentativas ilimitadas (Nota → Tentativas permitidas = Ilimitado).',
     };
     return map[code] ?? message;
   }

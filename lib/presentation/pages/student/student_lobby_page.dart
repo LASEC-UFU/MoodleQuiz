@@ -10,6 +10,7 @@ import '../../../domain/entities/quiz_state_entity.dart';
 import '../../../domain/entities/score_entity.dart';
 import '../../controllers/auth_controller.dart';
 import '../../controllers/student_controller.dart';
+import '../../widgets/debug_panel.dart';
 import 'student_question_page.dart';
 
 /// Tela do estudante – lobby de espera e questão ativa.
@@ -34,27 +35,33 @@ class _StudentLobbyPageState extends State<StudentLobbyPage> {
         final state = student.quizState;
 
         return Scaffold(
-          body: Container(
-            decoration: const BoxDecoration(gradient: AppTheme.bgGradient),
-            child: SafeArea(
-              child: Column(
-                children: [
-                  _TopBar(
-                    title: state.quizTitle,
-                    fullname: auth.user!.fullname,
-                    onBack: () => context.go(AppRouter.studentCourses),
-                    onLogout: () async {
-                      student.stopPolling();
-                      await auth.logout();
-                      if (context.mounted) context.go(AppRouter.login);
-                    },
+          body: Stack(
+            children: [
+              Container(
+                decoration: const BoxDecoration(gradient: AppTheme.bgGradient),
+                child: SafeArea(
+                  child: Column(
+                    children: [
+                      _TopBar(
+                        title: state.quizTitle,
+                        fullname: auth.user!.fullname,
+                        onBack: () => context.go(AppRouter.studentCourses),
+                        onLogout: () async {
+                          student.stopPolling();
+                          await auth.logout();
+                          if (context.mounted) context.go(AppRouter.login);
+                        },
+                      ),
+                      Expanded(
+                        child: _buildBody(context, state, student, auth),
+                      ),
+                    ],
                   ),
-                  Expanded(
-                    child: _buildBody(context, state, student, auth),
-                  ),
-                ],
+                ),
               ),
-            ),
+              // Painel de debug flutuante
+              const DebugPanel(),
+            ],
           ),
         );
       },
@@ -67,6 +74,8 @@ class _StudentLobbyPageState extends State<StudentLobbyPage> {
     StudentController student,
     AuthController auth,
   ) {
+    final myScore = student.myScore(auth.user!.id.toString());
+
     // Questão ativa → mostra tela de resposta
     if (state.isActive && student.currentQuestion != null) {
       return StudentQuestionPage(
@@ -85,14 +94,12 @@ class _StudentLobbyPageState extends State<StudentLobbyPage> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    final myScore = student.myScore(auth.user!.id.toString());
-
     // Questão fechada → mostra resultado
     if (state.isClosed) {
       return _ClosedQuestionView(
         wasCorrect: student.lastAnswerCorrect,
         answered: student.hasAnswered,
-        selectedText: _selectedChoiceText(student),
+        selectedText: student.selectedChoiceText,
         myScore: myScore,
         totalPages: state.totalPages,
       );
@@ -103,8 +110,8 @@ class _StudentLobbyPageState extends State<StudentLobbyPage> {
       return _FinalView(myScore: myScore, totalPages: state.totalPages);
     }
 
-    // Erro ao carregar questão
-    if (student.error != null) {
+    // Erro de rede / questão (não bloqueia quando quiz está ativo aguardando tentativa)
+    if (student.error != null && !state.isActive) {
       return Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -124,25 +131,15 @@ class _StudentLobbyPageState extends State<StudentLobbyPage> {
       );
     }
 
-    // Aguardando
+    // Aguardando (estado idle ou quiz ativo ainda carregando tentativa)
     return _WaitingView(
       title: state.quizTitle,
       userName: auth.user!.fullname,
       currentPage: state.currentPage,
       totalPages: state.totalPages,
       myScore: myScore,
+      attemptError: student.attemptError,
     );
-  }
-
-  String? _selectedChoiceText(StudentController student) {
-    final q = student.currentQuestion;
-    final v = student.selectedChoice;
-    if (q == null || v == null) return null;
-    try {
-      return q.choices.firstWhere((c) => c.value == v).text;
-    } catch (_) {
-      return v;
-    }
   }
 }
 
@@ -216,6 +213,7 @@ class _WaitingView extends StatelessWidget {
   final int currentPage;
   final int totalPages;
   final ScoreEntity? myScore;
+  final String? attemptError;
 
   const _WaitingView({
     required this.title,
@@ -223,6 +221,7 @@ class _WaitingView extends StatelessWidget {
     required this.currentPage,
     required this.totalPages,
     required this.myScore,
+    this.attemptError,
   });
 
   @override
@@ -256,6 +255,35 @@ class _WaitingView extends StatelessWidget {
                   color: AppTheme.textSecondary, fontSize: 16, height: 1.5),
               textAlign: TextAlign.center,
             ),
+            if (attemptError != null) ...[
+              const SizedBox(height: 24),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.12),
+                  border:
+                      Border.all(color: Colors.orange.withValues(alpha: 0.5)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.warning_amber_rounded,
+                        color: Colors.orange, size: 20),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(
+                        'O quiz ainda não está visível para você.\nPeça ao professor para liberar a atividade no Moodle.',
+                        style: const TextStyle(
+                            color: Colors.orange, fontSize: 13, height: 1.4),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             if (currentPage >= 0) ...[
               const SizedBox(height: 24),
               Container(
@@ -425,14 +453,44 @@ class _ClosedQuestionView extends StatelessWidget {
                 style: AppTheme.headlineMedium,
               ),
               if (selectedText != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  'Sua resposta: $selectedText',
-                  style: TextStyle(
-                    color: wasCorrect ? AppTheme.success : AppTheme.danger,
-                    fontSize: 16,
+                const SizedBox(height: 12),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: (wasCorrect ? AppTheme.success : AppTheme.danger)
+                        .withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: (wasCorrect ? AppTheme.success : AppTheme.danger)
+                          .withValues(alpha: 0.3),
+                    ),
                   ),
-                  textAlign: TextAlign.center,
+                  child: Column(
+                    children: [
+                      Text(
+                        'Sua resposta:',
+                        style: TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        selectedText!,
+                        style: TextStyle(
+                          color:
+                              wasCorrect ? AppTheme.success : AppTheme.danger,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
               ],
               if (myScore != null) ...[
