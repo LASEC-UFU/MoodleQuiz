@@ -45,7 +45,7 @@ class _LoginPageState extends State<LoginPage> {
     if (auth.user!.isTeacher) {
       if (mounted) context.go(AppRouter.professorCourses);
     } else {
-      if (mounted) context.go(AppRouter.student);
+      if (mounted) context.go(AppRouter.studentCourses);
     }
   }
 

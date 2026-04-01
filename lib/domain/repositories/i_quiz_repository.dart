@@ -17,8 +17,8 @@ abstract class IQuizRepository {
   Future<int> startAttempt(UserEntity user, int quizId,
       {void Function(String)? onLog});
 
-  /// Obtém e parseia a questão de uma página da tentativa.
-  Future<QuestionEntity> getQuestion(UserEntity user, int attemptId, int page);
+  /// Obtém e parseia a questão pelo slot Moodle da tentativa.
+  Future<QuestionEntity> getQuestion(UserEntity user, int attemptId, int slot);
 
   /// Submete resposta ao Moodle e retorna se acertou.
   Future<bool> submitPage(UserEntity user, int attemptId,
@@ -41,6 +41,7 @@ abstract class IQuizRepository {
     required UserEntity user,
     required int courseId,
     required int page,
+    required int slot,
     required int duration,
     required int totalPages,
     required String quizName,

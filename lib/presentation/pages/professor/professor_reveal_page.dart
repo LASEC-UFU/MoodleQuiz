@@ -20,13 +20,13 @@ class ProfessorRevealPage extends StatelessWidget {
       builder: (context, prof, _) {
         final state = prof.quizState;
 
-        // Encontra a questão que estava ativa
+        // Encontra a questão que estava ativa pelo slot (identificador único Moodle)
         final QuestionEntity? question = prof.questions.isEmpty
             ? null
             : prof.questions.cast<QuestionEntity?>().firstWhere(
-                (q) => q!.page == state.currentPage,
-                orElse: () => prof.questions.first,
-              );
+                  (q) => q!.slot == state.currentSlot,
+                  orElse: () => prof.questions.first,
+                );
 
         return Scaffold(
           body: Container(
@@ -67,8 +67,8 @@ class ProfessorRevealPage extends StatelessWidget {
                     child: question == null
                         ? const Center(
                             child: Text('Nenhuma questão disponível.',
-                                style: TextStyle(
-                                    color: AppTheme.textSecondary)),
+                                style:
+                                    TextStyle(color: AppTheme.textSecondary)),
                           )
                         : _QuestionReveal(question: question),
                   ),
@@ -82,21 +82,26 @@ class ProfessorRevealPage extends StatelessWidget {
   }
 }
 
-class _QuestionReveal extends StatelessWidget {
+class _QuestionReveal extends StatefulWidget {
   final QuestionEntity question;
   const _QuestionReveal({required this.question});
 
+  @override
+  State<_QuestionReveal> createState() => _QuestionRevealState();
+}
+
+class _QuestionRevealState extends State<_QuestionReveal> {
   static const _letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  bool _showFeedback = false;
 
   @override
   Widget build(BuildContext context) {
+    final question = widget.question;
     final isMobile = Responsive.isMobile(context);
-    final correctChoices =
-        question.choices.where((c) => c.isCorrect).toList();
 
     return SingleChildScrollView(
-      padding: Responsive.horizontalPadding(context)
-          .copyWith(top: 8, bottom: 32),
+      padding:
+          Responsive.horizontalPadding(context).copyWith(top: 8, bottom: 32),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 800),
@@ -146,112 +151,120 @@ class _QuestionReveal extends StatelessWidget {
                       ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
-              // ── Alternativas com gabarito ────────────────────────────
-              ...question.choices.asMap().entries.map((e) {
-                final idx = e.key;
-                final choice = e.value;
-                final letter =
-                    idx < _letters.length ? _letters[idx] : '${idx + 1}';
-                final correct = choice.isCorrect;
-
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: correct
-                        ? AppTheme.success.withValues(alpha: 0.18)
-                        : AppTheme.bgCard,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: correct
-                          ? AppTheme.success
-                          : AppTheme.bgCardAlt,
-                      width: correct ? 2 : 1,
-                    ),
+              // ── Botão toggle ─────────────────────────────────────────
+              Center(
+                child: TextButton.icon(
+                  onPressed: () =>
+                      setState(() => _showFeedback = !_showFeedback),
+                  icon: Icon(
+                    _showFeedback
+                        ? Icons.list_alt_rounded
+                        : Icons.feedback_outlined,
+                    size: 18,
                   ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: correct
-                              ? AppTheme.success
-                              : AppTheme.bgDark,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Center(
-                          child: Text(
-                            letter,
-                            style: TextStyle(
-                              color: correct
-                                  ? Colors.white
-                                  : AppTheme.textSecondary,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 16,
+                  label: Text(
+                    _showFeedback ? 'Ver alternativas' : 'Ver feedback geral',
+                  ),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppTheme.textSecondary,
+                    backgroundColor: AppTheme.bgCardAlt,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 18, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20)),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // ── Alternativas ou Feedback ──────────────────────────────
+              if (!_showFeedback)
+                ...question.choices.asMap().entries.map((e) {
+                  final idx = e.key;
+                  final choice = e.value;
+                  final letter =
+                      idx < _letters.length ? _letters[idx] : '${idx + 1}';
+                  final correct = choice.isCorrect;
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: correct
+                          ? AppTheme.success.withValues(alpha: 0.18)
+                          : AppTheme.bgCard,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: correct ? AppTheme.success : AppTheme.bgCardAlt,
+                        width: correct ? 2 : 1,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: correct ? AppTheme.success : AppTheme.bgDark,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Center(
+                            child: Text(
+                              letter,
+                              style: TextStyle(
+                                color: correct
+                                    ? Colors.white
+                                    : AppTheme.textSecondary,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 16,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Text(
-                          choice.text,
-                          style: TextStyle(
-                            color: correct
-                                ? AppTheme.success
-                                : AppTheme.textPrimary,
-                            fontSize: isMobile ? 14 : 16,
-                            fontWeight: correct
-                                ? FontWeight.w700
-                                : FontWeight.w500,
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Text(
+                            choice.text,
+                            style: TextStyle(
+                              color: correct
+                                  ? AppTheme.success
+                                  : AppTheme.textPrimary,
+                              fontSize: isMobile ? 14 : 16,
+                              fontWeight:
+                                  correct ? FontWeight.w700 : FontWeight.w500,
+                            ),
                           ),
                         ),
-                      ),
-                      if (correct)
-                        const Icon(Icons.check_circle_rounded,
-                            color: AppTheme.success, size: 24),
-                    ],
-                  ),
-                );
-              }),
-
-              // ── Gabarito resumido ────────────────────────────────────
-              if (correctChoices.isNotEmpty) ...[
-                const SizedBox(height: 12),
+                        if (correct)
+                          const Icon(Icons.check_circle_rounded,
+                              color: AppTheme.success, size: 24),
+                      ],
+                    ),
+                  );
+                })
+              else
                 Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: AppTheme.success.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                        color: AppTheme.success.withValues(alpha: 0.4)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.check_circle,
-                          color: AppTheme.success, size: 20),
-                      const SizedBox(width: 10),
-                      Text(
-                        'Resposta correta: '
-                        '${correctChoices.map((c) {
-                          final i = question.choices.indexOf(c);
-                          return i < _letters.length
-                              ? _letters[i]
-                              : '${i + 1}';
-                        }).join(', ')}',
-                        style: const TextStyle(
-                            color: AppTheme.success,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15),
-                      ),
-                    ],
-                  ),
+                  padding: const EdgeInsets.all(20),
+                  decoration: AppTheme.cardDecoration(glowing: false),
+                  child: question.generalFeedback.isNotEmpty
+                      ? Text(
+                          question.generalFeedback,
+                          style: TextStyle(
+                            fontSize: isMobile ? 15 : 17,
+                            color: AppTheme.textPrimary,
+                            height: 1.6,
+                          ),
+                        )
+                      : const Text(
+                          'Nenhum feedback disponível para esta questão.',
+                          style: TextStyle(
+                              color: AppTheme.textSecondary, fontSize: 15),
+                        ),
                 ),
-              ],
             ],
           ),
         ),

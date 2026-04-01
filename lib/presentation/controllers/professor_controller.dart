@@ -128,13 +128,17 @@ class ProfessorController extends ChangeNotifier {
     final user = _user;
     final courseId = _selectedCourse?.id;
     if (_selectedQuiz == null || user == null || courseId == null) return;
+    // courseId = curso selecionado = mesmo curso onde o mq_state está
+    final index = _questions.indexOf(q);
+    final page = index >= 0 ? index : _questions.length;
     _setLoading(true);
     _error = null;
     try {
       await _releaseQuestion(
         user: user,
         courseId: courseId,
-        page: q.page,
+        page: page,
+        slot: q.slot,
         duration: _selectedDuration,
         totalPages: _questions.length,
         quizName: _selectedQuiz!.name,
@@ -167,6 +171,7 @@ class ProfessorController extends ChangeNotifier {
         user: user,
         courseId: courseId,
         page: state.currentPage,
+        slot: state.currentSlot,
         duration: newDuration,
         totalPages: state.totalPages,
         quizName: state.quizTitle,

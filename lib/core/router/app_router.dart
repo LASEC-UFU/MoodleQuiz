@@ -10,6 +10,7 @@ import '../../presentation/pages/professor/professor_home_page.dart';
 import '../../presentation/pages/professor/qrcode_page.dart';
 import '../../presentation/pages/professor/professor_reveal_page.dart';
 import '../../presentation/pages/professor/ranking_page.dart';
+import '../../presentation/pages/student/student_course_selection_page.dart';
 import '../../presentation/pages/student/student_lobby_page.dart';
 
 /// S: Responsabilidade única – define e gera as rotas do app.
@@ -21,7 +22,8 @@ class AppRouter {
   static const String professorRank = '/professor/rank';
   static const String professorQrCode = '/professor/qrcode';
   static const String professorReveal = '/professor/reveal';
-  static const String student = '/student';
+  static const String studentCourses = '/student/courses';
+  static const String studentLobby = '/student/lobby';
 
   static GoRouter build(BuildContext context) {
     return GoRouter(
@@ -39,16 +41,16 @@ class AppRouter {
 
           // Redireciona para home correta se estiver no login
           if (loc == login) {
-            return user.isTeacher ? professorCourses : student;
+            return user.isTeacher ? professorCourses : studentCourses;
           }
 
           // Estudante tentando acessar rota de professor → redireciona
           if (!user.isTeacher && loc.startsWith('/professor')) {
-            return student;
+            return studentCourses;
           }
 
           // Professor tentando acessar rota de estudante → redireciona
-          if (user.isTeacher && loc == student) {
+          if (user.isTeacher && loc.startsWith('/student')) {
             return professorCourses;
           }
         }
@@ -79,7 +81,11 @@ class AppRouter {
         GoRoute(
             path: professorReveal,
             builder: (_, __) => const ProfessorRevealPage()),
-        GoRoute(path: student, builder: (_, __) => const StudentLobbyPage()),
+        GoRoute(
+            path: studentCourses,
+            builder: (_, __) => const StudentCourseSelectionPage()),
+        GoRoute(
+            path: studentLobby, builder: (_, __) => const StudentLobbyPage()),
       ],
     );
   }

@@ -4,15 +4,16 @@ import '../../core/utils/moodle_html_parser.dart';
 
 /// Representa uma questão do Moodle já parseada e pronta para exibição.
 class QuestionEntity extends Equatable {
-  final int slot;               // slot Moodle (1-indexed)
-  final int page;               // página da questão (0-indexed)
-  final String text;            // enunciado sem tags HTML (fallback)
-  final String htmlText;        // enunciado como HTML com URLs corrigidas
+  final int slot; // slot Moodle (1-indexed)
+  final int page; // página da questão (0-indexed)
+  final String text; // enunciado sem tags HTML (fallback)
+  final String htmlText; // enunciado como HTML com URLs corrigidas
   final List<ParsedChoice> choices;
   final List<String> imageUrls;
-  final String inputBaseName;   // "q{attemptId}:{slot}_answer"
-  final String seqCheck;        // valor do hidden sequencecheck
-  final String type;            // "multichoice" | "truefalse" | "other"
+  final String inputBaseName; // "q{attemptId}:{slot}_answer"
+  final String seqCheck; // valor do hidden sequencecheck
+  final String type; // "multichoice" | "truefalse" | "other"
+  final String generalFeedback; // feedback geral da questão (do gabarito)
 
   const QuestionEntity({
     required this.slot,
@@ -24,6 +25,7 @@ class QuestionEntity extends Equatable {
     required this.inputBaseName,
     required this.seqCheck,
     this.type = 'multichoice',
+    this.generalFeedback = '',
   });
 
   bool get isMultiChoice => type == 'multichoice' || type == 'truefalse';

@@ -15,6 +15,7 @@ abstract class IStateDatasource {
     required String token,
     required int courseId,
     required int page,
+    required int slot,
     required int duration,
     required int totalPages,
     required String quizName,
@@ -296,7 +297,8 @@ class MoodleStateDatasource implements IStateDatasource {
 
       if (raw.isNotEmpty) {
         try {
-          return Map<String, dynamic>.from(jsonDecode(raw) as Map);
+          final decoded = jsonDecode(raw);
+          return Map<String, dynamic>.from(decoded as Map);
         } catch (_) {}
       }
 
@@ -349,6 +351,7 @@ class MoodleStateDatasource implements IStateDatasource {
     required String token,
     required int courseId,
     required int page,
+    required int slot,
     required int duration,
     required int totalPages,
     required String quizName,
@@ -368,7 +371,8 @@ class MoodleStateDatasource implements IStateDatasource {
 
     await _writeState(baseUrl, token, {
       'state': 'active',
-      'current_page': page,
+      'current_page': page, // índice sequencial da questão (0-based)
+      'current_slot': slot, // slot Moodle único — usado pelo aluno para buscar
       'total_pages': totalPages,
       'quiz_id': quizId,
       'course_id': courseId,

@@ -5,6 +5,7 @@ class QuizStateModel extends QuizStateEntity {
   const QuizStateModel({
     required super.status,
     super.currentPage,
+    super.currentSlot,
     super.totalPages,
     super.quizId,
     super.courseId,
@@ -32,6 +33,7 @@ class QuizStateModel extends QuizStateEntity {
     return QuizStateModel(
       status: status,
       currentPage: int.tryParse(json['current_page']?.toString() ?? '') ?? -1,
+      currentSlot: int.tryParse(json['current_slot']?.toString() ?? '') ?? 0,
       totalPages: int.tryParse(json['total_pages']?.toString() ?? '') ?? 0,
       quizId: int.tryParse(json['quiz_id']?.toString() ?? '') ?? 0,
       courseId: int.tryParse(json['course_id']?.toString() ?? '') ?? 0,

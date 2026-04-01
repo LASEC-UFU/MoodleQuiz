@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/config/app_config.dart';
@@ -21,7 +22,8 @@ class QrCodePage extends StatelessWidget {
             children: [
               // ── AppBar ────────────────────────────────────────────────
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
                 child: Row(
                   children: [
                     IconButton(
@@ -65,13 +67,14 @@ class _QrCodeContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final studentUrl = AppConfig.studentUrl;
     final screenWidth = MediaQuery.of(context).size.width;
     final qrSize = (screenWidth * 0.5).clamp(200.0, 480.0);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // ── Imagem do QR Code ─────────────────────────────────────────
+        // ── Imagem do QR Code (estática) ──────────────────────────────
         Container(
           width: qrSize,
           height: qrSize,
@@ -96,18 +99,40 @@ class _QrCodeContent extends StatelessWidget {
 
         const SizedBox(height: 32),
 
-        // ── URL do aluno ──────────────────────────────────────────────
+        // ── URL dinâmica do aluno ─────────────────────────────────────
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Text(
-            AppConfig.studentUrl,
-            style: const TextStyle(
-              color: AppTheme.textPrimary,
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.5,
+          child: GestureDetector(
+            onTap: () {
+              Clipboard.setData(ClipboardData(text: studentUrl));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('URL copiada!'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            },
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    studentUrl,
+                    style: const TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(Icons.copy_rounded,
+                    size: 18, color: AppTheme.textSecondary),
+              ],
             ),
-            textAlign: TextAlign.center,
           ),
         ),
       ],

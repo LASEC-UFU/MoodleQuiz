@@ -1,7 +1,8 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../../domain/entities/moodle_course.dart';
 import '../../domain/entities/question_entity.dart';
 import '../../domain/entities/quiz_state_entity.dart';
 import '../../domain/entities/score_entity.dart';
@@ -9,27 +10,34 @@ import '../../domain/entities/user_entity.dart';
 import '../../domain/repositories/i_quiz_repository.dart';
 import '../../domain/usecases/submit_answer_usecase.dart';
 
-/// Gerencia estado do estudante: tentativa Moodle + polling GSheets.
+/// Gerencia estado do estudante: seleÃ§Ã£o de disciplina + tentativa Moodle + polling.
 class StudentController extends ChangeNotifier {
   final IQuizRepository _quizRepo;
   final SubmitAnswerUseCase _submitAnswer;
 
-  // ── Tentativa Moodle ───────────────────────────────────────────────────────
+  // â”€â”€ SeleÃ§Ã£o de disciplina â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  List<MoodleCourse> _courses = [];
+  int? _selectedCourseId;
+  bool _isLoadingCourses = false;
+  // null = nÃ£o verificado | false = sem mq_state | true = tem mq_state
+  bool? _hasActivity;
+
+  // â”€â”€ Tentativa Moodle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   int? _attemptId;
   int? _currentQuizId;
   QuestionEntity? _currentQuestion;
 
-  // ── Estado do quiz ─────────────────────────────────────────────────────────
+  // â”€â”€ Estado do quiz â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   QuizStateEntity _quizState = QuizStateEntity.empty();
   List<ScoreEntity> _scores = [];
-  String? _selectedChoice; // valor Moodle da alternativa ("0", "1", …)
+  String? _selectedChoice;
   bool _hasAnswered = false;
   bool _isSubmitting = false;
   bool _lastAnswerCorrect = false;
   bool _isLoadingQuestion = false;
   String? _error;
   Timer? _pollTimer;
-  int _lastSeenPage = -1;
+  int _lastSeenSlot = 0;
   bool _autoSubmitted = false;
 
   StudentController({
@@ -38,14 +46,24 @@ class StudentController extends ChangeNotifier {
   })  : _quizRepo = quizRepo,
         _submitAnswer = submitAnswer;
 
-  // ── Getters ────────────────────────────────────────────────────────────────
+  // â”€â”€ Getters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  List<MoodleCourse> get courses => _courses;
+  int? get selectedCourseId => _selectedCourseId;
+  bool get isLoadingCourses => _isLoadingCourses;
+
+  /// null = verificando | false = sem mq_state | true = tem
+  bool? get hasActivity => _hasActivity;
   int? get attemptId => _attemptId;
   QuizStateEntity get quizState => _quizState;
   QuestionEntity? get currentQuestion => _currentQuestion;
   List<ScoreEntity> get scores => _scores;
   String? get selectedChoice => _selectedChoice;
+  bool get hasAnswered => _hasAnswered;
+  bool get isSubmitting => _isSubmitting;
+  bool get lastAnswerCorrect => _lastAnswerCorrect;
+  bool get isLoadingQuestion => _isLoadingQuestion;
+  String? get error => _error;
 
-  /// Pontuação do próprio aluno (null se ainda não pontuou).
   ScoreEntity? myScore(String userId) {
     try {
       return _scores.firstWhere((s) => s.studentId == userId);
@@ -54,15 +72,61 @@ class StudentController extends ChangeNotifier {
     }
   }
 
-  bool get hasAnswered => _hasAnswered;
-  bool get isSubmitting => _isSubmitting;
-  bool get lastAnswerCorrect => _lastAnswerCorrect;
-  bool get isLoadingQuestion => _isLoadingQuestion;
-  String? get error => _error;
+  // â”€â”€ SeleÃ§Ã£o de disciplina â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  // ── Ciclo de tentativa ─────────────────────────────────────────────────────
+  Future<void> loadCourses(UserEntity user) async {
+    _isLoadingCourses = true;
+    _error = null;
+    notifyListeners();
+    try {
+      _courses = await _quizRepo.getCourses(user);
+    } catch (e) {
+      _error = e.toString();
+    } finally {
+      _isLoadingCourses = false;
+      notifyListeners();
+    }
+  }
 
-  /// Inicia tentativa no Moodle assim que o estudante confirma entrar no quiz.
+  /// Define o curso cujo mq_state serÃ¡ monitorado.
+  /// Verifica se a atividade existe antes de iniciar o polling.
+  void selectCourse(UserEntity user, int courseId) {
+    stopPolling();
+    _selectedCourseId = courseId;
+    _hasActivity = null; // verificando
+    _lastSeenSlot = 0;
+    _quizState = QuizStateEntity.empty();
+    _currentQuestion = null;
+    _scores = [];
+    _error = null;
+    notifyListeners();
+    _checkAndStartPolling(user);
+  }
+
+  Future<void> _checkAndStartPolling(UserEntity user) async {
+    final courseId = _selectedCourseId;
+    if (courseId == null) return;
+    try {
+      // Uma chamada de teste â€” se lanÃ§ar "mq_state nÃ£o encontrada" â†’ sem atividade
+      await _quizRepo.getQuizState(user, courseId);
+      _hasActivity = true;
+      notifyListeners();
+      startPolling(user);
+    } catch (e) {
+      final msg = e.toString();
+      // Mensagem especÃ­fica do MoodleStateDatasource quando nÃ£o acha o Database
+      if (msg.contains('mq_state') || msg.contains('nÃ£o encontrada')) {
+        _hasActivity = false;
+      } else {
+        _hasActivity = null;
+        _error = msg;
+      }
+      notifyListeners();
+    }
+  }
+
+  // â”€â”€ Ciclo de tentativa â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
   Future<void> ensureAttempt(UserEntity user, int quizId) async {
     if (_attemptId != null && _currentQuizId == quizId) return;
     try {
@@ -85,7 +149,7 @@ class StudentController extends ChangeNotifier {
     } catch (_) {}
   }
 
-  // ── Resposta ───────────────────────────────────────────────────────────────
+  // â”€â”€ Resposta â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   void selectChoice(String choiceValue) {
     if (_hasAnswered || !_quizState.isActive) return;
@@ -97,19 +161,18 @@ class StudentController extends ChangeNotifier {
     final choice = _selectedChoice;
     final q = _currentQuestion;
     final id = _attemptId;
-    final courseId = _quizState.courseId;
+    final courseId = _selectedCourseId;
     if (choice == null ||
         q == null ||
         id == null ||
         _hasAnswered ||
-        courseId <= 0) {
+        courseId == null) {
       return;
     }
 
     _isSubmitting = true;
     notifyListeners();
     try {
-      // Calcula pontuação: 1000 + tempo_restante × 10
       final bonus = _quizState.secondsRemaining * 10;
       final baseScore = 1000 + bonus;
 
@@ -130,7 +193,7 @@ class StudentController extends ChangeNotifier {
     }
   }
 
-  // ── Polling ────────────────────────────────────────────────────────────────
+  // â”€â”€ Polling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   void startPolling(UserEntity user) {
     _pollTimer?.cancel();
@@ -144,54 +207,42 @@ class StudentController extends ChangeNotifier {
     _pollTimer = null;
   }
 
-  // ── Privado ────────────────────────────────────────────────────────────────
+  // â”€â”€ Privado â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> _refreshState(UserEntity user) async {
+    final courseId = _selectedCourseId;
+    if (courseId == null) return;
     try {
-      // Aluno não usa courseId fixo do config — o professor pode estar em qualquer curso.
-      // Usa o courseId do estado já lido (escrito pelo professor no state_json),
-      // ou 0 para fazer discovery sem filtro de curso (encontra o mq_state em
-      // qualquer curso acessível ao aluno).
-      final courseId = _quizState.courseId > 0 ? _quizState.courseId : 0;
-
       final newState = await _quizRepo.getQuizState(user, courseId);
 
-      // Nova questão liberada
-      if (newState.isActive && newState.currentPage != _lastSeenPage) {
+      if (newState.isActive && newState.currentSlot != _lastSeenSlot) {
         _selectedChoice = null;
         _hasAnswered = false;
         _lastAnswerCorrect = false;
         _autoSubmitted = false;
         _currentQuestion = null;
 
-        // Garante que a tentativa existe
         if (newState.quizId > 0) {
           await ensureAttempt(user, newState.quizId);
         }
 
-        // Busca a questão desta página
         final id = _attemptId;
-        if (id != null) {
+        if (id != null && newState.currentSlot > 0) {
           _isLoadingQuestion = true;
           notifyListeners();
           try {
             _currentQuestion =
-                await _quizRepo.getQuestion(user, id, newState.currentPage);
-            // Só avança _lastSeenPage após carregar com sucesso
-            _lastSeenPage = newState.currentPage;
+                await _quizRepo.getQuestion(user, id, newState.currentSlot);
+            _lastSeenSlot = newState.currentSlot;
             _error = null;
           } catch (e) {
             _error = e.toString();
           } finally {
             _isLoadingQuestion = false;
           }
-        } else {
-          // Nenhuma tentativa disponível, aguarda próximo ciclo
-          _lastSeenPage = newState.currentPage;
         }
       }
 
-      // Questão fechada: auto-submit se selecionou mas não enviou
       if (newState.isClosed &&
           !_hasAnswered &&
           !_autoSubmitted &&
@@ -200,16 +251,12 @@ class StudentController extends ChangeNotifier {
         await submitAnswer(user);
       }
 
-      // Fim do quiz: finaliza tentativa
       if (newState.isFinished && _attemptId != null) {
         await finishAttempt(user);
       }
 
       _quizState = newState;
-      final scoreCourseId =
-          newState.courseId > 0 ? newState.courseId : courseId;
-      _scores = await _quizRepo.getScores(user, scoreCourseId);
-      // Não limpa _error aqui — pode ter sido setado pelo bloco de questão acima
+      _scores = await _quizRepo.getScores(user, courseId);
       notifyListeners();
     } catch (e) {
       _error = e.toString();
@@ -228,3 +275,4 @@ class StudentController extends ChangeNotifier {
     super.dispose();
   }
 }
+

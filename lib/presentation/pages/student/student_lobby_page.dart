@@ -22,15 +22,6 @@ class StudentLobbyPage extends StatefulWidget {
 
 class _StudentLobbyPageState extends State<StudentLobbyPage> {
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final user = context.read<AuthController>().user!;
-      context.read<StudentController>().startPolling(user);
-    });
-  }
-
-  @override
   void dispose() {
     context.read<StudentController>().stopPolling();
     super.dispose();
@@ -51,6 +42,7 @@ class _StudentLobbyPageState extends State<StudentLobbyPage> {
                   _TopBar(
                     title: state.quizTitle,
                     fullname: auth.user!.fullname,
+                    onBack: () => context.go(AppRouter.studentCourses),
                     onLogout: () async {
                       student.stopPolling();
                       await auth.logout();
@@ -159,11 +151,13 @@ class _StudentLobbyPageState extends State<StudentLobbyPage> {
 class _TopBar extends StatelessWidget {
   final String title;
   final String fullname;
+  final VoidCallback onBack;
   final VoidCallback onLogout;
 
   const _TopBar({
     required this.title,
     required this.fullname,
+    required this.onBack,
     required this.onLogout,
   });
 
@@ -173,6 +167,12 @@ class _TopBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new,
+                color: AppTheme.textSecondary, size: 18),
+            onPressed: onBack,
+            tooltip: 'Trocar disciplina',
+          ),
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(

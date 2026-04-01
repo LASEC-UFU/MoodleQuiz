@@ -5,22 +5,24 @@ library;
 // ── Entidades de saída ────────────────────────────────────────────────────────
 
 class ParsedChoice {
-  final String value;     // "0", "1", "2"…
-  final String text;      // texto exibido para o aluno
-  final bool isCorrect;   // true se esta alternativa é a resposta correta
+  final String value; // "0", "1", "2"…
+  final String text; // texto exibido para o aluno
+  final bool isCorrect; // true se esta alternativa é a resposta correta
 
-  const ParsedChoice({required this.value, required this.text, this.isCorrect = false});
+  const ParsedChoice(
+      {required this.value, required this.text, this.isCorrect = false});
 }
 
 class ParsedQuestion {
   final int slot;
-  final String text;           // texto da questão (HTML stripped — fallback)
-  final String htmlText;       // enunciado como HTML com URLs corrigidas (para renderização rica)
+  final String text; // texto da questão (HTML stripped — fallback)
+  final String
+      htmlText; // enunciado como HTML com URLs corrigidas (para renderização rica)
   final List<ParsedChoice> choices;
   final List<String> imageUrls;
-  final String inputBaseName;  // "q{attemptId}:{slot}_answer"
-  final String seqCheck;       // valor do input sequencecheck
-  final String type;           // "multichoice" | "truefalse" | "other"
+  final String inputBaseName; // "q{attemptId}:{slot}_answer"
+  final String seqCheck; // valor do input sequencecheck
+  final String type; // "multichoice" | "truefalse" | "other"
 
   const ParsedQuestion({
     required this.slot,
@@ -54,8 +56,9 @@ class MoodleHtmlParser {
     final seqCheck = _extractSeqCheck(html);
 
     final inputBase = 'q$attemptId:${slot}_answer';
-    final type =
-        choices.length == 2 ? 'truefalse' : (choices.isEmpty ? 'other' : 'multichoice');
+    final type = choices.length == 2
+        ? 'truefalse'
+        : (choices.isEmpty ? 'other' : 'multichoice');
 
     return ParsedQuestion(
       slot: slot,
@@ -69,42 +72,110 @@ class MoodleHtmlParser {
     );
   }
 
-  /// Extrai os values dos inputs de rádio dentro de containers com classe
-  /// "correct" (mas não "incorrect") no HTML da revisão da tentativa.
-  /// Padrão Moodle: `<li class="r0 correct">` contém `<input type="radio" value="X">`.
+  /// Extrai os values dos inputs de rádio cuja resposta é correta.
+  ///
+  /// Moodle 4.x: o gabarito aparece como:
+  ///   `<div class="rightanswer">A resposta correta é: TEXTO</div>`
+  /// Extrai o TEXTO e acha o radio cujo label bate com esse texto.
+  ///
+  /// Fallback legacy: containers `<li|div class="... correct ...">` com `<input type="radio">`.
   static List<String> parseCorrectValues(String reviewHtml) {
-    final correctValues = <String>[];
+    // ── Método primário: aria-labelledby + rightanswer ────────────────────────
+    // 1. Constrói mapa labelId → value a partir dos radios
+    final attrRe = RegExp(r'([\w-]+)="([^"]*)"', caseSensitive: false);
+    final radioRe =
+        RegExp(r'<input\b[^>]*type="radio"[^>]*/?>', caseSensitive: false);
 
-    // Regex para encontrar elementos li/div com classe contendo "correct"
-    // mas não "incorrect"
-    final containerRe = RegExp(
-      r'<(?:li|div)\b[^>]*class="([^"]*)"[^>]*>(.*?)</(?:li|div)>',
+    // mapa: labelDivId → value
+    final idToValue = <String, String>{};
+    for (final m in radioRe.allMatches(reviewHtml)) {
+      final tag = m.group(0) ?? '';
+      String value = '', ariaLabelledBy = '';
+      for (final a in attrRe.allMatches(tag)) {
+        final k = a.group(1)!.toLowerCase();
+        if (k == 'value') value = a.group(2)!;
+        if (k == 'aria-labelledby') ariaLabelledBy = a.group(2)!;
+      }
+      if (value.isNotEmpty && value != '-1' && ariaLabelledBy.isNotEmpty) {
+        idToValue[ariaLabelledBy] = value;
+      }
+    }
+
+    // 2. Constrói mapa labelDivId → texto limpo
+    final labelDivRe = RegExp(
+      r'<div\b[^>]+id="([^"]+)"[^>]*data-region="answer-label"[^>]*>(.*?)</div>\s*</div>',
       caseSensitive: false,
       dotAll: true,
     );
-
-    final radioValueRe = RegExp(
-      r'<input\b[^>]*type="radio"[^>]*value="([^"]*)"',
-      caseSensitive: false,
-    );
-
-    for (final m in containerRe.allMatches(reviewHtml)) {
-      final classAttr = m.group(1) ?? '';
+    final idToText = <String, String>{};
+    for (final m in labelDivRe.allMatches(reviewHtml)) {
+      final id = m.group(1) ?? '';
       final content = m.group(2) ?? '';
+      final cleaned = content.replaceAll(
+          RegExp(r'<span[^>]*class="[^"]*answernumber[^"]*"[^>]*>.*?</span>',
+              caseSensitive: false, dotAll: true),
+          '');
+      final text = _stripHtml(cleaned).trim();
+      if (id.isNotEmpty && text.isNotEmpty) idToText[id] = text;
+    }
 
-      // Verifica se a classe contém "correct" mas não "incorrect"
-      if (classAttr.contains('correct') && !classAttr.contains('incorrect')) {
-        final radioMatch = radioValueRe.firstMatch(content);
-        if (radioMatch != null) {
-          final value = radioMatch.group(1) ?? '';
-          if (value.isNotEmpty && value != '-1') {
-            correctValues.add(value);
+    // 3. Extrai o texto correto do div.rightanswer
+    final rightAnswerRe = RegExp(
+      r'<div[^>]*class="[^"]*rightanswer[^"]*"[^>]*>(.*?)</div>',
+      caseSensitive: false,
+      dotAll: true,
+    );
+    final rightMatch = rightAnswerRe.firstMatch(reviewHtml);
+    if (rightMatch != null) {
+      // Texto pode ser "A resposta correta é: TEXTO" — pega só o TEXTO
+      String correctText = _stripHtml(rightMatch.group(1) ?? '').trim();
+      final sepIdx = correctText.indexOf(':');
+      if (sepIdx >= 0 && sepIdx < correctText.length - 1) {
+        correctText = correctText.substring(sepIdx + 1).trim();
+      }
+
+      if (correctText.isNotEmpty) {
+        // Compara com os textos dos labels
+        for (final entry in idToText.entries) {
+          if (entry.value == correctText ||
+              entry.value.contains(correctText) ||
+              correctText.contains(entry.value)) {
+            final value = idToValue[entry.key];
+            if (value != null) return [value];
           }
         }
       }
     }
 
+    // ── Fallback legacy: containers com classe "correct" ──────────────────────
+    final correctValues = <String>[];
+    final containerRe = RegExp(
+      r'<(?:li|div)\b[^>]*class="([^"]*)"[^>]*>(.*?)</(?:li|div)>',
+      caseSensitive: false,
+      dotAll: true,
+    );
+    final radioValueRe = RegExp(
+      r'<input\b[^>]*type="radio"[^>]*value="([^"]*)"',
+      caseSensitive: false,
+    );
+    for (final m in containerRe.allMatches(reviewHtml)) {
+      final classAttr = m.group(1) ?? '';
+      if (classAttr.contains('correct') && !classAttr.contains('incorrect')) {
+        final radioMatch = radioValueRe.firstMatch(m.group(2) ?? '');
+        if (radioMatch != null) {
+          final value = radioMatch.group(1) ?? '';
+          if (value.isNotEmpty && value != '-1') correctValues.add(value);
+        }
+      }
+    }
     return correctValues;
+  }
+
+  /// Extrai o feedback geral da questão do HTML de revisão.
+  /// Moodle coloca em `<div class="generalfeedback">...</div>`.
+  static String parseGeneralFeedback(String reviewHtml) {
+    final content = _extractTag(reviewHtml, 'generalfeedback') ?? '';
+    return _stripHtml(content).trim();
   }
 
   // ── Extração do HTML do enunciado (com URLs corrigidas, sem forms) ──────────
@@ -112,9 +183,8 @@ class MoodleHtmlParser {
   /// Retorna o HTML do enunciado com URLs de imagens corrigidas.
   /// Remove blocos de resposta (inputs, botões) mas preserva formatação.
   static String _extractHtmlText(String html, String token, String baseUrl) {
-    String content = _extractTag(html, 'qtext') ??
-        _extractTag(html, 'formulation') ??
-        '';
+    String content =
+        _extractTag(html, 'qtext') ?? _extractTag(html, 'formulation') ?? '';
     if (content.isEmpty) content = html;
     content = _removeBlock(content, r'class="(?:ablock|answer)');
     // Corrige URLs de imagens inline
@@ -141,9 +211,8 @@ class MoodleHtmlParser {
   // ── Extração do texto da questão ──────────────────────────────────────────
 
   static String _extractText(String html) {
-    String text = _extractTag(html, 'qtext') ??
-        _extractTag(html, 'formulation') ??
-        '';
+    String text =
+        _extractTag(html, 'qtext') ?? _extractTag(html, 'formulation') ?? '';
 
     if (text.isEmpty) {
       text = html;
@@ -158,60 +227,65 @@ class MoodleHtmlParser {
 
   static List<ParsedChoice> _extractChoices(String html) {
     final choices = <ParsedChoice>[];
+    final attrRe = RegExp(r'([\w-]+)="([^"]*)"', caseSensitive: false);
 
-    // Captura qualquer <input type="radio" ...> independente da ordem dos atributos
-    final radioRe = RegExp(
-      r'<input\b[^>]*type="radio"[^>]*/?>',
+    // Moodle 4.x: <input aria-labelledby="ID"> + <div id="ID">texto</div>
+    // Constrói mapa id → texto a partir de todos os divs com data-region="answer-label"
+    final labelDivRe = RegExp(
+      r'<div\b[^>]+id="([^"]+)"[^>]*data-region="answer-label"[^>]*>(.*?)</div>\s*</div>',
       caseSensitive: false,
+      dotAll: true,
     );
+    final ariaLabelMap = <String, String>{};
+    for (final m in labelDivRe.allMatches(html)) {
+      final id = m.group(1) ?? '';
+      final content = m.group(2) ?? '';
+      // Remove o span.answernumber ("a. ", "b. "…)
+      final cleaned = content.replaceAll(
+          RegExp(r'<span[^>]*class="[^"]*answernumber[^"]*"[^>]*>.*?</span>',
+              caseSensitive: false, dotAll: true),
+          '');
+      final text = _stripHtml(cleaned).trim();
+      if (id.isNotEmpty && text.isNotEmpty) ariaLabelMap[id] = text;
+    }
 
-    final attrRe = RegExp(r'(\w+)="([^"]*)"', caseSensitive: false);
-
+    // Fallback: <label for="ID">texto</label>
     final labelsByForRe = RegExp(
       r'<label\b[^>]+for="([^"]+)"[^>]*>(.*?)</label>',
       caseSensitive: false,
       dotAll: true,
     );
-
-    final labelMap = <String, String>{};
+    final forLabelMap = <String, String>{};
     for (final m in labelsByForRe.allMatches(html)) {
       final forAttr = m.group(1) ?? '';
-      final labelHtml = m.group(2) ?? '';
-      labelMap[forAttr] = _stripHtml(labelHtml).trim();
+      final text = _stripHtml(m.group(2) ?? '').trim();
+      if (text.isNotEmpty) forLabelMap[forAttr] = text;
     }
+
+    // Itera sobre os <input type="radio">
+    final radioRe =
+        RegExp(r'<input\b[^>]*type="radio"[^>]*/?>', caseSensitive: false);
 
     for (final m in radioRe.allMatches(html)) {
       final inputTag = m.group(0) ?? '';
       String value = '';
       String id = '';
+      String ariaLabelledBy = '';
 
       for (final a in attrRe.allMatches(inputTag)) {
         final key = a.group(1)!.toLowerCase();
         final val = a.group(2)!;
         if (key == 'value') value = val;
         if (key == 'id') id = val;
+        if (key == 'aria-labelledby') ariaLabelledBy = val;
       }
 
-      // Ignora o botão "Limpar minha escolha" (value == -1)
       if (value.isEmpty || value == '-1') continue;
 
-      String text = id.isNotEmpty ? (labelMap[id] ?? '') : '';
-
-      if (text.isEmpty) {
-        final afterInput = html.substring(m.end);
-        final nextLabel = RegExp(
-          r'<label\b[^>]*>(.*?)</label>',
-          caseSensitive: false,
-          dotAll: true,
-        ).firstMatch(afterInput);
-        if (nextLabel != null) {
-          final candidate = _stripHtml(nextLabel.group(1) ?? '').trim();
-          // Ignora se for o texto do botão de limpar
-          if (!candidate.toLowerCase().contains('limpar')) {
-            text = candidate;
-          }
-        }
-      }
+      // Prioridade: aria-labelledby → label for → fallback
+      String text = ariaLabelMap[ariaLabelledBy] ??
+          (id.isNotEmpty ? forLabelMap[id] : null) ??
+          '';
 
       choices.add(ParsedChoice(value: value, text: text));
     }
@@ -327,8 +401,7 @@ class MoodleHtmlParser {
   static String _stripHtml(String html) {
     return html
         .replaceAll(
-            RegExp(r'<br\s*/?>|</p>|</li>|</div>', caseSensitive: false),
-            '\n')
+            RegExp(r'<br\s*/?>|</p>|</li>|</div>', caseSensitive: false), '\n')
         .replaceAll(RegExp(r'<[^>]*>'), '')
         .replaceAll('&nbsp;', ' ')
         .replaceAll('&amp;', '&')

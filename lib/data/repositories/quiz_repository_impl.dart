@@ -103,31 +103,38 @@ class QuizRepositoryImpl implements IQuizRepository {
 
   @override
   Future<QuestionEntity> getQuestion(
-      UserEntity user, int attemptId, int page) async {
-    final data =
-        await _moodle.getAttemptData(user.baseUrl, user.token, attemptId, page);
+      UserEntity user, int attemptId, int slot) async {
+    // Tenta page=0 primeiro (cobre quizzes com todas as questões na mesma página)
+    Map<String, dynamic>? qMap = await _findQuestionBySlot(
+        user.baseUrl, user.token, attemptId, slot,
+        moodlePage: 0);
 
-    final questions = data['questions'] as List? ?? [];
-    if (questions.isEmpty) {
-      throw Exception('Nenhuma questão encontrada na página $page');
+    // Fallback: quiz com 1 questão por página (slot N está na página N-1)
+    if (qMap == null && slot > 1) {
+      qMap = await _findQuestionBySlot(
+          user.baseUrl, user.token, attemptId, slot,
+          moodlePage: slot - 1);
     }
 
-    // Usa a primeira questão da página (compatibilidade com callers existentes)
-    final qMap = Map<String, dynamic>.from(questions.first as Map);
+    if (qMap == null) {
+      throw Exception(
+          'Questão com slot $slot não encontrada na tentativa $attemptId');
+    }
+
     final html = qMap['html'] as String? ?? '';
-    final slot = (qMap['slot'] as num? ?? 1).toInt();
+    final actualSlot = (qMap['slot'] as num? ?? slot).toInt();
 
     final parsed = MoodleHtmlParser.parse(
       html: html,
       attemptId: attemptId,
-      slot: slot,
+      slot: actualSlot,
       token: user.token,
       baseUrl: user.baseUrl,
     );
 
     return QuestionEntity(
       slot: parsed.slot,
-      page: page,
+      page: slot, // mantém slot como referência de página
       text: parsed.text,
       htmlText: parsed.htmlText,
       choices: parsed.choices,
@@ -136,6 +143,24 @@ class QuizRepositoryImpl implements IQuizRepository {
       seqCheck: parsed.seqCheck,
       type: parsed.type,
     );
+  }
+
+  /// Busca a questão com determinado [slot] na [moodlePage] da tentativa.
+  /// Retorna null se não encontrada.
+  Future<Map<String, dynamic>?> _findQuestionBySlot(
+      String baseUrl, String token, int attemptId, int slot,
+      {required int moodlePage}) async {
+    try {
+      final data =
+          await _moodle.getAttemptData(baseUrl, token, attemptId, moodlePage);
+      final questions = data['questions'] as List? ?? [];
+      for (final q in questions) {
+        final qMap = Map<String, dynamic>.from(q as Map);
+        final qSlot = (qMap['slot'] as num?)?.toInt();
+        if (qSlot == slot) return qMap;
+      }
+    } catch (_) {}
+    return null;
   }
 
   /// Carrega todas as questões do quiz usando UMA attempt, depois a finaliza
@@ -269,6 +294,7 @@ class QuizRepositoryImpl implements IQuizRepository {
                 isCorrect: correctValues.contains(c.value),
               ))
           .toList();
+      final feedback = MoodleHtmlParser.parseGeneralFeedback(reviewHtml);
       result.add(QuestionEntity(
         slot: q.slot,
         page: q.page,
@@ -279,6 +305,7 @@ class QuizRepositoryImpl implements IQuizRepository {
         inputBaseName: q.inputBaseName,
         seqCheck: q.seqCheck,
         type: q.type,
+        generalFeedback: feedback,
       ));
     }
     if (skipped > 0) log('Questões abertas ignoradas: $skipped');
@@ -321,6 +348,7 @@ class QuizRepositoryImpl implements IQuizRepository {
     required UserEntity user,
     required int courseId,
     required int page,
+    required int slot,
     required int duration,
     required int totalPages,
     required String quizName,
@@ -331,6 +359,7 @@ class QuizRepositoryImpl implements IQuizRepository {
         token: user.token,
         courseId: courseId,
         page: page,
+        slot: slot,
         duration: duration,
         totalPages: totalPages,
         quizName: quizName,

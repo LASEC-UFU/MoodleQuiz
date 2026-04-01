@@ -6,9 +6,10 @@ enum QuizStatus { waiting, active, closed, finished }
 /// Snapshot do estado atual do quiz no servidor (Google Sheets).
 class QuizStateEntity extends Equatable {
   final QuizStatus status;
+  final int currentPage; // índice sequencial da questão (0-based); -1 = nenhuma
   final int
-      currentPage; // página Moodle sendo exibida (0-indexed; -1 = nenhuma)
-  final int totalPages; // total de páginas/questões no quiz
+      currentSlot; // slot Moodle da questão ativa (para buscar no attempt)
+  final int totalPages; // total de questões no quiz
   final int quizId; // id do quiz Moodle
   final int courseId; // id do curso Moodle
   final String quizTitle;
@@ -18,6 +19,7 @@ class QuizStateEntity extends Equatable {
   const QuizStateEntity({
     required this.status,
     this.currentPage = -1,
+    this.currentSlot = 0,
     this.totalPages = 0,
     this.quizId = 0,
     this.courseId = 0,
@@ -42,5 +44,5 @@ class QuizStateEntity extends Equatable {
       const QuizStateEntity(status: QuizStatus.waiting);
 
   @override
-  List<Object?> get props => [status, currentPage, endsAt];
+  List<Object?> get props => [status, currentPage, currentSlot, endsAt];
 }
