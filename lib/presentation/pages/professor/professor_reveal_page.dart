@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -53,8 +54,7 @@ class _RevealScaffoldState extends State<_RevealScaffold> {
   Widget build(BuildContext context) {
     final state = widget.state;
     final question = widget.question;
-    final hasFeedback =
-        question != null && question.generalFeedback.isNotEmpty;
+    final hasFeedback = question != null && question.generalFeedback.isNotEmpty;
 
     return Scaffold(
       body: Container(
@@ -64,8 +64,8 @@ class _RevealScaffoldState extends State<_RevealScaffold> {
             children: [
               // ── AppBar ────────────────────────────────────────────
               Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 child: Row(
                   children: [
                     IconButton(
@@ -120,8 +120,7 @@ class _RevealScaffoldState extends State<_RevealScaffold> {
                 child: question == null
                     ? const Center(
                         child: Text('Nenhuma questão disponível.',
-                            style:
-                                TextStyle(color: AppTheme.textSecondary)),
+                            style: TextStyle(color: AppTheme.textSecondary)),
                       )
                     : _QuestionReveal(
                         question: question,
@@ -161,32 +160,13 @@ class _QuestionReveal extends StatelessWidget {
                 padding: const EdgeInsets.all(20),
                 decoration: AppTheme.cardDecoration(glowing: false),
                 child: question.htmlText.isNotEmpty
-                    ? HtmlWidget(
-                        question.htmlText,
+                    ? _MoodleHtml(
+                        html: question.htmlText,
                         textStyle: TextStyle(
                           fontSize: isMobile ? 16 : 20,
                           color: AppTheme.textPrimary,
                           height: 1.5,
                         ),
-                        customStylesBuilder: (element) {
-                          if (element.localName == 'table') {
-                            return {
-                              'border-collapse': 'collapse',
-                              'width': '100%'
-                            };
-                          }
-                          if (element.localName == 'td' ||
-                              element.localName == 'th') {
-                            return {
-                              'border': '1px solid #444',
-                              'padding': '6px 10px'
-                            };
-                          }
-                          if (element.localName == 'img') {
-                            return {'max-width': '100%', 'height': 'auto'};
-                          }
-                          return null;
-                        },
                       )
                     : Text(
                         question.text,
@@ -272,9 +252,9 @@ class _QuestionReveal extends StatelessWidget {
                   padding: const EdgeInsets.all(20),
                   decoration: AppTheme.cardDecoration(glowing: false),
                   child: question.generalFeedback.isNotEmpty
-                      ? Text(
-                          question.generalFeedback,
-                          style: TextStyle(
+                      ? _MoodleHtml(
+                          html: question.generalFeedback,
+                          textStyle: TextStyle(
                             fontSize: isMobile ? 15 : 17,
                             color: AppTheme.textPrimary,
                             height: 1.6,
@@ -292,4 +272,173 @@ class _QuestionReveal extends StatelessWidget {
       ),
     );
   }
+}
+
+class _MoodleHtml extends StatelessWidget {
+  final String html;
+  final TextStyle textStyle;
+
+  const _MoodleHtml({
+    required this.html,
+    required this.textStyle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return HtmlWidget(
+      _withLatexTags(html),
+      textStyle: textStyle,
+      customWidgetBuilder: (element) {
+        final latex = element.attributes['data-moodle-latex'];
+        if (latex == null) return null;
+
+        final decoded = Uri.decodeComponent(latex);
+        final display = element.attributes['data-display'] == 'true';
+        final math = Math.tex(
+          decoded,
+          mathStyle: display ? MathStyle.display : MathStyle.text,
+          textStyle: textStyle.copyWith(color: AppTheme.textPrimary),
+          onErrorFallback: (error) => Text(
+            decoded,
+            style: textStyle.copyWith(color: AppTheme.textPrimary),
+          ),
+        );
+
+        if (!display) return math;
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: math,
+          ),
+        );
+      },
+      customStylesBuilder: (element) {
+        if (element.localName == 'table') {
+          return {'border-collapse': 'collapse', 'width': '100%'};
+        }
+        if (element.localName == 'td' || element.localName == 'th') {
+          return {'border': '1px solid #444', 'padding': '6px 10px'};
+        }
+        if (element.localName == 'img') {
+          return {'max-width': '100%', 'height': 'auto'};
+        }
+        return null;
+      },
+    );
+  }
+
+  static String _withLatexTags(String source) {
+    final buffer = StringBuffer();
+    var index = 0;
+
+    while (index < source.length) {
+      final tagStart = source.indexOf('<', index);
+      if (tagStart < 0) {
+        buffer.write(_replaceLatexInText(source.substring(index)));
+        break;
+      }
+
+      if (tagStart > index) {
+        buffer.write(_replaceLatexInText(source.substring(index, tagStart)));
+      }
+
+      final tagEnd = source.indexOf('>', tagStart);
+      if (tagEnd < 0) {
+        buffer.write(source.substring(tagStart));
+        break;
+      }
+
+      buffer.write(source.substring(tagStart, tagEnd + 1));
+      index = tagEnd + 1;
+    }
+
+    return buffer.toString();
+  }
+
+  static String _replaceLatexInText(String text) {
+    final buffer = StringBuffer();
+    var index = 0;
+
+    while (index < text.length) {
+      final match = _nextLatex(text, index);
+      if (match == null) {
+        buffer.write(text.substring(index));
+        break;
+      }
+
+      buffer.write(text.substring(index, match.start));
+      buffer.write(_latexTag(match.content, display: match.display));
+      index = match.end;
+    }
+
+    return buffer.toString();
+  }
+
+  static _LatexMatch? _nextLatex(String text, int from) {
+    final candidates = <_LatexDelimiter>[
+      const _LatexDelimiter(r'\(', r'\)', false),
+      const _LatexDelimiter(r'\[', r'\]', true),
+      const _LatexDelimiter(r'$$', r'$$', true),
+    ];
+
+    _LatexMatch? best;
+    for (final delimiter in candidates) {
+      final start = text.indexOf(delimiter.open, from);
+      if (start < 0) continue;
+
+      final contentStart = start + delimiter.open.length;
+      final end = text.indexOf(delimiter.close, contentStart);
+      if (end < 0) continue;
+
+      final match = _LatexMatch(
+        start: start,
+        end: end + delimiter.close.length,
+        content: text.substring(contentStart, end).trim(),
+        display: delimiter.display,
+      );
+
+      if (best == null || match.start < best.start) best = match;
+    }
+
+    return best;
+  }
+
+  static String _latexTag(String latex, {required bool display}) {
+    final encoded = Uri.encodeComponent(_decodeHtmlEntities(latex));
+    return '<span data-moodle-latex="$encoded" data-display="$display"></span>';
+  }
+
+  static String _decodeHtmlEntities(String value) {
+    return value
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'");
+  }
+}
+
+class _LatexDelimiter {
+  final String open;
+  final String close;
+  final bool display;
+
+  const _LatexDelimiter(this.open, this.close, this.display);
+}
+
+class _LatexMatch {
+  final int start;
+  final int end;
+  final String content;
+  final bool display;
+
+  const _LatexMatch({
+    required this.start,
+    required this.end,
+    required this.content,
+    required this.display,
+  });
 }

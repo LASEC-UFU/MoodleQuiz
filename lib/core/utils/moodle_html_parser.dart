@@ -180,7 +180,7 @@ class MoodleHtmlParser {
   /// Moodle coloca em `<div class="generalfeedback">...</div>`.
   static String parseGeneralFeedback(String reviewHtml) {
     final content = _extractTag(reviewHtml, 'generalfeedback') ?? '';
-    return _stripHtml(content).trim();
+    return content.trim();
   }
 
   // ── Extração do HTML do enunciado (com URLs corrigidas, sem forms) ──────────
@@ -356,8 +356,8 @@ class MoodleHtmlParser {
     final attrRe = RegExp(r'([\w-]+)="([^"]*)"', caseSensitive: false);
 
     // 1) Tenta extrair o name de um <input type="radio">
-    final radioRe = RegExp(
-        r'<input\b[^>]*type="radio"[^>]*/?>', caseSensitive: false);
+    final radioRe =
+        RegExp(r'<input\b[^>]*type="radio"[^>]*/?>', caseSensitive: false);
     for (final m in radioRe.allMatches(html)) {
       final inputTag = m.group(0)!;
       for (final a in attrRe.allMatches(inputTag)) {
@@ -369,7 +369,7 @@ class MoodleHtmlParser {
 
     // 2) Fallback: deduz do input :sequencecheck
     //    ex: name="q12345:1_:sequencecheck" → "q12345:1_answer"
-    final allInputsRe = RegExp(r'<input\b[^>]*/?>',  caseSensitive: false);
+    final allInputsRe = RegExp(r'<input\b[^>]*/?>', caseSensitive: false);
     for (final m in allInputsRe.allMatches(html)) {
       final inputTag = m.group(0)!;
       if (!inputTag.contains(':sequencecheck')) continue;
