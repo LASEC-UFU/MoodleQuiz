@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:go_router/go_router.dart';
+import 'package:html/dom.dart' as dom;
+import 'package:html/parser.dart' as html_parser;
 import 'package:provider/provider.dart';
 
 import '../../../core/theme/app_theme.dart';
@@ -252,7 +254,7 @@ class _QuestionReveal extends StatelessWidget {
                   padding: const EdgeInsets.all(20),
                   decoration: AppTheme.cardDecoration(glowing: false),
                   child: question.generalFeedback.isNotEmpty
-                      ? _MoodleHtml(
+                      ? _MoodleFeedbackHtml(
                           html: question.generalFeedback,
                           textStyle: TextStyle(
                             fontSize: isMobile ? 15 : 17,
@@ -271,6 +273,201 @@ class _QuestionReveal extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _MoodleFeedbackHtml extends StatelessWidget {
+  final String html;
+  final TextStyle textStyle;
+
+  const _MoodleFeedbackHtml({
+    required this.html,
+    required this.textStyle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fragment = html_parser.parseFragment(html);
+    final blocks = _buildBlocks(fragment.nodes);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: blocks,
+    );
+  }
+
+  List<Widget> _buildBlocks(List<dom.Node> nodes) {
+    final blocks = <Widget>[];
+
+    for (final node in nodes) {
+      if (node is dom.Text) {
+        final text = node.text.trim();
+        if (text.isNotEmpty) blocks.add(_textParagraph([node]));
+        continue;
+      }
+
+      if (node is! dom.Element) continue;
+
+      switch (node.localName) {
+        case 'div':
+          blocks.addAll(_buildBlocks(node.nodes));
+          break;
+        case 'p':
+          blocks.add(_paragraph(node));
+          break;
+        case 'br':
+          blocks.add(const SizedBox(height: 8));
+          break;
+        default:
+          blocks.add(_htmlBlock(node.outerHtml));
+      }
+    }
+
+    return blocks;
+  }
+
+  Widget _paragraph(dom.Element element) {
+    final plainText = element.text.trim();
+    final displayLatex = _displayLatexFromText(plainText);
+    if (displayLatex != null) return _mathBlock(displayLatex);
+
+    return _textParagraph(element.nodes);
+  }
+
+  Widget _textParagraph(List<dom.Node> nodes) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Text.rich(
+        TextSpan(children: _inlineSpans(nodes, textStyle)),
+        style: textStyle,
+      ),
+    );
+  }
+
+  Widget _htmlBlock(String html) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: _MoodleHtml(html: html, textStyle: textStyle),
+    );
+  }
+
+  Widget _mathBlock(String latex) {
+    final normalized = _MoodleHtml._normalizeLatex(latex);
+    final math = Math.tex(
+      normalized,
+      mathStyle: MathStyle.display,
+      textStyle: textStyle.copyWith(color: AppTheme.textPrimary),
+      onErrorFallback: (error) => Text(
+        _MoodleHtml._latexFallbackText(normalized),
+        style: textStyle.copyWith(color: AppTheme.textPrimary),
+      ),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: math,
+      ),
+    );
+  }
+
+  List<InlineSpan> _inlineSpans(List<dom.Node> nodes, TextStyle style) {
+    final spans = <InlineSpan>[];
+
+    for (final node in nodes) {
+      if (node is dom.Text) {
+        spans.addAll(_textWithMathSpans(node.text, style));
+        continue;
+      }
+
+      if (node is! dom.Element) continue;
+
+      final localName = node.localName;
+      if (localName == 'br') {
+        spans.add(const TextSpan(text: '\n'));
+        continue;
+      }
+
+      var childStyle = style;
+      if (localName == 'strong' || localName == 'b') {
+        childStyle = childStyle.copyWith(fontWeight: FontWeight.w800);
+      } else if (localName == 'em' || localName == 'i') {
+        childStyle = childStyle.copyWith(fontStyle: FontStyle.italic);
+      }
+
+      spans.addAll(_inlineSpans(node.nodes, childStyle));
+    }
+
+    return spans;
+  }
+
+  List<InlineSpan> _textWithMathSpans(String text, TextStyle style) {
+    final spans = <InlineSpan>[];
+    var index = 0;
+
+    while (index < text.length) {
+      final match = _nextInlineLatex(text, index);
+      if (match == null) {
+        spans.add(TextSpan(
+          text: _MoodleHtml._cleanPlainLatexText(text.substring(index)),
+          style: style,
+        ));
+        break;
+      }
+
+      if (match.start > index) {
+        spans.add(TextSpan(
+          text: _MoodleHtml._cleanPlainLatexText(
+            text.substring(index, match.start),
+          ),
+          style: style,
+        ));
+      }
+
+      spans.add(WidgetSpan(
+        alignment: PlaceholderAlignment.baseline,
+        baseline: TextBaseline.alphabetic,
+        child: Math.tex(
+          _MoodleHtml._normalizeLatex(match.content),
+          mathStyle: MathStyle.text,
+          textStyle: style.copyWith(color: AppTheme.textPrimary),
+          onErrorFallback: (error) => Text(
+            _MoodleHtml._latexFallbackText(match.content),
+            style: style.copyWith(color: AppTheme.textPrimary),
+          ),
+        ),
+      ));
+
+      index = match.end;
+    }
+
+    return spans;
+  }
+
+  _LatexMatch? _nextInlineLatex(String text, int from) {
+    final delimited = _MoodleHtml._nextLatex(text, from);
+    final loose = _MoodleHtml._nextLooseLatexFragment(text, from);
+
+    if (delimited == null) return loose;
+    if (loose == null) return delimited;
+    return delimited.start <= loose.start ? delimited : loose;
+  }
+
+  String? _displayLatexFromText(String text) {
+    final line = text.trim();
+    if (line.isEmpty) return null;
+
+    final delimited = _MoodleHtml._nextLatex(line, 0);
+    if (delimited != null &&
+        delimited.start == 0 &&
+        delimited.end == line.length) {
+      return delimited.content;
+    }
+
+    if (_MoodleHtml._looksLikeLatexLine(line)) return line;
+
+    return null;
   }
 }
 
