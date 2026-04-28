@@ -151,7 +151,7 @@ class _QuestionReveal extends StatelessWidget {
           Responsive.horizontalPadding(context).copyWith(top: 8, bottom: 32),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 800),
+          constraints: const BoxConstraints(maxWidth: 1200),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -289,7 +289,9 @@ class _MoodleHtml extends StatelessWidget {
       _withLatexTags(html),
       textStyle: textStyle,
       customWidgetBuilder: (element) {
-        final latex = element.attributes['data-moodle-latex'];
+        if (element.localName != 'mq-latex') return null;
+
+        final latex = element.attributes['data-latex'];
         if (latex == null) return null;
 
         final decoded = Uri.decodeComponent(latex);
@@ -304,7 +306,7 @@ class _MoodleHtml extends StatelessWidget {
           ),
         );
 
-        if (!display) return math;
+        if (!display) return InlineCustomWidget(child: math);
 
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
@@ -358,22 +360,149 @@ class _MoodleHtml extends StatelessWidget {
   }
 
   static String _replaceLatexInText(String text) {
+    final decoded = _decodeHtmlEntities(text);
+    final delimited = _replaceDelimitedLatex(decoded);
+    if (delimited != null) return delimited;
+
+    final replaced = decoded.split('\n').map(_replaceLooseLatexLine).join('\n');
+    if (replaced != decoded) return replaced;
+
+    final cleaned = _cleanPlainLatexText(decoded);
+    if (cleaned != decoded) return _escapeHtmlText(cleaned);
+
+    return text;
+  }
+
+  static String? _replaceDelimitedLatex(String text) {
     final buffer = StringBuffer();
     var index = 0;
+    var changed = false;
 
     while (index < text.length) {
       final match = _nextLatex(text, index);
       if (match == null) {
-        buffer.write(text.substring(index));
+        buffer.write(_escapeHtmlText(_cleanPlainLatexText(
+          text.substring(index),
+        )));
         break;
       }
 
-      buffer.write(text.substring(index, match.start));
+      changed = true;
+      buffer.write(_escapeHtmlText(_cleanPlainLatexText(
+        text.substring(index, match.start),
+      )));
       buffer.write(_latexTag(match.content, display: match.display));
       index = match.end;
     }
 
+    return changed ? buffer.toString() : null;
+  }
+
+  static String _replaceLooseLatexLine(String text) {
+    final leading = RegExp(r'^\s*').firstMatch(text)?.group(0) ?? '';
+    final trailing = RegExp(r'\s*$').firstMatch(text)?.group(0) ?? '';
+    final line = text.trim();
+
+    if (line.isEmpty) return text;
+
+    if (_looksLikeLatexLine(line)) {
+      return '$leading${_latexTag(line, display: true)}$trailing';
+    }
+
+    final fragments = _findLooseLatexFragments(line);
+    if (fragments.isEmpty) return text;
+
+    final buffer = StringBuffer(leading);
+    var index = 0;
+    for (final fragment in fragments) {
+      if (fragment.start < index) continue;
+
+      buffer.write(_escapeHtmlText(_cleanPlainLatexText(
+        line.substring(index, fragment.start),
+      )));
+      buffer.write(_latexTag(fragment.content, display: false));
+      index = fragment.end;
+    }
+    buffer.write(_escapeHtmlText(_cleanPlainLatexText(line.substring(index))));
+    buffer.write(trailing);
+
     return buffer.toString();
+  }
+
+  static bool _looksLikeLatexLine(String line) {
+    final startsAsMath = RegExp(
+      r'^(?:\\(?:Delta|delta|frac|sqrt|sum|int|left|right)\b|[A-Za-z]\s*=|\d)',
+    ).hasMatch(line);
+    if (!startsAsMath) return false;
+
+    if (RegExp(
+            r'\\(?:Delta|delta|frac|cdot|times|div|sqrt|circ|pi|alpha|beta|gamma|theta|lambda|mu|sigma|sum|int|left|right)\b')
+        .hasMatch(line)) {
+      return true;
+    }
+
+    return RegExp(r'^[A-Za-z\\][A-Za-z0-9\\\s{}.,+\-*/^=()]+$')
+            .hasMatch(line) &&
+        line.contains('=') &&
+        (line.contains(r'\') || line.contains('{') || line.contains('^'));
+  }
+
+  static List<_LatexMatch> _findLooseLatexFragments(String line) {
+    final fragments = <_LatexMatch>[];
+    var index = 0;
+
+    while (index < line.length) {
+      final match = _nextLooseLatexFragment(line, index);
+      if (match == null) break;
+
+      fragments.add(match);
+      index = match.end;
+    }
+
+    return fragments;
+  }
+
+  static _LatexMatch? _nextLooseLatexFragment(String line, int from) {
+    final patterns = <RegExp>[
+      RegExp(
+        r'\\(?:Delta|delta|frac|cdot|times|div|sqrt|circ|pi|alpha|beta|gamma|theta|lambda|mu|sigma|sum|int|left|right)\b(?:\{,\}|[^.;\n])*',
+      ),
+      RegExp(
+        r'[A-Za-z\\][A-Za-z0-9\\\s{},+\-*/^=()]*=\s*[A-Za-z0-9\\\s{},+\-*/^()]+',
+      ),
+      RegExp(
+        r'\d+(?:\{,\}\d+)?(?:\\,)?\^?\\circ\}?\s*[A-Za-z]',
+      ),
+    ];
+
+    _LatexMatch? best;
+    for (final pattern in patterns) {
+      final match = pattern.matchAsPrefix(line, from) ??
+          pattern.allMatches(line, from).firstOrNull;
+      if (match == null) continue;
+
+      final content = match.group(0)?.trim() ?? '';
+      if (content.isEmpty) continue;
+      if (!_looksLikeLatexFragment(content)) continue;
+
+      final candidate = _LatexMatch(
+        start: match.start,
+        end: match.end,
+        content: content,
+        display: false,
+      );
+
+      if (best == null || candidate.start < best.start) best = candidate;
+    }
+
+    return best;
+  }
+
+  static bool _looksLikeLatexFragment(String text) {
+    return text.contains(r'\') ||
+        text.contains('{') ||
+        text.contains('^') ||
+        text.contains('=');
   }
 
   static _LatexMatch? _nextLatex(String text, int from) {
@@ -406,18 +535,79 @@ class _MoodleHtml extends StatelessWidget {
   }
 
   static String _latexTag(String latex, {required bool display}) {
-    final encoded = Uri.encodeComponent(_decodeHtmlEntities(latex));
-    return '<span data-moodle-latex="$encoded" data-display="$display"></span>';
+    final encoded = Uri.encodeComponent(_normalizeLatex(latex));
+    return '<mq-latex data-latex="$encoded" data-display="$display"></mq-latex>';
+  }
+
+  static String _normalizeLatex(String latex) {
+    final decoded = _decodeHtmlEntities(latex)
+        .replaceAllMapped(
+          RegExp(r'\\circ\}?([A-Za-z])'),
+          (match) => r'\circ ' '${match.group(1)}',
+        )
+        .replaceAll(r'\,', ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    final buffer = StringBuffer();
+    var balance = 0;
+    for (final codeUnit in decoded.codeUnits) {
+      final char = String.fromCharCode(codeUnit);
+      if (char == '{') {
+        balance++;
+        buffer.write(char);
+      } else if (char == '}') {
+        if (balance > 0) {
+          balance--;
+          buffer.write(char);
+        }
+      } else {
+        buffer.write(char);
+      }
+    }
+
+    return buffer.toString();
+  }
+
+  static String _cleanPlainLatexText(String text) {
+    return text
+        .replaceAll(RegExp(r'\{,\}'), ',')
+        .replaceAll(r'\,', ' ')
+        .replaceAll(RegExp(r'\}(?=[A-Za-z])'), '');
+  }
+
+  static String _escapeHtmlText(String value) {
+    return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
   }
 
   static String _decodeHtmlEntities(String value) {
-    return value
+    final named = value
+        .replaceAll('&bsol;', r'\')
         .replaceAll('&nbsp;', ' ')
         .replaceAll('&amp;', '&')
         .replaceAll('&lt;', '<')
         .replaceAll('&gt;', '>')
         .replaceAll('&quot;', '"')
         .replaceAll('&#39;', "'");
+
+    return named.replaceAllMapped(
+      RegExp(r'&#(?:x([0-9a-fA-F]+)|([0-9]+));'),
+      (match) {
+        final hex = match.group(1);
+        final decimal = match.group(2);
+        final codePoint = hex != null
+            ? int.tryParse(hex, radix: 16)
+            : int.tryParse(decimal ?? '');
+
+        if (codePoint == null) return match.group(0) ?? '';
+        return String.fromCharCode(codePoint);
+      },
+    );
   }
 }
 
