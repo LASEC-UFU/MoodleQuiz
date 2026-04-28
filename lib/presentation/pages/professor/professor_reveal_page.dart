@@ -662,13 +662,13 @@ class _MoodleHtml extends StatelessWidget {
   static _LatexMatch? _nextLooseLatexFragment(String line, int from) {
     final patterns = <RegExp>[
       RegExp(
+        r'\d+(?:\{,\}\d+)?(?:\\,)?\^?\{?\\circ\}?\s*[A-Za-z]',
+      ),
+      RegExp(
         r'\\(?:Delta|delta|frac|cdot|times|div|sqrt|circ|pi|alpha|beta|gamma|theta|lambda|mu|sigma|sum|int|left|right)\b(?:\{,\}|[^.;\n])*',
       ),
       RegExp(
         r'[A-Za-z\\][A-Za-z0-9\\\s{},+\-*/^=()]*=\s*[A-Za-z0-9\\\s{},+\-*/^()]+',
-      ),
-      RegExp(
-        r'\d+(?:\{,\}\d+)?(?:\\,)?\^?\\circ\}?\s*[A-Za-z]',
       ),
     ];
 
@@ -744,6 +744,10 @@ class _MoodleHtml extends StatelessWidget {
           (match) => r'^\circ ' '${match.group(1)}',
         )
         .replaceAllMapped(
+          RegExp(r'\^\{\\circ([A-Za-z])'),
+          (match) => r'^\circ ' '${match.group(1)}',
+        )
+        .replaceAllMapped(
           RegExp(r'\^\{\\circ\}([A-Za-z])'),
           (match) => r'^{\circ} ' '${match.group(1)}',
         )
@@ -775,7 +779,14 @@ class _MoodleHtml extends StatelessWidget {
     return _decodeHtmlEntities(latex)
         .replaceAll(RegExp(r'\{,\}'), ',')
         .replaceAll(RegExp(r'\\,'), ' ')
-        .replaceAll(RegExp(r'\^\{?\\circ\}?'), '°')
+        .replaceAllMapped(
+          RegExp(r'\^\{?\\circ\}?\s*([A-Za-z])'),
+          (match) => '°${match.group(1)}',
+        )
+        .replaceAllMapped(
+          RegExp(r'\\circ\}?\s*([A-Za-z])'),
+          (match) => '°${match.group(1)}',
+        )
         .replaceAll(r'\Delta', 'Δ')
         .replaceAll(r'\delta', 'δ')
         .replaceAll(r'\cdot', '·')
@@ -787,10 +798,7 @@ class _MoodleHtml extends StatelessWidget {
   }
 
   static String _cleanPlainLatexText(String text) {
-    return text
-        .replaceAll(RegExp(r'\{,\}'), ',')
-        .replaceAll(r'\,', ' ')
-        .replaceAll(RegExp(r'\}(?=[A-Za-z])'), '');
+    return text.replaceAll(RegExp(r'\{,\}'), ',').replaceAll(r'\,', ' ');
   }
 
   static String _escapeHtmlText(String value) {
