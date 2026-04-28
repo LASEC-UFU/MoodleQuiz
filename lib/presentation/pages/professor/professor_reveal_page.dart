@@ -301,7 +301,7 @@ class _MoodleHtml extends StatelessWidget {
           mathStyle: display ? MathStyle.display : MathStyle.text,
           textStyle: textStyle.copyWith(color: AppTheme.textPrimary),
           onErrorFallback: (error) => Text(
-            decoded,
+            _latexFallbackText(decoded),
             style: textStyle.copyWith(color: AppTheme.textPrimary),
           ),
         );
@@ -541,9 +541,14 @@ class _MoodleHtml extends StatelessWidget {
 
   static String _normalizeLatex(String latex) {
     final decoded = _decodeHtmlEntities(latex)
+        .replaceAll(RegExp(r'\{,\}'), ',')
         .replaceAllMapped(
-          RegExp(r'\\circ\}?([A-Za-z])'),
-          (match) => r'\circ ' '${match.group(1)}',
+          RegExp(r'\^\\circ\}?([A-Za-z])'),
+          (match) => r'^\circ ' '${match.group(1)}',
+        )
+        .replaceAllMapped(
+          RegExp(r'\^\{\\circ\}([A-Za-z])'),
+          (match) => r'^{\circ} ' '${match.group(1)}',
         )
         .replaceAll(r'\,', ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
@@ -567,6 +572,21 @@ class _MoodleHtml extends StatelessWidget {
     }
 
     return buffer.toString();
+  }
+
+  static String _latexFallbackText(String latex) {
+    return _decodeHtmlEntities(latex)
+        .replaceAll(RegExp(r'\{,\}'), ',')
+        .replaceAll(RegExp(r'\\,'), ' ')
+        .replaceAll(RegExp(r'\^\{?\\circ\}?'), '°')
+        .replaceAll(r'\Delta', 'Δ')
+        .replaceAll(r'\delta', 'δ')
+        .replaceAll(r'\cdot', '·')
+        .replaceAll(r'\times', '×')
+        .replaceAll(r'\div', '÷')
+        .replaceAll(RegExp(r'[{}]'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 
   static String _cleanPlainLatexText(String text) {
