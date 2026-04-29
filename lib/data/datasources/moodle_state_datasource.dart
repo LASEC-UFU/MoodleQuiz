@@ -104,6 +104,7 @@ class MoodleStateDatasource implements IStateDatasource {
     'quiz_name': '',
     'duration_seconds': 0,
     'start_on_first_response': false,
+    'timer_started': false,
     'started_at': '',
     'ends_at': '',
   };
@@ -349,6 +350,7 @@ class MoodleStateDatasource implements IStateDatasource {
       'quiz_name': quizName,
       'duration_seconds': 0,
       'start_on_first_response': false,
+      'timer_started': false,
       'started_at': '',
       'ends_at': '',
     });
@@ -490,6 +492,7 @@ class MoodleStateDatasource implements IStateDatasource {
       'quiz_name': quizName,
       'duration_seconds': duration,
       'start_on_first_response': startOnFirstResponse,
+      'timer_started': !startOnFirstResponse,
       'started_at': startedAt,
       'ends_at': endsAt,
     });
@@ -504,23 +507,38 @@ class MoodleStateDatasource implements IStateDatasource {
     final isActive = current['state']?.toString().toLowerCase() == 'active';
     final startOnFirstResponse = current['start_on_first_response'] == true ||
         current['start_on_first_response']?.toString().toLowerCase() == 'true';
+    final timerStarted = current['timer_started'] == true ||
+        current['timer_started']?.toString().toLowerCase() == 'true';
     final hasStarted =
         (current['started_at']?.toString().isNotEmpty ?? false) &&
             (current['ends_at']?.toString().isNotEmpty ?? false);
     final duration =
         int.tryParse(current['duration_seconds']?.toString() ?? '') ?? 0;
 
-    if (!isActive || !startOnFirstResponse || hasStarted || duration <= 0) {
+    if (!isActive ||
+        !startOnFirstResponse ||
+        timerStarted ||
+        hasStarted ||
+        duration <= 0) {
       return current;
     }
 
+    final dlog = DebugLogger.instance;
     final now = DateTime.now();
     final updated = <String, dynamic>{
       ...current,
+      'timer_started': true,
       'started_at': now.toUtc().toIso8601String(),
       'ends_at':
           now.add(Duration(seconds: duration)).toUtc().toIso8601String(),
     };
+
+    dlog.log('STATE_TIMER', 'Primeira resposta iniciou cronometro', data: {
+      'courseId': courseId,
+      'currentPage': current['current_page'],
+      'currentSlot': current['current_slot'],
+      'durationSeconds': duration,
+    });
 
     await _writeState(baseUrl, token, updated);
     return updated;

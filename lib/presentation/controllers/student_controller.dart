@@ -200,6 +200,12 @@ class StudentController extends ChangeNotifier {
       final wasTimerPending = _quizState.isTimerPending;
       if (wasTimerPending) {
         _quizState = await _quizRepo.startQuestionTimerIfNeeded(user, courseId);
+        dlog.log('STUDENT', 'Estado apos tentativa de iniciar cronometro', data: {
+          'timerStarted': _quizState.timerStarted,
+          'startedAt': _quizState.startedAt?.toIso8601String(),
+          'endsAt': _quizState.endsAt?.toIso8601String(),
+          'durationSeconds': _quizState.durationSeconds,
+        });
       }
 
       final bonus = wasTimerPending

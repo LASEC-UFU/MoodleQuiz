@@ -408,6 +408,30 @@ class _ControlPanelState extends State<_ControlPanel> {
           const SizedBox(height: 16),
 
           // ── Timer da questão ativa ───────────────────────────────────
+          if (state.isActive && state.isTimerPending) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: AppTheme.cardDecoration(),
+              child: const Row(
+                children: [
+                  Icon(Icons.hourglass_top_rounded,
+                      color: AppTheme.warning, size: 22),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Aguardando a primeira resposta para iniciar o cronômetro.',
+                      style: TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           if (state.isActive && state.endsAt != null) ...[
             TimerWidget(
               endsAt: state.endsAt!,

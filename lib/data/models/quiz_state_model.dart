@@ -12,6 +12,7 @@ class QuizStateModel extends QuizStateEntity {
     super.quizTitle,
     super.durationSeconds,
     super.startOnFirstResponse,
+    super.timerStarted,
     super.startedAt,
     super.endsAt,
   });
@@ -44,6 +45,8 @@ class QuizStateModel extends QuizStateEntity {
           int.tryParse(json['duration_seconds']?.toString() ?? '') ?? 0,
       startOnFirstResponse: json['start_on_first_response'] == true ||
           json['start_on_first_response']?.toString().toLowerCase() == 'true',
+      timerStarted: json['timer_started'] == true ||
+          json['timer_started']?.toString().toLowerCase() == 'true',
       startedAt: startedAt,
       endsAt: endsAt,
     );

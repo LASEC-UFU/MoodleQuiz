@@ -14,6 +14,7 @@ class QuizStateEntity extends Equatable {
   final String quizTitle;
   final int durationSeconds;
   final bool startOnFirstResponse;
+  final bool timerStarted;
   final DateTime? startedAt;
   final DateTime? endsAt;
 
@@ -27,6 +28,7 @@ class QuizStateEntity extends Equatable {
     this.quizTitle = 'Quiz',
     this.durationSeconds = 0,
     this.startOnFirstResponse = false,
+    this.timerStarted = false,
     this.startedAt,
     this.endsAt,
   });
@@ -44,7 +46,7 @@ class QuizStateEntity extends Equatable {
   bool get isFinished => status == QuizStatus.finished;
   bool get hasStarted => startedAt != null && endsAt != null;
   bool get isTimerPending =>
-      isActive && startOnFirstResponse && durationSeconds > 0 && !hasStarted;
+      isActive && startOnFirstResponse && durationSeconds > 0 && !timerStarted;
 
   static QuizStateEntity empty() =>
       const QuizStateEntity(status: QuizStatus.waiting);
@@ -56,6 +58,7 @@ class QuizStateEntity extends Equatable {
         currentSlot,
         durationSeconds,
         startOnFirstResponse,
+        timerStarted,
         startedAt,
         endsAt,
       ];
