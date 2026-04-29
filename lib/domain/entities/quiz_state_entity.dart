@@ -12,6 +12,7 @@ class QuizStateEntity extends Equatable {
   final int quizId;
   final int courseId;
   final String quizTitle;
+  final String roundId;
   final int durationSeconds;
   final bool startOnFirstResponse;
   final bool timerStarted;
@@ -26,6 +27,7 @@ class QuizStateEntity extends Equatable {
     this.quizId = 0,
     this.courseId = 0,
     this.quizTitle = 'Quiz',
+    this.roundId = '',
     this.durationSeconds = 0,
     this.startOnFirstResponse = false,
     this.timerStarted = false,
@@ -56,6 +58,7 @@ class QuizStateEntity extends Equatable {
         status,
         currentPage,
         currentSlot,
+        roundId,
         durationSeconds,
         startOnFirstResponse,
         timerStarted,

@@ -102,6 +102,7 @@ class MoodleStateDatasource implements IStateDatasource {
     'quiz_id': 0,
     'course_id': 0,
     'quiz_name': '',
+    'round_id': '',
     'duration_seconds': 0,
     'start_on_first_response': false,
     'timer_started': false,
@@ -348,6 +349,7 @@ class MoodleStateDatasource implements IStateDatasource {
       'quiz_id': quizId,
       'course_id': courseId,
       'quiz_name': quizName,
+      'round_id': '',
       'duration_seconds': 0,
       'start_on_first_response': false,
       'timer_started': false,
@@ -476,6 +478,7 @@ class MoodleStateDatasource implements IStateDatasource {
     }
 
     final now = DateTime.now();
+    final roundId = now.microsecondsSinceEpoch.toString();
     final startedAt =
         startOnFirstResponse ? '' : now.toUtc().toIso8601String();
     final endsAt = startOnFirstResponse
@@ -490,6 +493,7 @@ class MoodleStateDatasource implements IStateDatasource {
       'quiz_id': quizId,
       'course_id': courseId,
       'quiz_name': quizName,
+      'round_id': roundId,
       'duration_seconds': duration,
       'start_on_first_response': startOnFirstResponse,
       'timer_started': !startOnFirstResponse,
@@ -589,6 +593,8 @@ class MoodleStateDatasource implements IStateDatasource {
     required int page,
   }) async {
     await _ensureFields(baseUrl, token, courseId);
+    final currentState = await getState(baseUrl, token, courseId);
+    final roundId = currentState['round_id']?.toString() ?? '';
 
     // Busca entrada existente do aluno
     final entries = await _fetchAllEntries(baseUrl, token);
@@ -620,6 +626,7 @@ class MoodleStateDatasource implements IStateDatasource {
     pageData[page.toString()] = {
       's': score,
       'c': correct ? 1 : 0,
+      'r': roundId,
     };
 
     // Recalcula totais a partir dos dados por página

@@ -347,7 +347,11 @@ class ProfessorController extends ChangeNotifier {
       _quizState = await _quizRepo.getQuizState(user, courseId);
       _scores = await _quizRepo.getScores(user, courseId);
       if (_quizState.isTimerPending &&
-          _hasAnyAnswerForPage(_quizState.currentPage, _scores)) {
+          _hasAnyAnswerForPage(
+            _quizState.currentPage,
+            _quizState.roundId,
+            _scores,
+          )) {
         _quizState = await _quizRepo.startQuestionTimerIfNeeded(user, courseId);
       }
       _error = null;
@@ -366,10 +370,11 @@ class ProfessorController extends ChangeNotifier {
     await _refreshState();
   }
 
-  bool _hasAnyAnswerForPage(int page, List<ScoreEntity> scores) {
-    if (page < 0) return false;
+  bool _hasAnyAnswerForPage(
+      int page, String roundId, List<ScoreEntity> scores) {
+    if (page < 0 || roundId.isEmpty) return false;
     for (final score in scores) {
-      if (score.answeredPages.contains(page)) {
+      if (score.answeredPageRounds[page] == roundId) {
         return true;
       }
     }

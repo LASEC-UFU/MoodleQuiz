@@ -9,6 +9,7 @@ class ScoreEntity extends Equatable {
   final int score;
   final int rank;
   final List<int> answeredPages;
+  final Map<int, String> answeredPageRounds;
   final int? previousRank; // para animar mudança de posição
 
   const ScoreEntity({
@@ -19,6 +20,7 @@ class ScoreEntity extends Equatable {
     required this.score,
     required this.rank,
     this.answeredPages = const [],
+    this.answeredPageRounds = const {},
     this.previousRank,
   });
 

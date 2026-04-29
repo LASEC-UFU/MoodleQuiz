@@ -696,6 +696,7 @@ class QuizRepositoryImpl implements IQuizRepository {
       // total_answered = número de páginas respondidas
       int totalAnswered = 0;
       final answeredPages = <int>[];
+      final answeredPageRounds = <String, String>{};
       try {
         final pages = j['pages'];
         if (pages is String && pages.isNotEmpty) {
@@ -707,6 +708,10 @@ class QuizRepositoryImpl implements IQuizRepository {
               final parsed = int.tryParse(key.toString());
               if (parsed != null) {
                 answeredPages.add(parsed);
+                final value = decoded[key];
+                if (value is Map && value['r'] != null) {
+                  answeredPageRounds[key.toString()] = value['r'].toString();
+                }
               }
             }
           } else if (decoded is List) {
@@ -743,6 +748,7 @@ class QuizRepositoryImpl implements IQuizRepository {
           'rank': rank,
           'total_answered': totalAnswered,
           'answered_pages': answeredPages,
+          'answered_page_rounds': answeredPageRounds,
         },
         previousRank: _prevRanks[id],
       );
