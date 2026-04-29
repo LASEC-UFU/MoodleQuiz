@@ -695,6 +695,7 @@ class QuizRepositoryImpl implements IQuizRepository {
       final id = j['student_id']?.toString() ?? '';
       // total_answered = número de páginas respondidas
       int totalAnswered = 0;
+      final answeredPages = <int>[];
       try {
         final pages = j['pages'];
         if (pages is String && pages.isNotEmpty) {
@@ -702,18 +703,47 @@ class QuizRepositoryImpl implements IQuizRepository {
           if (decoded is Map) {
             // Novo formato: {"0": {"s": 1230, "c": 1}, ...}
             totalAnswered = decoded.length;
+            for (final key in decoded.keys) {
+              final parsed = int.tryParse(key.toString());
+              if (parsed != null) {
+                answeredPages.add(parsed);
+              }
+            }
           } else if (decoded is List) {
             // Formato legado: [0, 1, 2]
             totalAnswered = decoded.length;
+            for (final page in decoded) {
+              final parsed = int.tryParse(page.toString());
+              if (parsed != null) {
+                answeredPages.add(parsed);
+              }
+            }
           }
         } else if (pages is List) {
           totalAnswered = pages.length;
+          for (final page in pages) {
+            final parsed = int.tryParse(page.toString());
+            if (parsed != null) {
+              answeredPages.add(parsed);
+            }
+          }
         } else if (pages is Map) {
           totalAnswered = pages.length;
+          for (final key in pages.keys) {
+            final parsed = int.tryParse(key.toString());
+            if (parsed != null) {
+              answeredPages.add(parsed);
+            }
+          }
         }
       } catch (_) {}
       return ScoreModel.fromJson(
-        {...j, 'rank': rank, 'total_answered': totalAnswered},
+        {
+          ...j,
+          'rank': rank,
+          'total_answered': totalAnswered,
+          'answered_pages': answeredPages,
+        },
         previousRank: _prevRanks[id],
       );
     }).toList();

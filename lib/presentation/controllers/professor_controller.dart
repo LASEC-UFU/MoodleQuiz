@@ -301,9 +301,10 @@ class ProfessorController extends ChangeNotifier {
   void startPolling() {
     _pollTimer?.cancel();
     _refreshState();
-    // 3 s é suficiente para o professor e evita sobrecarregar as quotas do Apps Script
+    // Polling mais curto para disparar rapidamente o cronômetro após a
+    // primeira resposta dos alunos.
     _pollTimer =
-        Timer.periodic(const Duration(seconds: 3), (_) => _refreshState());
+        Timer.periodic(const Duration(seconds: 1), (_) => _refreshState());
   }
 
   void stopPolling() {
@@ -345,6 +346,10 @@ class ProfessorController extends ChangeNotifier {
     try {
       _quizState = await _quizRepo.getQuizState(user, courseId);
       _scores = await _quizRepo.getScores(user, courseId);
+      if (_quizState.isTimerPending &&
+          _hasAnyAnswerForPage(_quizState.currentPage, _scores)) {
+        _quizState = await _quizRepo.startQuestionTimerIfNeeded(user, courseId);
+      }
       _error = null;
       notifyListeners();
     } catch (e) {
@@ -359,6 +364,16 @@ class ProfessorController extends ChangeNotifier {
   Future<void> _refreshStateAfterWrite() async {
     await Future.delayed(const Duration(milliseconds: 800));
     await _refreshState();
+  }
+
+  bool _hasAnyAnswerForPage(int page, List<ScoreEntity> scores) {
+    if (page < 0) return false;
+    for (final score in scores) {
+      if (score.answeredPages.contains(page)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   void clearError() {

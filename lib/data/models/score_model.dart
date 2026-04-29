@@ -9,11 +9,23 @@ class ScoreModel extends ScoreEntity {
     required super.totalAnswered,
     required super.score,
     required super.rank,
+    super.answeredPages,
     super.previousRank,
   });
 
   factory ScoreModel.fromJson(Map<String, dynamic> json,
       {int? previousRank}) {
+    final answeredPages = <int>[];
+    final rawPages = json['answered_pages'];
+    if (rawPages is List) {
+      for (final page in rawPages) {
+        final parsed = int.tryParse(page.toString());
+        if (parsed != null) {
+          answeredPages.add(parsed);
+        }
+      }
+    }
+
     return ScoreModel(
       studentId: json['student_id']?.toString() ?? '',
       studentName: json['student_name']?.toString() ?? 'Desconhecido',
@@ -23,6 +35,7 @@ class ScoreModel extends ScoreEntity {
           int.tryParse(json['total_answered']?.toString() ?? '') ?? 0,
       score: int.tryParse(json['score']?.toString() ?? '') ?? 0,
       rank: int.tryParse(json['rank']?.toString() ?? '') ?? 99,
+      answeredPages: answeredPages,
       previousRank: previousRank,
     );
   }
