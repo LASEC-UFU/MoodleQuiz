@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:html/parser.dart' as html_parser;
 import 'package:provider/provider.dart';
 
 import '../../../core/config/app_config.dart';
@@ -755,7 +757,7 @@ class _DurationSelector extends StatelessWidget {
   }
 }
 
-class _SelectedQuestionCard extends StatelessWidget {
+class _SelectedQuestionCard extends StatefulWidget {
   final QuestionEntity question;
   final int index;
   final bool showCorrect;
@@ -766,77 +768,215 @@ class _SelectedQuestionCard extends StatelessWidget {
   });
 
   @override
+  State<_SelectedQuestionCard> createState() => _SelectedQuestionCardState();
+}
+
+class _SelectedQuestionCardState extends State<_SelectedQuestionCard> {
+  bool _expanded = false;
+
+  @override
   Widget build(BuildContext context) {
+    final question = widget.question;
+    final previewText = _questionPreviewText(question);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: AppTheme.cardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Questão ${index + 1}',
-              style: const TextStyle(
-                  color: AppTheme.accent,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700)),
-          const SizedBox(height: 6),
-          Text(
-            question.text,
-            style: const TextStyle(
-                color: AppTheme.textPrimary,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                height: 1.4),
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: question.choices.asMap().entries.map((e) {
-              final label = String.fromCharCode(65 + e.key); // A, B, C…
-              final choice = e.value;
-              final isCorrect = showCorrect && choice.isCorrect;
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isCorrect
-                      ? AppTheme.success.withValues(alpha: 0.18)
-                      : AppTheme.bgCardAlt,
-                  borderRadius: BorderRadius.circular(6),
-                  border: isCorrect
-                      ? Border.all(
-                          color: AppTheme.success.withValues(alpha: 0.6),
-                          width: 1.5)
-                      : null,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (isCorrect) ...[
-                      const Icon(Icons.check_circle_rounded,
-                          color: AppTheme.success, size: 14),
-                      const SizedBox(width: 4),
-                    ],
-                    Text(
-                      '$label: ${choice.text}',
-                      style: TextStyle(
+          Row(
+            children: [
+              Expanded(
+                child: Text('Questão ${widget.index + 1}',
+                    style: const TextStyle(
+                        color: AppTheme.accent,
                         fontSize: 12,
-                        color: isCorrect
-                            ? AppTheme.success
-                            : AppTheme.textSecondary,
-                        fontWeight:
-                            isCorrect ? FontWeight.w700 : FontWeight.normal,
+                        fontWeight: FontWeight.w700)),
+              ),
+              IconButton(
+                onPressed: () => setState(() => _expanded = !_expanded),
+                tooltip: _expanded ? 'Recolher enunciado' : 'Expandir enunciado',
+                icon: Icon(
+                  _expanded
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.keyboard_arrow_down_rounded,
+                  color: AppTheme.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          GestureDetector(
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: AnimatedCrossFade(
+              firstChild: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    previewText,
+                    style: const TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      height: 1.4,
+                    ),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
+              secondChild: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (question.htmlText.isNotEmpty)
+                    HtmlWidget(
+                      question.htmlText,
+                      textStyle: const TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        height: 1.5,
+                      ),
+                      customStylesBuilder: (element) {
+                        if (element.localName == 'table') {
+                          return {
+                            'border-collapse': 'collapse',
+                            'width': '100%',
+                          };
+                        }
+                        if (element.localName == 'td' ||
+                            element.localName == 'th') {
+                          return {
+                            'border': '1px solid #444',
+                            'padding': '6px 10px',
+                          };
+                        }
+                        if (element.localName == 'img') {
+                          return {
+                            'max-width': '100%',
+                            'height': 'auto',
+                          };
+                        }
+                        return null;
+                      },
+                    )
+                  else
+                    Text(
+                      question.text,
+                      style: const TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        height: 1.5,
                       ),
                     ),
-                  ],
-                ),
-              );
-            }).toList(),
+                  const SizedBox(height: 12),
+                  ...question.choices.asMap().entries.map((e) {
+                    final label = String.fromCharCode(65 + e.key);
+                    final choice = e.value;
+                    final isCorrect = widget.showCorrect && choice.isCorrect;
+                    return Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: isCorrect
+                            ? AppTheme.success.withValues(alpha: 0.18)
+                            : AppTheme.bgCardAlt,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isCorrect
+                              ? AppTheme.success.withValues(alpha: 0.6)
+                              : AppTheme.bgCardAlt,
+                          width: isCorrect ? 1.5 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color:
+                                  isCorrect ? AppTheme.success : AppTheme.bgDark,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              label,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: isCorrect
+                                    ? Colors.white
+                                    : AppTheme.textSecondary,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              choice.text,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: isCorrect
+                                    ? AppTheme.success
+                                    : AppTheme.textPrimary,
+                                fontWeight: isCorrect
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          if (isCorrect) ...[
+                            const SizedBox(width: 8),
+                            const Icon(Icons.check_circle_rounded,
+                                color: AppTheme.success, size: 18),
+                          ],
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ),
+              crossFadeState: _expanded
+                  ? CrossFadeState.showSecond
+                  : CrossFadeState.showFirst,
+              duration: const Duration(milliseconds: 180),
+            ),
+          ),
+          TextButton.icon(
+            onPressed: () => setState(() => _expanded = !_expanded),
+            icon: Icon(
+              _expanded ? Icons.unfold_less_rounded : Icons.unfold_more_rounded,
+              size: 18,
+            ),
+            label: Text(_expanded ? 'Recolher' : 'Expandir'),
+            style: TextButton.styleFrom(
+              foregroundColor: AppTheme.textSecondary,
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(0, 32),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
           ),
         ],
       ),
     );
+  }
+
+  String _questionPreviewText(QuestionEntity question) {
+    if (question.htmlText.isNotEmpty) {
+      final parsed = html_parser.parse(question.htmlText);
+      final text = parsed.documentElement?.text ?? '';
+      final normalized = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+      if (normalized.isNotEmpty) {
+        return normalized;
+      }
+    }
+    return question.text.trim();
   }
 }
 
