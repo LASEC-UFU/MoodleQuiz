@@ -12,6 +12,8 @@ class QuizStateEntity extends Equatable {
   final int quizId;
   final int courseId;
   final String quizTitle;
+  final int durationSeconds;
+  final bool startOnFirstResponse;
   final DateTime? startedAt;
   final DateTime? endsAt;
 
@@ -23,6 +25,8 @@ class QuizStateEntity extends Equatable {
     this.quizId = 0,
     this.courseId = 0,
     this.quizTitle = 'Quiz',
+    this.durationSeconds = 0,
+    this.startOnFirstResponse = false,
     this.startedAt,
     this.endsAt,
   });
@@ -30,7 +34,7 @@ class QuizStateEntity extends Equatable {
   /// Segundos restantes calculados localmente.
   int get secondsRemaining {
     if (endsAt == null || status != QuizStatus.active) return 0;
-    final diff = endsAt!.difference(DateTime.now().toUtc()).inSeconds;
+    final diff = endsAt!.difference(DateTime.now()).inSeconds;
     return diff < 0 ? 0 : diff;
   }
 
@@ -38,10 +42,21 @@ class QuizStateEntity extends Equatable {
   bool get isWaiting => status == QuizStatus.waiting;
   bool get isClosed => status == QuizStatus.closed;
   bool get isFinished => status == QuizStatus.finished;
+  bool get hasStarted => startedAt != null && endsAt != null;
+  bool get isTimerPending =>
+      isActive && startOnFirstResponse && durationSeconds > 0 && !hasStarted;
 
   static QuizStateEntity empty() =>
       const QuizStateEntity(status: QuizStatus.waiting);
 
   @override
-  List<Object?> get props => [status, currentPage, currentSlot, endsAt];
+  List<Object?> get props => [
+        status,
+        currentPage,
+        currentSlot,
+        durationSeconds,
+        startOnFirstResponse,
+        startedAt,
+        endsAt,
+      ];
 }

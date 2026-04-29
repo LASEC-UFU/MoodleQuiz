@@ -36,6 +36,7 @@ class ProfessorController extends ChangeNotifier {
   QuizStateEntity _quizState = QuizStateEntity.empty();
   List<ScoreEntity> _scores = [];
   int _selectedDuration = 30;
+  bool _startTimerOnFirstResponse = true;
   bool _isLoading = false;
   bool _isRefreshing = false; // guard contra chamadas simultâneas ao GSheets
   String? _error;
@@ -60,6 +61,7 @@ class ProfessorController extends ChangeNotifier {
   QuizStateEntity get quizState => _quizState;
   List<ScoreEntity> get scores => _scores;
   int get selectedDuration => _selectedDuration;
+  bool get startTimerOnFirstResponse => _startTimerOnFirstResponse;
   bool get isLoading => _isLoading;
   String? get error => _error;
   List<String> get log => List.unmodifiable(_log);
@@ -136,6 +138,11 @@ class ProfessorController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setStartTimerOnFirstResponse(bool value) {
+    _startTimerOnFirstResponse = value;
+    notifyListeners();
+  }
+
   Future<void> releaseQuestion(QuestionEntity q) async {
     final dlog = DebugLogger.instance;
     final user = _user;
@@ -159,6 +166,7 @@ class ProfessorController extends ChangeNotifier {
       'page': page,
       'slot': q.slot,
       'duration': _selectedDuration,
+      'startOnFirstResponse': _startTimerOnFirstResponse,
       'totalPages': _questions.length,
     });
     _setLoading(true);
@@ -170,6 +178,7 @@ class ProfessorController extends ChangeNotifier {
         page: page,
         slot: q.slot,
         duration: _selectedDuration,
+        startOnFirstResponse: _startTimerOnFirstResponse,
         totalPages: _questions.length,
         quizName: _selectedQuiz!.name,
         quizId: _selectedQuiz!.id,
@@ -210,6 +219,7 @@ class ProfessorController extends ChangeNotifier {
         page: state.currentPage,
         slot: state.currentSlot,
         duration: newDuration,
+        startOnFirstResponse: false,
         totalPages: state.totalPages,
         quizName: state.quizTitle,
         quizId: _selectedQuiz?.id ?? 0,

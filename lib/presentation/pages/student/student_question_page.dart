@@ -48,6 +48,29 @@ class StudentQuestionPage extends StatelessWidget {
               // ── Timer ─────────────────────────────────────────────────
               if (endsAt != null)
                 TimerWidget(endsAt: endsAt!).animate().fadeIn(),
+              if (endsAt == null)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: AppTheme.cardDecoration(),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.hourglass_top_rounded,
+                          color: AppTheme.warning, size: 22),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'O cronômetro vai começar quando a primeira resposta for enviada.',
+                          style: TextStyle(
+                            color: AppTheme.textSecondary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ).animate().fadeIn(),
 
               const SizedBox(height: 16),
 

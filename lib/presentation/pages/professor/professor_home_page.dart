@@ -435,6 +435,12 @@ class _ControlPanelState extends State<_ControlPanel> {
             onChange: prof.setDuration,
             enabled: !state.isActive,
           ),
+          const SizedBox(height: 12),
+          _StartTimerOption(
+            value: prof.startTimerOnFirstResponse,
+            enabled: !state.isActive,
+            onChanged: prof.setStartTimerOnFirstResponse,
+          ),
           const SizedBox(height: 16),
 
           // ── Questão selecionada ──────────────────────────────────────
@@ -805,6 +811,67 @@ class _SelectedQuestionCard extends StatelessWidget {
             }).toList(),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _StartTimerOption extends StatelessWidget {
+  final bool value;
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+
+  const _StartTimerOption({
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: enabled ? () => onChanged(!value) : null,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: Checkbox(
+                value: value,
+                onChanged: enabled ? (next) => onChanged(next ?? true) : null,
+                side: const BorderSide(color: AppTheme.textSecondary),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Começar tempo na 1ª resposta',
+                    style: TextStyle(
+                      color: enabled
+                          ? AppTheme.textPrimary
+                          : AppTheme.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Marcado por padrão. A questão abre na hora, mas o cronômetro só inicia quando o primeiro aluno responder.',
+                    style: TextStyle(
+                      color: AppTheme.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

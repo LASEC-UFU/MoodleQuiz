@@ -197,7 +197,14 @@ class StudentController extends ChangeNotifier {
     _isSubmitting = true;
     notifyListeners();
     try {
-      final bonus = _quizState.secondsRemaining * 10;
+      final wasTimerPending = _quizState.isTimerPending;
+      if (wasTimerPending) {
+        _quizState = await _quizRepo.startQuestionTimerIfNeeded(user, courseId);
+      }
+
+      final bonus = wasTimerPending
+          ? _quizState.durationSeconds * 10
+          : _quizState.secondsRemaining * 10;
       final baseScore = 1000 + bonus;
 
       dlog.separator('STUDENT SUBMIT');
@@ -207,6 +214,7 @@ class StudentController extends ChangeNotifier {
         'page': q.page,
         'choiceValue': choice,
         'choiceText': _selectedChoiceText ?? '?',
+        'timerWasPending': wasTimerPending,
         'timeBonus': bonus,
         'baseScore': baseScore,
         'inputBaseName': q.inputBaseName,

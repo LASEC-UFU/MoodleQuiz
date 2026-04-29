@@ -10,6 +10,8 @@ class QuizStateModel extends QuizStateEntity {
     super.quizId,
     super.courseId,
     super.quizTitle,
+    super.durationSeconds,
+    super.startOnFirstResponse,
     super.startedAt,
     super.endsAt,
   });
@@ -38,6 +40,10 @@ class QuizStateModel extends QuizStateEntity {
       quizId: int.tryParse(json['quiz_id']?.toString() ?? '') ?? 0,
       courseId: int.tryParse(json['course_id']?.toString() ?? '') ?? 0,
       quizTitle: json['quiz_name']?.toString() ?? 'Quiz',
+      durationSeconds:
+          int.tryParse(json['duration_seconds']?.toString() ?? '') ?? 0,
+      startOnFirstResponse: json['start_on_first_response'] == true ||
+          json['start_on_first_response']?.toString().toLowerCase() == 'true',
       startedAt: startedAt,
       endsAt: endsAt,
     );

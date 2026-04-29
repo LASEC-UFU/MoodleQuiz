@@ -52,12 +52,16 @@ abstract class IQuizRepository {
     required int page,
     required int slot,
     required int duration,
+    required bool startOnFirstResponse,
     required int totalPages,
     required String quizName,
     required int quizId,
   });
 
   Future<void> closeQuestion(UserEntity user, int courseId);
+
+  Future<QuizStateEntity> startQuestionTimerIfNeeded(
+      UserEntity user, int courseId);
 
   /// Estudante registra pontuação com bônus de tempo no mod_data.
   Future<void> submitScore({

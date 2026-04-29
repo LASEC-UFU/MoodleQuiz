@@ -29,10 +29,14 @@ abstract class IStateDatasource {
     required int page,
     required int slot,
     required int duration,
+    required bool startOnFirstResponse,
     required int totalPages,
     required String quizName,
     required int quizId,
   });
+
+  Future<Map<String, dynamic>> startQuestionTimerIfNeeded(
+      String baseUrl, String token, int courseId);
 
   /// Professor encerra a questão ativa.
   Future<void> closeQuestion(String baseUrl, String token, int courseId);
@@ -93,10 +97,14 @@ class MoodleStateDatasource implements IStateDatasource {
   static const Map<String, dynamic> _emptyState = {
     'state': 'waiting',
     'current_page': -1,
+    'current_slot': 0,
     'total_pages': 0,
     'quiz_id': 0,
     'course_id': 0,
     'quiz_name': '',
+    'duration_seconds': 0,
+    'start_on_first_response': false,
+    'started_at': '',
     'ends_at': '',
   };
 
@@ -339,6 +347,9 @@ class MoodleStateDatasource implements IStateDatasource {
       'quiz_id': quizId,
       'course_id': courseId,
       'quiz_name': quizName,
+      'duration_seconds': 0,
+      'start_on_first_response': false,
+      'started_at': '',
       'ends_at': '',
     });
   }
@@ -450,6 +461,7 @@ class MoodleStateDatasource implements IStateDatasource {
     required int page,
     required int slot,
     required int duration,
+    required bool startOnFirstResponse,
     required int totalPages,
     required String quizName,
     required int quizId,
@@ -461,10 +473,12 @@ class MoodleStateDatasource implements IStateDatasource {
       await getState(baseUrl, token, courseId);
     }
 
-    final endsAt = DateTime.now()
-        .add(Duration(seconds: duration))
-        .toUtc()
-        .toIso8601String();
+    final now = DateTime.now();
+    final startedAt =
+        startOnFirstResponse ? '' : now.toUtc().toIso8601String();
+    final endsAt = startOnFirstResponse
+        ? ''
+        : now.add(Duration(seconds: duration)).toUtc().toIso8601String();
 
     await _writeState(baseUrl, token, {
       'state': 'active',
@@ -474,8 +488,42 @@ class MoodleStateDatasource implements IStateDatasource {
       'quiz_id': quizId,
       'course_id': courseId,
       'quiz_name': quizName,
+      'duration_seconds': duration,
+      'start_on_first_response': startOnFirstResponse,
+      'started_at': startedAt,
       'ends_at': endsAt,
     });
+  }
+
+  @override
+  Future<Map<String, dynamic>> startQuestionTimerIfNeeded(
+      String baseUrl, String token, int courseId) async {
+    await _ensureFields(baseUrl, token, courseId);
+    final current = await getState(baseUrl, token, courseId);
+
+    final isActive = current['state']?.toString().toLowerCase() == 'active';
+    final startOnFirstResponse = current['start_on_first_response'] == true ||
+        current['start_on_first_response']?.toString().toLowerCase() == 'true';
+    final hasStarted =
+        (current['started_at']?.toString().isNotEmpty ?? false) &&
+            (current['ends_at']?.toString().isNotEmpty ?? false);
+    final duration =
+        int.tryParse(current['duration_seconds']?.toString() ?? '') ?? 0;
+
+    if (!isActive || !startOnFirstResponse || hasStarted || duration <= 0) {
+      return current;
+    }
+
+    final now = DateTime.now();
+    final updated = <String, dynamic>{
+      ...current,
+      'started_at': now.toUtc().toIso8601String(),
+      'ends_at':
+          now.add(Duration(seconds: duration)).toUtc().toIso8601String(),
+    };
+
+    await _writeState(baseUrl, token, updated);
+    return updated;
   }
 
   @override

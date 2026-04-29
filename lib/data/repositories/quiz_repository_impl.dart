@@ -616,6 +616,7 @@ class QuizRepositoryImpl implements IQuizRepository {
     required int page,
     required int slot,
     required int duration,
+    required bool startOnFirstResponse,
     required int totalPages,
     required String quizName,
     required int quizId,
@@ -627,10 +628,22 @@ class QuizRepositoryImpl implements IQuizRepository {
         page: page,
         slot: slot,
         duration: duration,
+        startOnFirstResponse: startOnFirstResponse,
         totalPages: totalPages,
         quizName: quizName,
         quizId: quizId,
       );
+
+  @override
+  Future<QuizStateEntity> startQuestionTimerIfNeeded(
+      UserEntity user, int courseId) async {
+    final data = await _state.startQuestionTimerIfNeeded(
+      user.baseUrl,
+      user.token,
+      courseId,
+    );
+    return QuizStateModel.fromJson(data);
+  }
 
   @override
   Future<void> closeQuestion(UserEntity user, int courseId) =>
