@@ -203,19 +203,25 @@ class MoodleDatasource implements IMoodleDatasource {
       i++;
     }
 
-    dlog.log('PROCESS', 'processAttempt → attemptId=$attemptId page=$page finish=$finish', data: {
-      'answerData': answerData.toString(),
-      'params_enviados': params.entries
-          .where((e) => e.key.startsWith('data'))
-          .map((e) => '${e.key}=${e.value}')
-          .join(', '),
-    });
+    dlog.log('PROCESS',
+        'processAttempt → attemptId=$attemptId page=$page finish=$finish',
+        data: {
+          'answerData': answerData.toString(),
+          'params_enviados': params.entries
+              .where((e) => e.key.startsWith('data'))
+              .map((e) => '${e.key}=${e.value}')
+              .join(', '),
+        });
 
-    final result = await _callWs(baseUrl, token, 'mod_quiz_process_attempt', params, usePost: true);
+    final result = await _callWs(
+        baseUrl, token, 'mod_quiz_process_attempt', params,
+        usePost: true);
 
     dlog.log('PROCESS', 'processAttempt ← resposta recebida', data: {
       'state': result['state']?.toString() ?? '(não retornado)',
-      'warnings': (result['warnings'] as List?)?.map((w) => w.toString()).join('; ') ?? 'nenhum',
+      'warnings':
+          (result['warnings'] as List?)?.map((w) => w.toString()).join('; ') ??
+              'nenhum',
     });
 
     return result;
@@ -351,6 +357,7 @@ class MoodleDatasource implements IMoodleDatasource {
       'wstoken': token,
       'wsfunction': function,
       'moodlewsrestformat': 'json',
+      'moodlewssettingfileurl': 'true',
       ...params,
     };
 

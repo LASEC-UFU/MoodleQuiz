@@ -8,6 +8,7 @@ import '../../../core/utils/responsive.dart';
 import '../../../domain/entities/question_entity.dart';
 import '../../widgets/timer_widget.dart';
 import '../../widgets/option_button.dart';
+import '../../widgets/moodle_image.dart';
 
 /// Tela de resposta de questão – usada inline dentro do lobby do estudante.
 class StudentQuestionPage extends StatelessWidget {
@@ -81,6 +82,19 @@ class StudentQuestionPage extends StatelessWidget {
                 child: question.htmlText.isNotEmpty
                     ? HtmlWidget(
                         question.htmlText,
+                        customWidgetBuilder: (element) {
+                          if (element.localName != 'img') return null;
+                          final src = element.attributes['src'];
+                          if (src == null || src.isEmpty) return null;
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: MoodleImage(
+                              src: src,
+                              alt: element.attributes['alt'],
+                              maxHeight: 260,
+                            ),
+                          );
+                        },
                         textStyle: GoogleFonts.nunito(
                           fontSize: isMobile ? 16 : 18,
                           fontWeight: FontWeight.w600,

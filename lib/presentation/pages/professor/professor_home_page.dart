@@ -16,6 +16,7 @@ import '../../../domain/entities/quiz_state_entity.dart';
 import '../../controllers/auth_controller.dart';
 import '../../controllers/professor_controller.dart';
 import '../../../core/utils/fullscreen_button.dart';
+import '../../widgets/moodle_image.dart';
 import '../../widgets/timer_widget.dart';
 
 /// Painel do professor – controle de questões + status do quiz.
@@ -833,6 +834,19 @@ class _SelectedQuestionCardState extends State<_SelectedQuestionCard> {
                   if (question.htmlText.isNotEmpty)
                     HtmlWidget(
                       question.htmlText,
+                      customWidgetBuilder: (element) {
+                        if (element.localName != 'img') return null;
+                        final src = element.attributes['src'];
+                        if (src == null || src.isEmpty) return null;
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: MoodleImage(
+                            src: src,
+                            alt: element.attributes['alt'],
+                            maxHeight: 220,
+                          ),
+                        );
+                      },
                       textStyle: const TextStyle(
                         color: AppTheme.textPrimary,
                         fontSize: 14,
@@ -923,6 +937,24 @@ class _SelectedQuestionCardState extends State<_SelectedQuestionCard> {
                             child: choice.htmlText.isNotEmpty
                                 ? HtmlWidget(
                                     choice.htmlText,
+                                    customWidgetBuilder: (element) {
+                                      if (element.localName != 'img') {
+                                        return null;
+                                      }
+                                      final src = element.attributes['src'];
+                                      if (src == null || src.isEmpty) {
+                                        return null;
+                                      }
+                                      return Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 6),
+                                        child: MoodleImage(
+                                          src: src,
+                                          alt: element.attributes['alt'],
+                                          maxHeight: 140,
+                                        ),
+                                      );
+                                    },
                                     textStyle: TextStyle(
                                       fontSize: 13,
                                       color: isCorrect

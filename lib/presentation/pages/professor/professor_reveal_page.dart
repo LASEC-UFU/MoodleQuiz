@@ -10,6 +10,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../domain/entities/question_entity.dart';
 import '../../controllers/professor_controller.dart';
+import '../../widgets/moodle_image.dart';
 
 /// Tela de revisão da questão para o professor apresentar aos alunos.
 /// Mostra o enunciado completo (HTML rico) e as alternativas com a
@@ -501,6 +502,19 @@ class _MoodleHtml extends StatelessWidget {
       _withLatexTags(html),
       textStyle: textStyle,
       customWidgetBuilder: (element) {
+        if (element.localName == 'img') {
+          final src = element.attributes['src'];
+          if (src == null || src.isEmpty) return null;
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: MoodleImage(
+              src: src,
+              alt: element.attributes['alt'],
+              maxHeight: 260,
+            ),
+          );
+        }
+
         if (element.localName != 'mq-latex') return null;
 
         final latex = element.attributes['data-latex'];
