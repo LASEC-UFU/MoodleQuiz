@@ -277,8 +277,9 @@ class MoodleStateDatasource implements IStateDatasource {
         if (fid == _studentIdFieldId) map['student_id'] = val;
         if (fid == _studentNameFieldId) map['student_name'] = val;
         if (fid == _scoreFieldId) map['score'] = int.tryParse(val) ?? 0;
-        if (fid == _correctCountFieldId)
+        if (fid == _correctCountFieldId) {
           map['correct_count'] = int.tryParse(val) ?? 0;
+        }
         if (fid == _pagesFieldId) map['pages'] = val;
       }
 
@@ -479,8 +480,7 @@ class MoodleStateDatasource implements IStateDatasource {
 
     final now = DateTime.now();
     final roundId = now.microsecondsSinceEpoch.toString();
-    final startedAt =
-        startOnFirstResponse ? '' : now.toUtc().toIso8601String();
+    final startedAt = startOnFirstResponse ? '' : now.toUtc().toIso8601String();
     final endsAt = startOnFirstResponse
         ? ''
         : now.add(Duration(seconds: duration)).toUtc().toIso8601String();
@@ -533,8 +533,7 @@ class MoodleStateDatasource implements IStateDatasource {
       ...current,
       'timer_started': true,
       'started_at': now.toUtc().toIso8601String(),
-      'ends_at':
-          now.add(Duration(seconds: duration)).toUtc().toIso8601String(),
+      'ends_at': now.add(Duration(seconds: duration)).toUtc().toIso8601String(),
     };
 
     dlog.log('STATE_TIMER', 'Primeira resposta iniciou cronometro', data: {

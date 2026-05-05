@@ -37,8 +37,8 @@ class StudentQuestionPage extends StatelessWidget {
     final isMobile = Responsive.isMobile(context);
 
     return SingleChildScrollView(
-      padding: Responsive.horizontalPadding(context)
-          .copyWith(top: 12, bottom: 24),
+      padding:
+          Responsive.horizontalPadding(context).copyWith(top: 12, bottom: 24),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
@@ -129,9 +129,8 @@ class StudentQuestionPage extends StatelessWidget {
               ...question.choices.asMap().entries.map((e) {
                 final index = e.key;
                 final choice = e.value;
-                final letter = index < _letters.length
-                    ? _letters[index]
-                    : '${index + 1}';
+                final letter =
+                    index < _letters.length ? _letters[index] : '${index + 1}';
                 final isSelected = selectedChoice == choice.value;
 
                 return Padding(
@@ -139,15 +138,14 @@ class StudentQuestionPage extends StatelessWidget {
                   child: OptionButton(
                     label: letter,
                     text: choice.text,
+                    htmlText: choice.htmlText,
                     isSelected: isSelected,
                     isDisabled: hasAnswered,
                     onTap: () => onSelect(choice.value),
                   )
                       .animate(delay: Duration(milliseconds: index * 80))
                       .slideX(
-                          begin: 0.3,
-                          duration: 350.ms,
-                          curve: Curves.easeOut)
+                          begin: 0.3, duration: 350.ms, curve: Curves.easeOut)
                       .fadeIn(),
                 );
               }),
@@ -167,8 +165,8 @@ class StudentQuestionPage extends StatelessWidget {
                           child: CircularProgressIndicator(
                               color: Colors.white, strokeWidth: 2))
                       : const Icon(Icons.send_rounded),
-                  label: Text(
-                      isSubmitting ? 'Enviando...' : 'Confirmar Resposta'),
+                  label:
+                      Text(isSubmitting ? 'Enviando...' : 'Confirmar Resposta'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: selectedChoice != null
                         ? AppTheme.success

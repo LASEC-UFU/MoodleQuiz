@@ -404,6 +404,7 @@ class QuizRepositoryImpl implements IQuizRepository {
           .map((c) => ParsedChoice(
                 value: c.value,
                 text: c.text,
+                htmlText: c.htmlText,
                 isCorrect: correctValues.contains(c.value),
               ))
           .toList();
@@ -547,13 +548,15 @@ class QuizRepositoryImpl implements IQuizRepository {
 
           // 2) Fallback: stateclass da API
           if (stateclass == 'correct') return true;
-          if (stateclass == 'incorrect' || stateclass == 'notanswered')
+          if (stateclass == 'incorrect' || stateclass == 'notanswered') {
             return false;
+          }
 
           // 3) Fallback: classe no div principal do HTML
           if (queStateClass == 'correct') return true;
-          if (queStateClass == 'incorrect' || queStateClass == 'notanswered')
+          if (queStateClass == 'incorrect' || queStateClass == 'notanswered') {
             return false;
+          }
 
           // 4) Fallback: pistas genéricas no HTML
           if (htmlHasCorrect && !htmlHasIncorrect) return true;

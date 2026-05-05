@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/app_theme.dart';
 
 /// Botão de alternativa do quiz – responsivo e acessível.
 class OptionButton extends StatelessWidget {
-  final String label;   // 'A', 'B', 'C'…
+  final String label; // 'A', 'B', 'C'…
   final String text;
+  final String htmlText;
   final bool isSelected;
   final bool isDisabled;
   final VoidCallback onTap;
@@ -14,6 +16,7 @@ class OptionButton extends StatelessWidget {
     super.key,
     required this.label,
     required this.text,
+    this.htmlText = '',
     required this.isSelected,
     required this.isDisabled,
     required this.onTap,
@@ -31,9 +34,8 @@ class OptionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final labelColor = _labelColors[label] ?? AppTheme.primary;
     final borderColor = isSelected ? labelColor : Colors.transparent;
-    final bgColor = isSelected
-        ? labelColor.withValues(alpha: 0.18)
-        : AppTheme.bgCard;
+    final bgColor =
+        isSelected ? labelColor.withValues(alpha: 0.18) : AppTheme.bgCard;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -82,21 +84,55 @@ class OptionButton extends StatelessWidget {
                 const SizedBox(width: 14),
                 // Texto da alternativa
                 Expanded(
-                  child: Text(
-                    text,
-                    style: GoogleFonts.nunito(
-                      fontSize: 15,
-                      fontWeight:
-                          isSelected ? FontWeight.w700 : FontWeight.w500,
-                      color: isSelected
-                          ? AppTheme.textPrimary
-                          : AppTheme.textSecondary,
-                    ),
-                  ),
+                  child: htmlText.isNotEmpty
+                      ? HtmlWidget(
+                          htmlText,
+                          textStyle: GoogleFonts.nunito(
+                            fontSize: 15,
+                            fontWeight:
+                                isSelected ? FontWeight.w700 : FontWeight.w500,
+                            color: isSelected
+                                ? AppTheme.textPrimary
+                                : AppTheme.textSecondary,
+                            height: 1.4,
+                          ),
+                          customStylesBuilder: (element) {
+                            if (element.localName == 'img') {
+                              return {
+                                'max-width': '100%',
+                                'height': 'auto',
+                              };
+                            }
+                            if (element.localName == 'table') {
+                              return {
+                                'border-collapse': 'collapse',
+                                'width': '100%',
+                              };
+                            }
+                            if (element.localName == 'td' ||
+                                element.localName == 'th') {
+                              return {
+                                'border': '1px solid #444',
+                                'padding': '6px 10px',
+                              };
+                            }
+                            return null;
+                          },
+                        )
+                      : Text(
+                          text,
+                          style: GoogleFonts.nunito(
+                            fontSize: 15,
+                            fontWeight:
+                                isSelected ? FontWeight.w700 : FontWeight.w500,
+                            color: isSelected
+                                ? AppTheme.textPrimary
+                                : AppTheme.textSecondary,
+                          ),
+                        ),
                 ),
                 if (isSelected)
-                  Icon(Icons.check_circle_rounded,
-                      color: labelColor, size: 22),
+                  Icon(Icons.check_circle_rounded, color: labelColor, size: 22),
               ],
             ),
           ),

@@ -2,15 +2,24 @@
 /// Implementado em Dart puro (compatível com WASM – sem dart:html).
 library;
 
+import 'package:html/dom.dart' as dom;
+import 'package:html/parser.dart' as html_parser;
+
 // ── Entidades de saída ────────────────────────────────────────────────────────
 
 class ParsedChoice {
   final String value; // "0", "1", "2"…
   final String text; // texto exibido para o aluno
+  final String
+      htmlText; // alternativa como HTML rico (preserva imagens/tabelas)
   final bool isCorrect; // true se esta alternativa é a resposta correta
 
-  const ParsedChoice(
-      {required this.value, required this.text, this.isCorrect = false});
+  const ParsedChoice({
+    required this.value,
+    required this.text,
+    this.htmlText = '',
+    this.isCorrect = false,
+  });
 }
 
 class ParsedQuestion {
@@ -51,7 +60,7 @@ class MoodleHtmlParser {
   }) {
     final text = _extractText(html);
     final htmlText = _extractHtmlText(html, token, baseUrl);
-    final choices = _extractChoices(html);
+    final choices = _extractChoices(html, token, baseUrl);
     final images = _extractImages(html, token, baseUrl);
     final seqCheck = _extractSeqCheck(html);
 
@@ -193,23 +202,7 @@ class MoodleHtmlParser {
     if (content.isEmpty) content = html;
     content = _removeBlock(content, r'class="(?:ablock|answer)');
     // Corrige URLs de imagens inline
-    content = content.replaceAllMapped(
-      RegExp(r'src="([^"]+)"', caseSensitive: false),
-      (m) {
-        var src = m.group(1) ?? '';
-        if (src.startsWith('@@PLUGINFILE@@')) {
-          src = src.replaceFirst(
-              '@@PLUGINFILE@@', '$baseUrl/webservice/pluginfile.php');
-        } else if (src.startsWith('/') && !src.startsWith('//')) {
-          src = '$baseUrl$src';
-        }
-        if (src.contains('pluginfile.php') && !src.contains('token=')) {
-          final sep = src.contains('?') ? '&' : '?';
-          src = '$src${sep}token=$token';
-        }
-        return 'src="$src"';
-      },
-    );
+    content = _rewriteResourceUrls(content, token, baseUrl);
     return content;
   }
 
@@ -230,69 +223,51 @@ class MoodleHtmlParser {
 
   // ── Extração de alternativas ──────────────────────────────────────────────
 
-  static List<ParsedChoice> _extractChoices(String html) {
+  static List<ParsedChoice> _extractChoices(
+      String html, String token, String baseUrl) {
     final choices = <ParsedChoice>[];
-    final attrRe = RegExp(r'([\w-]+)="([^"]*)"', caseSensitive: false);
+    final fragment = html_parser.parseFragment(html);
 
     // Moodle 4.x: <input aria-labelledby="ID"> + <div id="ID">texto</div>
-    // Constrói mapa id → texto a partir de todos os divs com data-region="answer-label"
-    final labelDivRe = RegExp(
-      r'<div\b[^>]+id="([^"]+)"[^>]*data-region="answer-label"[^>]*>(.*?)</div>\s*</div>',
-      caseSensitive: false,
-      dotAll: true,
-    );
-    final ariaLabelMap = <String, String>{};
-    for (final m in labelDivRe.allMatches(html)) {
-      final id = m.group(1) ?? '';
-      final content = m.group(2) ?? '';
-      // Remove o span.answernumber ("a. ", "b. "…)
-      final cleaned = content.replaceAll(
-          RegExp(r'<span[^>]*class="[^"]*answernumber[^"]*"[^>]*>.*?</span>',
-              caseSensitive: false, dotAll: true),
-          '');
-      final text = _stripHtml(cleaned).trim();
-      if (id.isNotEmpty && text.isNotEmpty) ariaLabelMap[id] = text;
+    // Constrói mapa id → conteúdo a partir de todos os divs com data-region="answer-label".
+    final ariaLabelMap = <String, _ChoiceContent>{};
+    for (final element
+        in fragment.querySelectorAll('[data-region="answer-label"]')) {
+      final id = element.id;
+      if (id.isEmpty) continue;
+      final content = _choiceContentFromElement(element, token, baseUrl);
+      if (content.hasContent) ariaLabelMap[id] = content;
     }
 
     // Fallback: <label for="ID">texto</label>
-    final labelsByForRe = RegExp(
-      r'<label\b[^>]+for="([^"]+)"[^>]*>(.*?)</label>',
-      caseSensitive: false,
-      dotAll: true,
-    );
-    final forLabelMap = <String, String>{};
-    for (final m in labelsByForRe.allMatches(html)) {
-      final forAttr = m.group(1) ?? '';
-      final text = _stripHtml(m.group(2) ?? '').trim();
-      if (text.isNotEmpty) forLabelMap[forAttr] = text;
+    final forLabelMap = <String, _ChoiceContent>{};
+    for (final element in fragment.querySelectorAll('label[for]')) {
+      final forAttr = element.attributes['for'] ?? '';
+      if (forAttr.isEmpty) continue;
+      final content = _choiceContentFromElement(element, token, baseUrl);
+      if (content.hasContent) forLabelMap[forAttr] = content;
     }
 
     // Itera sobre os <input type="radio">
-    final radioRe =
-        RegExp(r'<input\b[^>]*type="radio"[^>]*/?>', caseSensitive: false);
+    for (final input in fragment.querySelectorAll('input')) {
+      final type = input.attributes['type']?.toLowerCase() ?? '';
+      if (type != 'radio') continue;
 
-    for (final m in radioRe.allMatches(html)) {
-      final inputTag = m.group(0) ?? '';
-      String value = '';
-      String id = '';
-      String ariaLabelledBy = '';
-
-      for (final a in attrRe.allMatches(inputTag)) {
-        final key = a.group(1)!.toLowerCase();
-        final val = a.group(2)!;
-        if (key == 'value') value = val;
-        if (key == 'id') id = val;
-        if (key == 'aria-labelledby') ariaLabelledBy = val;
-      }
-
+      final value = input.attributes['value'] ?? '';
       if (value.isEmpty || value == '-1') continue;
 
       // Prioridade: aria-labelledby → label for → fallback
-      String text = ariaLabelMap[ariaLabelledBy] ??
+      final id = input.id;
+      final ariaLabelledBy = input.attributes['aria-labelledby'] ?? '';
+      final content = ariaLabelMap[ariaLabelledBy] ??
           (id.isNotEmpty ? forLabelMap[id] : null) ??
-          '';
+          const _ChoiceContent(text: '', html: '');
 
-      choices.add(ParsedChoice(value: value, text: text));
+      choices.add(ParsedChoice(
+        value: value,
+        text: content.text,
+        htmlText: content.html,
+      ));
     }
 
     return choices;
@@ -304,30 +279,76 @@ class MoodleHtmlParser {
       String html, String token, String baseUrl) {
     final images = <String>[];
     final imgRe = RegExp(
-      r'<img[^>]+src="([^"]+)"',
+      r'''<img[^>]+src=(["'])(.*?)\1''',
       caseSensitive: false,
     );
 
     for (final m in imgRe.allMatches(html)) {
-      var src = m.group(1) ?? '';
+      var src = m.group(2) ?? '';
       if (src.isEmpty) continue;
 
-      if (src.startsWith('@@PLUGINFILE@@')) {
-        src = src.replaceFirst(
-            '@@PLUGINFILE@@', '$baseUrl/webservice/pluginfile.php');
-      } else if (src.startsWith('/') && !src.startsWith('//')) {
-        src = '$baseUrl$src';
-      }
-
-      if (src.contains('pluginfile.php') && !src.contains('token=')) {
-        final sep = src.contains('?') ? '&' : '?';
-        src = '$src${sep}token=$token';
-      }
-
-      images.add(src);
+      images.add(_normalizeResourceUrl(src, token, baseUrl));
     }
 
     return images;
+  }
+
+  static _ChoiceContent _choiceContentFromElement(
+      dom.Element element, String token, String baseUrl) {
+    for (final span in element.querySelectorAll('.answernumber')) {
+      span.remove();
+    }
+
+    final cleanedHtml = _rewriteResourceUrls(element.innerHtml, token, baseUrl);
+    final text = _stripHtml(cleanedHtml).trim();
+    return _ChoiceContent(text: text, html: cleanedHtml.trim());
+  }
+
+  static String _rewriteResourceUrls(
+      String html, String token, String baseUrl) {
+    return html.replaceAllMapped(
+      RegExp("\\b(src|href)=([\"'])(.*?)\\2", caseSensitive: false),
+      (m) {
+        final attr = m.group(1) ?? 'src';
+        final quote = m.group(2) ?? '"';
+        final url = _normalizeResourceUrl(m.group(3) ?? '', token, baseUrl);
+        return '$attr=$quote$url$quote';
+      },
+    );
+  }
+
+  static String _normalizeResourceUrl(
+      String url, String token, String baseUrl) {
+    var src = url.trim();
+    if (src.isEmpty ||
+        src.startsWith('data:') ||
+        src.startsWith('blob:') ||
+        src.startsWith('mailto:') ||
+        src.startsWith('#')) {
+      return src;
+    }
+
+    final root = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
+
+    if (src.startsWith('@@PLUGINFILE@@')) {
+      src =
+          src.replaceFirst('@@PLUGINFILE@@', '$root/webservice/pluginfile.php');
+    } else if (src.startsWith('/') && !src.startsWith('//')) {
+      src = '$root$src';
+    } else if (!RegExp(r'^[a-z][a-z0-9+.-]*:', caseSensitive: false)
+        .hasMatch(src)) {
+      src = '$root/$src';
+    }
+
+    if (src.contains('pluginfile.php') &&
+        !RegExp(r'([?&])token=').hasMatch(src)) {
+      final sep = src.contains('?') ? '&' : '?';
+      src = '$src${sep}token=$token';
+    }
+
+    return src;
   }
 
   // ── Extração do sequencecheck ─────────────────────────────────────────────
@@ -462,4 +483,13 @@ class MoodleHtmlParser {
         .replaceAll(RegExp(r'\n{3,}'), '\n\n')
         .trim();
   }
+}
+
+class _ChoiceContent {
+  final String text;
+  final String html;
+
+  const _ChoiceContent({required this.text, required this.html});
+
+  bool get hasContent => text.isNotEmpty || html.isNotEmpty;
 }

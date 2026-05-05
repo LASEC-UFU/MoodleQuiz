@@ -496,8 +496,8 @@ class _ControlPanelState extends State<_ControlPanel> {
                       setState(() => _showCorrectAnswer = !_showCorrectAnswer),
                   child: const Text(
                     'Mostrar resposta correta',
-                    style: TextStyle(
-                        color: AppTheme.textSecondary, fontSize: 12),
+                    style:
+                        TextStyle(color: AppTheme.textSecondary, fontSize: 12),
                   ),
                 ),
               ],
@@ -796,7 +796,8 @@ class _SelectedQuestionCardState extends State<_SelectedQuestionCard> {
               ),
               IconButton(
                 onPressed: () => setState(() => _expanded = !_expanded),
-                tooltip: _expanded ? 'Recolher enunciado' : 'Expandir enunciado',
+                tooltip:
+                    _expanded ? 'Recolher enunciado' : 'Expandir enunciado',
                 icon: Icon(
                   _expanded
                       ? Icons.keyboard_arrow_up_rounded
@@ -900,8 +901,9 @@ class _SelectedQuestionCardState extends State<_SelectedQuestionCard> {
                             width: 28,
                             height: 28,
                             decoration: BoxDecoration(
-                              color:
-                                  isCorrect ? AppTheme.success : AppTheme.bgDark,
+                              color: isCorrect
+                                  ? AppTheme.success
+                                  : AppTheme.bgDark,
                               borderRadius: BorderRadius.circular(8),
                             ),
                             alignment: Alignment.center,
@@ -918,18 +920,54 @@ class _SelectedQuestionCardState extends State<_SelectedQuestionCard> {
                           ),
                           const SizedBox(width: 10),
                           Expanded(
-                            child: Text(
-                              choice.text,
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: isCorrect
-                                    ? AppTheme.success
-                                    : AppTheme.textPrimary,
-                                fontWeight: isCorrect
-                                    ? FontWeight.w700
-                                    : FontWeight.w500,
-                              ),
-                            ),
+                            child: choice.htmlText.isNotEmpty
+                                ? HtmlWidget(
+                                    choice.htmlText,
+                                    textStyle: TextStyle(
+                                      fontSize: 13,
+                                      color: isCorrect
+                                          ? AppTheme.success
+                                          : AppTheme.textPrimary,
+                                      fontWeight: isCorrect
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                      height: 1.4,
+                                    ),
+                                    customStylesBuilder: (element) {
+                                      if (element.localName == 'img') {
+                                        return {
+                                          'max-width': '100%',
+                                          'height': 'auto',
+                                        };
+                                      }
+                                      if (element.localName == 'table') {
+                                        return {
+                                          'border-collapse': 'collapse',
+                                          'width': '100%',
+                                        };
+                                      }
+                                      if (element.localName == 'td' ||
+                                          element.localName == 'th') {
+                                        return {
+                                          'border': '1px solid #444',
+                                          'padding': '6px 10px',
+                                        };
+                                      }
+                                      return null;
+                                    },
+                                  )
+                                : Text(
+                                    choice.text,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: isCorrect
+                                          ? AppTheme.success
+                                          : AppTheme.textPrimary,
+                                      fontWeight: isCorrect
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                    ),
+                                  ),
                           ),
                           if (isCorrect) ...[
                             const SizedBox(width: 8),
@@ -1120,8 +1158,8 @@ class _CollapsibleLogPanelState extends State<_CollapsibleLogPanel> {
                     color: AppTheme.textSecondary,
                     tooltip: 'Copiar log',
                     padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(
-                        minWidth: 28, minHeight: 28),
+                    constraints:
+                        const BoxConstraints(minWidth: 28, minHeight: 28),
                     onPressed: () {
                       Clipboard.setData(
                           ClipboardData(text: widget.log.join('\n')));
@@ -1149,8 +1187,7 @@ class _CollapsibleLogPanelState extends State<_CollapsibleLogPanel> {
             ),
           ),
         ),
-        if (_expanded)
-          SizedBox(height: 220, child: _LogPanel(log: widget.log)),
+        if (_expanded) SizedBox(height: 220, child: _LogPanel(log: widget.log)),
       ],
     );
   }

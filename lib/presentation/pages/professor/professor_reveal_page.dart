@@ -230,17 +230,32 @@ class _QuestionReveal extends StatelessWidget {
                         ),
                         const SizedBox(width: 14),
                         Expanded(
-                          child: Text(
-                            choice.text,
-                            style: TextStyle(
-                              color: correct
-                                  ? AppTheme.success
-                                  : AppTheme.textPrimary,
-                              fontSize: isMobile ? 14 : 16,
-                              fontWeight:
-                                  correct ? FontWeight.w700 : FontWeight.w500,
-                            ),
-                          ),
+                          child: choice.htmlText.isNotEmpty
+                              ? _MoodleHtml(
+                                  html: choice.htmlText,
+                                  textStyle: TextStyle(
+                                    color: correct
+                                        ? AppTheme.success
+                                        : AppTheme.textPrimary,
+                                    fontSize: isMobile ? 14 : 16,
+                                    fontWeight: correct
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                    height: 1.4,
+                                  ),
+                                )
+                              : Text(
+                                  choice.text,
+                                  style: TextStyle(
+                                    color: correct
+                                        ? AppTheme.success
+                                        : AppTheme.textPrimary,
+                                    fontSize: isMobile ? 14 : 16,
+                                    fontWeight: correct
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                  ),
+                                ),
                         ),
                         if (correct)
                           const Icon(Icons.check_circle_rounded,
