@@ -27,6 +27,8 @@ class ParsedQuestion {
   final String text; // texto da questão (HTML stripped — fallback)
   final String
       htmlText; // enunciado como HTML com URLs corrigidas (para renderização rica)
+  final String
+      displayHtml; // HTML completo da questão (todos os blocos, sem interativos)
   final List<ParsedChoice> choices;
   final List<String> imageUrls;
   final String inputBaseName; // "q{attemptId}:{slot}_answer"
@@ -37,6 +39,7 @@ class ParsedQuestion {
     required this.slot,
     required this.text,
     required this.htmlText,
+    this.displayHtml = '',
     required this.choices,
     required this.imageUrls,
     required this.inputBaseName,
@@ -60,6 +63,7 @@ class MoodleHtmlParser {
   }) {
     final text = _extractText(html);
     final htmlText = _extractHtmlText(html, token, baseUrl);
+    final displayHtml = extractDisplayHtml(html, token, baseUrl);
     final choices = _extractChoices(html, token, baseUrl);
     final images = _extractImages(html, token, baseUrl);
     final seqCheck = _extractSeqCheck(html);
@@ -78,6 +82,7 @@ class MoodleHtmlParser {
       slot: slot,
       text: text,
       htmlText: htmlText,
+      displayHtml: displayHtml,
       choices: choices,
       imageUrls: images,
       inputBaseName: inputBase,
@@ -190,6 +195,35 @@ class MoodleHtmlParser {
   static String parseGeneralFeedback(String reviewHtml) {
     final content = _extractTag(reviewHtml, 'generalfeedback') ?? '';
     return content.trim();
+  }
+
+  // ── HTML completo para exibição somente leitura ──────────────────────────
+
+  /// Retorna o HTML COMPLETO da questão para exibição (aluno / professor).
+  /// Preserva imagens e conteúdo visual de TODOS os blocos (qtext, ablock,
+  /// dropzones, drag-items, etc.) e remove apenas elementos interativos
+  /// (input, button, select, textarea, form, script).
+  /// Essencial para questões de Arrastar&Soltar, Associação, GeoGebra, Cloze…
+  static String extractDisplayHtml(String html, String token, String baseUrl) {
+    final fragment = html_parser.parseFragment(html);
+
+    // Remove apenas elementos puramente interativos / de submissão
+    for (final el in fragment.querySelectorAll(
+        'input, button, select, textarea, form, script, style, noscript')) {
+      el.remove();
+    }
+
+    // Reconstrói o HTML a partir dos nós do fragmento
+    final buffer = StringBuffer();
+    for (final node in fragment.nodes) {
+      if (node is dom.Element) {
+        buffer.write(node.outerHtml);
+      } else if (node is dom.Text) {
+        buffer.write(node.data);
+      }
+    }
+
+    return _rewriteResourceUrls(buffer.toString(), token, baseUrl);
   }
 
   // ── Extração do HTML do enunciado (com URLs corrigidas, sem forms) ──────────

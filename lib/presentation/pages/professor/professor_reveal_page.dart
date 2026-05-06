@@ -52,6 +52,7 @@ class _RevealScaffold extends StatefulWidget {
 
 class _RevealScaffoldState extends State<_RevealScaffold> {
   bool _showFeedback = false;
+  bool _showCorrectAnswer = false;
 
   @override
   Widget build(BuildContext context) {
@@ -128,8 +129,41 @@ class _RevealScaffoldState extends State<_RevealScaffold> {
                     : _QuestionReveal(
                         question: question,
                         showFeedback: _showFeedback,
+                        showCorrect: _showCorrectAnswer,
                       ),
               ),
+
+              // ── Checkbox mostrar resposta correta ─────────────────
+              if (question != null && question.isMultiChoice)
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: Checkbox(
+                          value: _showCorrectAnswer,
+                          onChanged: (v) =>
+                              setState(() => _showCorrectAnswer = v ?? false),
+                          activeColor: AppTheme.success,
+                          side: const BorderSide(color: AppTheme.textSecondary),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () => setState(
+                            () => _showCorrectAnswer = !_showCorrectAnswer),
+                        child: const Text(
+                          'Mostrar resposta correta',
+                          style: TextStyle(
+                              color: AppTheme.textSecondary, fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ),
         ),
@@ -141,7 +175,12 @@ class _RevealScaffoldState extends State<_RevealScaffold> {
 class _QuestionReveal extends StatelessWidget {
   final QuestionEntity question;
   final bool showFeedback;
-  const _QuestionReveal({required this.question, required this.showFeedback});
+  final bool showCorrect;
+  const _QuestionReveal({
+    required this.question,
+    required this.showFeedback,
+    this.showCorrect = false,
+  });
 
   static const _letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
@@ -162,24 +201,43 @@ class _QuestionReveal extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: AppTheme.cardDecoration(glowing: false),
-                child: question.htmlText.isNotEmpty
-                    ? _MoodleHtml(
-                        html: question.htmlText,
-                        textStyle: TextStyle(
-                          fontSize: isMobile ? 16 : 20,
-                          color: AppTheme.textPrimary,
-                          height: 1.5,
-                        ),
-                      )
-                    : Text(
-                        question.text,
-                        style: TextStyle(
-                          fontSize: isMobile ? 17 : 21,
-                          fontWeight: FontWeight.w700,
-                          color: AppTheme.textPrimary,
-                          height: 1.5,
-                        ),
-                      ),
+                child: question.isMultiChoice
+                    ? (question.htmlText.isNotEmpty
+                        ? _MoodleHtml(
+                            html: question.htmlText,
+                            textStyle: TextStyle(
+                              fontSize: isMobile ? 16 : 20,
+                              color: AppTheme.textPrimary,
+                              height: 1.5,
+                            ),
+                          )
+                        : Text(
+                            question.text,
+                            style: TextStyle(
+                              fontSize: isMobile ? 17 : 21,
+                              fontWeight: FontWeight.w700,
+                              color: AppTheme.textPrimary,
+                              height: 1.5,
+                            ),
+                          ))
+                    : (question.displayHtml.isNotEmpty
+                        ? _MoodleHtml(
+                            html: question.displayHtml,
+                            textStyle: TextStyle(
+                              fontSize: isMobile ? 16 : 20,
+                              color: AppTheme.textPrimary,
+                              height: 1.5,
+                            ),
+                          )
+                        : Text(
+                            question.text,
+                            style: TextStyle(
+                              fontSize: isMobile ? 17 : 21,
+                              fontWeight: FontWeight.w700,
+                              color: AppTheme.textPrimary,
+                              height: 1.5,
+                            ),
+                          )),
               ),
 
               const SizedBox(height: 16),
@@ -191,7 +249,7 @@ class _QuestionReveal extends StatelessWidget {
                   final choice = e.value;
                   final letter =
                       idx < _letters.length ? _letters[idx] : '${idx + 1}';
-                  final correct = choice.isCorrect;
+                  final correct = showCorrect && choice.isCorrect;
 
                   return Container(
                     margin: const EdgeInsets.only(bottom: 10),

@@ -8,6 +8,8 @@ class QuestionEntity extends Equatable {
   final int page; // página da questão (0-indexed)
   final String text; // enunciado sem tags HTML (fallback)
   final String htmlText; // enunciado como HTML com URLs corrigidas
+  final String
+      displayHtml; // HTML completo (todos os blocos, sem interativos) — para exibição
   final List<ParsedChoice> choices;
   final List<String> imageUrls;
   final String inputBaseName; // "q{attemptId}:{slot}_answer"
@@ -20,6 +22,7 @@ class QuestionEntity extends Equatable {
     required this.page,
     required this.text,
     this.htmlText = '',
+    this.displayHtml = '',
     required this.choices,
     this.imageUrls = const [],
     required this.inputBaseName,

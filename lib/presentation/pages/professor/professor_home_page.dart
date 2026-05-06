@@ -831,9 +831,13 @@ class _SelectedQuestionCardState extends State<_SelectedQuestionCard> {
               secondChild: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (question.htmlText.isNotEmpty)
+                  if (question.isMultiChoice
+                      ? question.htmlText.isNotEmpty
+                      : question.displayHtml.isNotEmpty)
                     HtmlWidget(
-                      question.htmlText,
+                      question.isMultiChoice
+                          ? question.htmlText
+                          : question.displayHtml,
                       customWidgetBuilder: (element) {
                         if (element.localName != 'img') return null;
                         final src = element.attributes['src'];

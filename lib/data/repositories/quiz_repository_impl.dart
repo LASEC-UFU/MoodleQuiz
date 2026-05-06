@@ -239,6 +239,7 @@ class QuizRepositoryImpl implements IQuizRepository {
           .toInt(), // página real do Moodle (0-based)
       text: parsed.text,
       htmlText: parsed.htmlText,
+      displayHtml: parsed.displayHtml,
       choices: parsed.choices,
       imageUrls: parsed.imageUrls,
       inputBaseName: parsed.inputBaseName,
@@ -312,6 +313,7 @@ class QuizRepositoryImpl implements IQuizRepository {
             page: qPage,
             text: parsed.text,
             htmlText: parsed.htmlText,
+            displayHtml: parsed.displayHtml,
             choices: parsed.choices,
             imageUrls: parsed.imageUrls,
             inputBaseName: parsed.inputBaseName,
@@ -374,10 +376,11 @@ class QuizRepositoryImpl implements IQuizRepository {
     final result = <QuestionEntity>[];
     int skipped = 0;
     for (final q in allQuestions) {
-      // Filtra questões sem alternativas (dissertativas/abertas)
+      // Questões sem alternativas (Cloze, Arrastar&Soltar, Numérica…) são
+      // incluídas para exibição somente leitura — sem marcação de gabarito.
       if (q.choices.isEmpty) {
-        log('  ✗ slot=${q.slot} ignorada — sem alternativas (dissertativa/aberta)');
-        skipped++;
+        log('  ○ slot=${q.slot} (${q.type}) sem alternativas — incluída como somente leitura');
+        result.add(q);
         continue;
       }
 
@@ -414,6 +417,7 @@ class QuizRepositoryImpl implements IQuizRepository {
         page: q.page,
         text: q.text,
         htmlText: q.htmlText,
+        displayHtml: q.displayHtml,
         choices: newChoices,
         imageUrls: q.imageUrls,
         inputBaseName: q.inputBaseName,
