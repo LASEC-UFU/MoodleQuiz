@@ -202,11 +202,13 @@ class QuizRepositoryImpl implements IQuizRepository {
 
     final html = qMap['html'] as String? ?? '';
     final actualSlot = (qMap['slot'] as num? ?? slot).toInt();
+    final moodleType = qMap['type']?.toString() ?? '';
 
     dlog.log('QUESTION', 'HTML recebido do Moodle', data: {
       'slot': actualSlot,
       'page': qMap['page'],
       'state': qMap['state'],
+      'moodleType': moodleType,
       'htmlLength': html.length,
       'htmlPreview': html.length > 300 ? '${html.substring(0, 300)}…' : html,
     });
@@ -219,6 +221,9 @@ class QuizRepositoryImpl implements IQuizRepository {
       baseUrl: user.baseUrl,
     );
 
+    // Usa o tipo real da API do Moodle; cai para o inferido pelo HTML só se ausente.
+    final resolvedType = moodleType.isNotEmpty ? moodleType : parsed.type;
+
     dlog.log('QUESTION', 'Questão parseada', data: {
       'inputBaseName': parsed.inputBaseName,
       'hardcoded_seria': 'q$attemptId:${actualSlot}_answer',
@@ -226,7 +231,8 @@ class QuizRepositoryImpl implements IQuizRepository {
           ? '⚠️ SIM — ID real ≠ attemptId!'
           : 'não (iguais)',
       'seqCheck': parsed.seqCheck,
-      'type': parsed.type,
+      'moodleType': moodleType,
+      'resolvedType': resolvedType,
       'choicesCount': parsed.choices.length,
       'choices': parsed.choices
           .map((c) => 'value="${c.value}" text="${c.text}"')
@@ -244,7 +250,7 @@ class QuizRepositoryImpl implements IQuizRepository {
       imageUrls: parsed.imageUrls,
       inputBaseName: parsed.inputBaseName,
       seqCheck: parsed.seqCheck,
-      type: parsed.type,
+      type: resolvedType,
     );
   }
 
@@ -306,7 +312,9 @@ class QuizRepositoryImpl implements IQuizRepository {
             baseUrl: user.baseUrl,
           );
 
-          log('     slot=$slot page=$qPage tipo=${type.isNotEmpty ? type : parsed.type} alternativas=${parsed.choices.length}');
+          // Usa o tipo real da API do Moodle; cai para o inferido pelo HTML só se ausente.
+          final resolvedType = type.isNotEmpty ? type : parsed.type;
+          log('     slot=$slot page=$qPage tipo=$resolvedType alternativas=${parsed.choices.length}');
 
           allQuestions.add(QuestionEntity(
             slot: parsed.slot,
@@ -318,7 +326,7 @@ class QuizRepositoryImpl implements IQuizRepository {
             imageUrls: parsed.imageUrls,
             inputBaseName: parsed.inputBaseName,
             seqCheck: parsed.seqCheck,
-            type: parsed.type,
+            type: resolvedType,
           ));
           slotToPage[slot] = qPage;
         }

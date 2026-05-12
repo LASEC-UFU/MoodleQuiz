@@ -33,7 +33,8 @@ class ParsedQuestion {
   final List<String> imageUrls;
   final String inputBaseName; // "q{attemptId}:{slot}_answer"
   final String seqCheck; // valor do input sequencecheck
-  final String type; // "multichoice" | "truefalse" | "other"
+  final String
+      type; // tipo real do Moodle (ou inferido): "multichoice", "truefalse", "essay", "shortanswer", etc.
 
   const ParsedQuestion({
     required this.slot,

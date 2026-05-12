@@ -14,7 +14,8 @@ class QuestionEntity extends Equatable {
   final List<String> imageUrls;
   final String inputBaseName; // "q{attemptId}:{slot}_answer"
   final String seqCheck; // valor do hidden sequencecheck
-  final String type; // "multichoice" | "truefalse" | "other"
+  final String
+      type; // tipo real do Moodle: "multichoice", "truefalse", "essay", "shortanswer", "match", "numerical", "other", etc.
   final String generalFeedback; // feedback geral da questão (do gabarito)
 
   const QuestionEntity({
@@ -31,6 +32,7 @@ class QuestionEntity extends Equatable {
     this.generalFeedback = '',
   });
 
+  /// Retorna true para tipos que usam alternativas de rádio (múltipla escolha e V/F).
   bool get isMultiChoice => type == 'multichoice' || type == 'truefalse';
 
   @override
