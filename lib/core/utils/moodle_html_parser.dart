@@ -44,6 +44,28 @@ class MatchData {
   const MatchData({required this.subQuestions, required this.options});
 }
 
+/// Dados estruturados de uma questão de lacunas (gapselect / ddwtos).
+/// Permite renderizar a questão como widget Flutter nativo interativo.
+class GapInputData {
+  /// Número de lacunas na questão.
+  final int gapCount;
+
+  /// Opções disponíveis (mesmas para todas as lacunas em ddwtos/gapselect).
+  final List<ParsedChoice> options;
+
+  /// Prefixo do nome do campo Moodle — ex: "q123:1_p".
+  /// Nome completo da lacuna N: "${inputNamePrefix}N" (N = 1, 2, 3…).
+  final String inputNamePrefix;
+
+  const GapInputData({
+    required this.gapCount,
+    required this.options,
+    required this.inputNamePrefix,
+  });
+
+  String inputName(int gapNum) => '$inputNamePrefix$gapNum';
+}
+
 class ParsedQuestion {
   final int slot;
   final String text; // texto da questão (HTML stripped — fallback)
@@ -58,6 +80,7 @@ class ParsedQuestion {
   // Dados específicos por tipo
   final String? answerInputName; // nome do campo de texto (numerical/shortanswer)
   final MatchData? matchData; // estrutura de associação (match)
+  final GapInputData? gapInputData; // estrutura de lacunas (gapselect/ddwtos)
 
   const ParsedQuestion({
     required this.slot,
@@ -71,6 +94,7 @@ class ParsedQuestion {
     required this.type,
     this.answerInputName,
     this.matchData,
+    this.gapInputData,
   });
 
   bool get isMultiChoice =>
@@ -125,6 +149,7 @@ class MoodleHtmlParser {
     // Dados específicos por tipo
     MatchData? matchData;
     String? answerInputName;
+    GapInputData? gapInputData;
 
     if (type == 'match') {
       matchData = _extractMatchData(html, token, baseUrl);
@@ -133,6 +158,8 @@ class MoodleHtmlParser {
         type == 'calculatedsimple' ||
         type == 'shortanswer') {
       answerInputName = _extractAnswerInputName(html) ?? inputBase;
+    } else if (type == 'gapselect' || type == 'ddwtos') {
+      gapInputData = _extractGapInputData(html, slot, attemptId);
     }
 
     return ParsedQuestion(
@@ -147,6 +174,7 @@ class MoodleHtmlParser {
       type: type,
       answerInputName: answerInputName,
       matchData: matchData,
+      gapInputData: gapInputData,
     );
   }
 
@@ -445,6 +473,142 @@ class MoodleHtmlParser {
 
     if (subQuestions.isEmpty) return null;
     return MatchData(subQuestions: subQuestions, options: options);
+  }
+
+  // ── Extração de dados de lacunas (gapselect / ddwtos) ─────────────────────
+
+  /// Extrai estrutura interativa de lacunas para gapselect e ddwtos.
+  /// Suporta duas estratégias:
+  /// 1. HTML acessível com `<select>` inline no texto.
+  /// 2. HTML JS com `.drop` (lacunas) e `.drag` (banco de palavras).
+  static GapInputData? _extractGapInputData(
+      String html, int slot, int attemptId) {
+    final fragment = html_parser.parseFragment(html);
+
+    // ── Estratégia 1: selects inline (gapselect / ddwtos acessível) ──────────
+    final selects = fragment.querySelectorAll('select');
+    if (selects.isNotEmpty) {
+      final options = <ParsedChoice>[];
+      var gapCount = 0;
+      var prefix = '';
+
+      for (final select in selects) {
+        final name = select.attributes['name'] ?? '';
+        if (name.isEmpty) continue;
+
+        // Deriva prefixo: "q123:1_p1" → "q123:1_p"
+        if (prefix.isEmpty) {
+          prefix = name.replaceAll(RegExp(r'\d+$'), '');
+        }
+        gapCount++;
+
+        // Extrai opções do primeiro select (todas as lacunas têm as mesmas)
+        if (options.isEmpty) {
+          for (final opt in select.querySelectorAll('option')) {
+            final value = opt.attributes['value'] ?? '';
+            if (value.isEmpty || value == '0') continue;
+            final text = _stripHtml(opt.innerHtml).trim();
+            if (text.isNotEmpty) {
+              options.add(ParsedChoice(value: value, text: text));
+            }
+          }
+        }
+      }
+
+      if (gapCount > 0 && options.isNotEmpty && prefix.isNotEmpty) {
+        return GapInputData(
+          gapCount: gapCount,
+          options: options,
+          inputNamePrefix: prefix,
+        );
+      }
+    }
+
+    // ── Estratégia 2: drop spans + drag items (ddwtos JS) ──────────────────
+    final drops = fragment.querySelectorAll(
+        '.drop, span[class*="drop"][class*="empty"], span[class*="drop"][class*="active"]');
+    final drags = fragment.querySelectorAll(
+        '.drag:not(.dragplaceholder), .dragitem, '
+        'span[class*="drag"]:not([class*="placeholder"])');
+
+    if (drops.isNotEmpty && drags.isNotEmpty) {
+      final options = <ParsedChoice>[];
+      var choiceIdx = 1;
+
+      for (final drag in drags) {
+        final text = _stripHtml(drag.innerHtml).trim();
+        if (text.isEmpty) continue;
+        final dataChoice = drag.attributes['data-choice'] ??
+            drag.attributes['data-value'] ??
+            '$choiceIdx';
+        options.add(ParsedChoice(value: dataChoice, text: text));
+        choiceIdx++;
+      }
+
+      if (options.isNotEmpty) {
+        final prefix = 'q$attemptId:${slot}_p';
+        return GapInputData(
+          gapCount: drops.length,
+          options: options,
+          inputNamePrefix: prefix,
+        );
+      }
+    }
+
+    return null;
+  }
+
+  /// Retorna o HTML do enunciado com lacunas marcadas como [1], [2], [3]…
+  /// para exibição acima dos dropdowns interativos.
+  static String extractTextWithGapMarkers(
+      String html, String token, String baseUrl) {
+    final fragment = html_parser.parseFragment(html);
+
+    var gapNum = 0;
+
+    void replaceWithMarker(dom.Element el) {
+      gapNum++;
+      final marker = dom.Element.tag('span');
+      marker.attributes['style'] =
+          'display:inline-block;border:2px dashed #6c7ae0;border-radius:4px;'
+          'background:rgba(108,122,224,0.12);padding:1px 10px;margin:0 4px;'
+          'color:#a0a8f8;font-weight:700;font-size:0.9em;';
+      marker.text = '[$gapNum]';
+      el.replaceWith(marker);
+    }
+
+    // Selects → marcadores numerados
+    for (final el in fragment.querySelectorAll('select')) {
+      replaceWithMarker(el);
+    }
+
+    // Drop spans → marcadores numerados
+    for (final el in fragment.querySelectorAll(
+        '.drop, span[class*="drop"][class*="empty"], '
+        'span[class*="drop"][class*="active"]')) {
+      replaceWithMarker(el);
+    }
+
+    // Remove elementos do banco de palavras (mostrados como opções nos dropdowns)
+    for (final el in fragment.querySelectorAll(
+        '.drag, .dragitem, .dragcontainer, .dragwordscontainer, '
+        '.draghome, .dragplaceholder, .ablock')) {
+      el.remove();
+    }
+
+    // Remove elementos de controle
+    for (final el in fragment.querySelectorAll(
+        '.accesshide, .sr-only, input[type="hidden"], '
+        'input[type="submit"], input[type="button"]')) {
+      el.remove();
+    }
+
+    final formulation = fragment.querySelector('.formulation') ??
+        fragment.querySelector('.qtext');
+    if (formulation != null) {
+      return _rewriteResourceUrls(formulation.outerHtml, token, baseUrl);
+    }
+    return _rewriteResourceUrls(fragment.outerHtml, token, baseUrl);
   }
 
   // ── Extração do nome do campo de texto ────────────────────────────────────

@@ -4,7 +4,8 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/theme/app_theme.dart';
-import '../../../core/utils/moodle_html_parser.dart' show MatchData;
+import '../../../core/utils/moodle_html_parser.dart'
+    show MatchData, GapInputData, MoodleHtmlParser;
 import '../../../core/utils/responsive.dart';
 import '../../../domain/entities/question_entity.dart';
 import '../../widgets/timer_widget.dart';
@@ -123,6 +124,8 @@ class StudentQuestionPage extends StatelessWidget {
     if (question.isShortAnswer) return _buildShortAnswerView(context);
     if (question.isMatch) return _buildMatchView(context);
     if (question.isGapSelect || question.isDdwtos) {
+      final gap = question.gapInputData;
+      if (gap != null) return _buildGapInputView(context, gap);
       return _buildGapDisplayView(context);
     }
     return _buildReadOnlyView(context);
@@ -255,6 +258,33 @@ class StudentQuestionPage extends StatelessWidget {
     return _MatchInput(
       question: question,
       matchData: matchData,
+      endsAt: endsAt,
+      selectedAnswers: selectedAnswers,
+      hasAnswered: hasAnswered,
+      isSubmitting: isSubmitting,
+      isMobile: isMobile,
+      onSelectAnswer: onSelectAnswer,
+      onSubmit: onSubmit,
+      buildTimer: _buildTimer,
+      buildHtml: _buildHtml,
+      buildSubmitButton: _buildSubmitButton,
+    );
+  }
+
+  // ── GapSelect / DDwtos: lacunas com dropdowns nativos ─────────────────────
+
+  Widget _buildGapInputView(BuildContext context, GapInputData gapData) {
+    final isMobile = Responsive.isMobile(context);
+    final markerHtml = MoodleHtmlParser.extractTextWithGapMarkers(
+      question.htmlText.isNotEmpty ? question.htmlText : question.displayHtml,
+      '', // token/baseUrl already rewritten during parse
+      '',
+    );
+
+    return _GapInputWidget(
+      question: question,
+      gapData: gapData,
+      markerHtml: markerHtml,
       endsAt: endsAt,
       selectedAnswers: selectedAnswers,
       hasAnswered: hasAnswered,
@@ -873,6 +903,182 @@ class _MatchInput extends StatelessWidget {
 
               const SizedBox(height: 20),
               buildSubmitButton(_allAnswered, context),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Widget de lacunas interativas (gapselect / ddwtos) ─────────────────────────
+
+class _GapInputWidget extends StatelessWidget {
+  final QuestionEntity question;
+  final GapInputData gapData;
+  final String markerHtml;
+  final DateTime? endsAt;
+  final Map<String, String> selectedAnswers;
+  final bool hasAnswered;
+  final bool isSubmitting;
+  final bool isMobile;
+  final void Function(String, String) onSelectAnswer;
+  final VoidCallback onSubmit;
+  final Widget Function() buildTimer;
+  final Widget Function(String, TextStyle) buildHtml;
+  final Widget Function(bool, BuildContext) buildSubmitButton;
+
+  const _GapInputWidget({
+    required this.question,
+    required this.gapData,
+    required this.markerHtml,
+    required this.endsAt,
+    required this.selectedAnswers,
+    required this.hasAnswered,
+    required this.isSubmitting,
+    required this.isMobile,
+    required this.onSelectAnswer,
+    required this.onSubmit,
+    required this.buildTimer,
+    required this.buildHtml,
+    required this.buildSubmitButton,
+  });
+
+  bool get _allFilled => List.generate(gapData.gapCount, (i) => i + 1)
+      .every((n) => selectedAnswers.containsKey(gapData.inputName(n)) &&
+          selectedAnswers[gapData.inputName(n)]!.isNotEmpty);
+
+  @override
+  Widget build(BuildContext context) {
+    final textStyle = GoogleFonts.nunito(
+      fontSize: isMobile ? 15.0 : 17.0,
+      fontWeight: FontWeight.w600,
+      color: AppTheme.textPrimary,
+      height: 1.6,
+    );
+
+    return SingleChildScrollView(
+      padding:
+          Responsive.horizontalPadding(context).copyWith(top: 12, bottom: 24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              buildTimer(),
+              const SizedBox(height: 16),
+
+              // ── Enunciado com marcadores [1] [2] [3] ─────────────────────
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: AppTheme.cardDecoration(glowing: true),
+                child: markerHtml.isNotEmpty
+                    ? buildHtml(markerHtml, textStyle)
+                    : Text(question.text, style: textStyle),
+              ).animate().fadeIn(duration: 400.ms),
+
+              const SizedBox(height: 20),
+
+              // ── Dropdown por lacuna ───────────────────────────────────────
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: AppTheme.cardDecoration(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Preencha as lacunas:',
+                      style: TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ...List.generate(gapData.gapCount, (i) {
+                      final gapNum = i + 1;
+                      final inputName = gapData.inputName(gapNum);
+                      final selected = selectedAnswers[inputName];
+
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: selected != null
+                              ? AppTheme.primary.withValues(alpha: 0.08)
+                              : AppTheme.bgDark,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: selected != null
+                                ? AppTheme.primary.withValues(alpha: 0.5)
+                                : AppTheme.bgCardAlt,
+                            width: selected != null ? 2 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: AppTheme.primary.withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                '[$gapNum]',
+                                style: const TextStyle(
+                                  color: AppTheme.primary,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: DropdownButton<String>(
+                                value: selected,
+                                isExpanded: true,
+                                underline: const SizedBox.shrink(),
+                                dropdownColor: AppTheme.bgCard,
+                                style: const TextStyle(
+                                    color: AppTheme.textPrimary, fontSize: 14),
+                                hint: const Text(
+                                  'Escolha uma palavra...',
+                                  style: TextStyle(
+                                      color: AppTheme.textSecondary,
+                                      fontSize: 13),
+                                ),
+                                items: gapData.options
+                                    .map((opt) => DropdownMenuItem<String>(
+                                          value: opt.value,
+                                          child: Text(opt.text,
+                                              overflow: TextOverflow.ellipsis),
+                                        ))
+                                    .toList(),
+                                onChanged: hasAnswered
+                                    ? null
+                                    : (v) {
+                                        if (v != null) {
+                                          onSelectAnswer(inputName, v);
+                                        }
+                                      },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ).animate(
+                              delay: Duration(milliseconds: i * 60))
+                          .fadeIn();
+                    }),
+                  ],
+                ),
+              ).animate().fadeIn(delay: 200.ms),
+
+              const SizedBox(height: 20),
+              buildSubmitButton(_allFilled, context),
             ],
           ),
         ),

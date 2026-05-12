@@ -253,6 +253,7 @@ class QuizRepositoryImpl implements IQuizRepository {
       type: resolvedType,
       answerInputName: parsed.answerInputName,
       matchData: parsed.matchData,
+      gapInputData: parsed.gapInputData,
     );
   }
 
@@ -331,6 +332,7 @@ class QuizRepositoryImpl implements IQuizRepository {
             type: resolvedType,
             answerInputName: parsed.answerInputName,
             matchData: parsed.matchData,
+            gapInputData: parsed.gapInputData,
           ));
           slotToPage[slot] = qPage;
         }
@@ -446,6 +448,7 @@ class QuizRepositoryImpl implements IQuizRepository {
               subQuestions: updatedSubQuestions,
               options: updatedOptions,
             ),
+            gapInputData: q.gapInputData,
           ));
           continue;
         }
@@ -465,6 +468,7 @@ class QuizRepositoryImpl implements IQuizRepository {
           rightAnswerHtml: rightAnswerHtml,
           answerInputName: q.answerInputName,
           matchData: q.matchData,
+          gapInputData: q.gapInputData,
         ));
         continue;
       }
@@ -508,6 +512,7 @@ class QuizRepositoryImpl implements IQuizRepository {
         rightAnswerHtml: rightAnswerHtml,
         answerInputName: q.answerInputName,
         matchData: q.matchData,
+        gapInputData: q.gapInputData,
       ));
     }
     if (skipped > 0) log('Questões abertas ignoradas: $skipped');

@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
-import '../../core/utils/moodle_html_parser.dart';
+import '../../core/utils/moodle_html_parser.dart'
+    show MatchData, GapInputData, ParsedChoice;
 
 /// Representa uma questão do Moodle já parseada e pronta para exibição.
 class QuestionEntity extends Equatable {
@@ -20,6 +21,7 @@ class QuestionEntity extends Equatable {
   // Dados específicos por tipo
   final String? answerInputName; // campo de texto para numerical/shortanswer
   final MatchData? matchData; // estrutura de associação (match)
+  final GapInputData? gapInputData; // estrutura de lacunas (gapselect/ddwtos)
 
   const QuestionEntity({
     required this.slot,
@@ -36,6 +38,7 @@ class QuestionEntity extends Equatable {
     this.rightAnswerHtml = '',
     this.answerInputName,
     this.matchData,
+    this.gapInputData,
   });
 
   // ── Classificação por tipo ─────────────────────────────────────────────────
@@ -82,7 +85,8 @@ class QuestionEntity extends Equatable {
 
   /// Tipos que têm widget interativo no app.
   bool get isInteractive =>
-      isMultiChoice || isNumerical || isShortAnswer || isMatch || isGapSelect;
+      isMultiChoice || isNumerical || isShortAnswer || isMatch ||
+      isGapSelect || isDdwtos;
 
   @override
   List<Object?> get props => [slot];
