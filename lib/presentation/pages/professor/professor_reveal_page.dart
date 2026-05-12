@@ -417,13 +417,8 @@ class _QuestionReveal extends StatelessWidget {
           ...matchData.subQuestions.asMap().entries.map((e) {
             final idx = e.key;
             final sub = e.value;
-            // Encontra a opção marcada como isCorrect (se disponível)
-            final correctOpt = matchData.options
-                .cast<dynamic>()
-                .firstWhere((o) => (o as dynamic).isCorrect == true,
-                    orElse: () => null);
-            final correctText = correctOpt != null
-                ? optionText[correctOpt.value] ?? '?'
+            final correctText = sub.correctValue != null
+                ? optionText[sub.correctValue] ?? '?'
                 : '—';
 
             return Container(

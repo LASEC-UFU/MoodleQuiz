@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import '../../core/utils/debug_logger.dart';
 import '../../core/utils/moodle_html_parser.dart'
-    show MoodleHtmlParser, ParsedChoice, MatchData;
+    show MoodleHtmlParser, ParsedChoice, MatchData, MatchSubQuestion;
 import '../../domain/entities/moodle_course.dart';
 import '../../domain/entities/moodle_quiz.dart';
 import '../../domain/entities/question_entity.dart';
@@ -412,6 +412,14 @@ class QuizRepositoryImpl implements IQuizRepository {
             log('  ✓ slot=${q.slot} (match) pares corretos: $correctPairs');
           }
           // Marcamos as opções corretas nas sub-questões (para reveal page)
+          final updatedSubQuestions = matchData.subQuestions
+              .map((sub) => MatchSubQuestion(
+                    text: sub.text,
+                    htmlText: sub.htmlText,
+                    inputName: sub.inputName,
+                    correctValue: correctPairs[sub.inputName],
+                  ))
+              .toList();
           final updatedOptions = matchData.options
               .map((o) => ParsedChoice(
                     value: o.value,
@@ -435,7 +443,7 @@ class QuizRepositoryImpl implements IQuizRepository {
             rightAnswerHtml: rightAnswerHtml,
             answerInputName: q.answerInputName,
             matchData: MatchData(
-              subQuestions: matchData.subQuestions,
+              subQuestions: updatedSubQuestions,
               options: updatedOptions,
             ),
           ));

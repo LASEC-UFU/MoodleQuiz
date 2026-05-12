@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:html/parser.dart' as html_parser;
@@ -16,7 +15,7 @@ import '../../../domain/entities/quiz_state_entity.dart';
 import '../../controllers/auth_controller.dart';
 import '../../controllers/professor_controller.dart';
 import '../../../core/utils/fullscreen_button.dart';
-import '../../widgets/moodle_image.dart';
+import '../../widgets/question_body_widget.dart';
 import '../../widgets/timer_widget.dart';
 
 /// Painel do professor – controle de questões + status do quiz.
@@ -281,7 +280,7 @@ class _QuestionListPanel extends StatelessWidget {
         child: Padding(
           padding: EdgeInsets.all(16),
           child: Text(
-            'Nenhuma questão de múltipla escolha.\nConsulte o log de carregamento.',
+            'Nenhuma questão disponível.\nConsulte o log de carregamento.',
             textAlign: TextAlign.center,
             style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
           ),
@@ -828,209 +827,10 @@ class _SelectedQuestionCardState extends State<_SelectedQuestionCard> {
                   const SizedBox(height: 8),
                 ],
               ),
-              secondChild: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (question.isMultiChoice
-                      ? question.htmlText.isNotEmpty
-                      : question.displayHtml.isNotEmpty)
-                    HtmlWidget(
-                      question.isMultiChoice
-                          ? question.htmlText
-                          : question.displayHtml,
-                      customWidgetBuilder: (element) {
-                        if (element.localName != 'img') return null;
-                        final src = element.attributes['src'];
-                        if (src == null || src.isEmpty) return null;
-
-                        // Mesma regra do aluno: ignora assets decorativos do Moodle.
-                        if (src.startsWith('data:') ||
-                            src.contains('/pix/') ||
-                            src.contains('theme/image.php')) {
-                          return const SizedBox.shrink();
-                        }
-
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: MoodleImage(
-                            src: src,
-                            alt: element.attributes['alt'],
-                            maxHeight: 220,
-                          ),
-                        );
-                      },
-                      textStyle: const TextStyle(
-                        color: AppTheme.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        height: 1.5,
-                      ),
-                      customStylesBuilder: (element) {
-                        if (element.localName == 'table') {
-                          return {
-                            'border-collapse': 'collapse',
-                            'width': '100%',
-                          };
-                        }
-                        if (element.localName == 'td' ||
-                            element.localName == 'th') {
-                          return {
-                            'border': '1px solid #444',
-                            'padding': '6px 10px',
-                          };
-                        }
-                        if (element.localName == 'img') {
-                          return {
-                            'max-width': '100%',
-                            'height': 'auto',
-                          };
-                        }
-                        return null;
-                      },
-                    )
-                  else
-                    Text(
-                      question.text,
-                      style: const TextStyle(
-                        color: AppTheme.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        height: 1.5,
-                      ),
-                    ),
-                  const SizedBox(height: 12),
-                  ...question.choices.asMap().entries.map((e) {
-                    final label = String.fromCharCode(65 + e.key);
-                    final choice = e.value;
-                    final isCorrect = widget.showCorrect && choice.isCorrect;
-                    return Container(
-                      width: double.infinity,
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: isCorrect
-                            ? AppTheme.success.withValues(alpha: 0.18)
-                            : AppTheme.bgCardAlt,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: isCorrect
-                              ? AppTheme.success.withValues(alpha: 0.6)
-                              : AppTheme.bgCardAlt,
-                          width: isCorrect ? 1.5 : 1,
-                        ),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            width: 28,
-                            height: 28,
-                            decoration: BoxDecoration(
-                              color: isCorrect
-                                  ? AppTheme.success
-                                  : AppTheme.bgDark,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              label,
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: isCorrect
-                                    ? Colors.white
-                                    : AppTheme.textSecondary,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: choice.htmlText.isNotEmpty
-                                ? HtmlWidget(
-                                    choice.htmlText,
-                                    customWidgetBuilder: (element) {
-                                      if (element.localName != 'img') {
-                                        return null;
-                                      }
-                                      final src = element.attributes['src'];
-                                      if (src == null || src.isEmpty) {
-                                        return null;
-                                      }
-
-                                      // Mesma regra do aluno: ignora assets decorativos do Moodle.
-                                      if (src.startsWith('data:') ||
-                                          src.contains('/pix/') ||
-                                          src.contains('theme/image.php')) {
-                                        return const SizedBox.shrink();
-                                      }
-
-                                      return Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                            vertical: 6),
-                                        child: MoodleImage(
-                                          src: src,
-                                          alt: element.attributes['alt'],
-                                          maxHeight: 140,
-                                        ),
-                                      );
-                                    },
-                                    textStyle: TextStyle(
-                                      fontSize: 13,
-                                      color: isCorrect
-                                          ? AppTheme.success
-                                          : AppTheme.textPrimary,
-                                      fontWeight: isCorrect
-                                          ? FontWeight.w700
-                                          : FontWeight.w500,
-                                      height: 1.4,
-                                    ),
-                                    customStylesBuilder: (element) {
-                                      if (element.localName == 'img') {
-                                        return {
-                                          'max-width': '100%',
-                                          'height': 'auto',
-                                        };
-                                      }
-                                      if (element.localName == 'table') {
-                                        return {
-                                          'border-collapse': 'collapse',
-                                          'width': '100%',
-                                        };
-                                      }
-                                      if (element.localName == 'td' ||
-                                          element.localName == 'th') {
-                                        return {
-                                          'border': '1px solid #444',
-                                          'padding': '6px 10px',
-                                        };
-                                      }
-                                      return null;
-                                    },
-                                  )
-                                : Text(
-                                    choice.text,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: isCorrect
-                                          ? AppTheme.success
-                                          : AppTheme.textPrimary,
-                                      fontWeight: isCorrect
-                                          ? FontWeight.w700
-                                          : FontWeight.w500,
-                                    ),
-                                  ),
-                          ),
-                          if (isCorrect) ...[
-                            const SizedBox(width: 8),
-                            const Icon(Icons.check_circle_rounded,
-                                color: AppTheme.success, size: 18),
-                          ],
-                        ],
-                      ),
-                    );
-                  }),
-                ],
+              secondChild: QuestionBodyWidget(
+                question: question,
+                showCorrect: widget.showCorrect,
+                compact: true,
               ),
               crossFadeState: _expanded
                   ? CrossFadeState.showSecond

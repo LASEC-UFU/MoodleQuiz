@@ -26,11 +26,13 @@ class MatchSubQuestion {
   final String text; // texto da premissa
   final String htmlText; // premissa como HTML
   final String inputName; // nome do campo select, e.g. "q12345:1_sub0"
+  final String? correctValue; // valor correto (preenchido após revisão)
 
   const MatchSubQuestion({
     required this.text,
     required this.htmlText,
     required this.inputName,
+    this.correctValue,
   });
 }
 
@@ -291,7 +293,13 @@ class MoodleHtmlParser {
     dom.Element? formulation = fragment.querySelector('.formulation') ??
         fragment.querySelector('.qtext');
     if (formulation != null) {
-      final clone = html_parser.parseFragment(formulation.outerHtml);
+      // Para ddwtos e gapselect, inclui o banco de palavras (.ablock) se existir
+      // fora do .formulation, para que as palavras apareçam na visualização.
+      final ablock = fragment.querySelector('.ablock');
+      final htmlToProcess = (ablock != null && !formulation.contains(ablock))
+          ? '${formulation.outerHtml}${ablock.outerHtml}'
+          : formulation.outerHtml;
+      final clone = html_parser.parseFragment(htmlToProcess);
       _cleanupFormulation(clone);
       return _rewriteResourceUrls(clone.outerHtml, token, baseUrl);
     }
@@ -310,6 +318,33 @@ class MoodleHtmlParser {
     for (final input in fragment.querySelectorAll('input[type="hidden"], '
         'input[type="submit"], input[type="button"]')) {
       input.remove();
+    }
+
+    // Elementos arrastáveis (ddwtos): torna as palavras visíveis como chips
+    for (final el in fragment
+        .querySelectorAll('[draggable="true"], .drag, .draghome, .dragitem')) {
+      final text = _stripHtml(el.innerHtml).trim();
+      if (text.isNotEmpty) {
+        final chip = dom.Element.tag('span');
+        chip.attributes['style'] =
+            'display:inline-block;border:1px solid rgba(255,255,255,0.35);'
+            'border-radius:4px;background:rgba(255,255,255,0.08);'
+            'vertical-align:middle;margin:2px;padding:2px 8px;font-size:0.9em;';
+        chip.text = text;
+        el.replaceWith(chip);
+      } else {
+        el.remove();
+      }
+    }
+
+    // Lacunas de drop (ddwtos): mostra como caixa vazia estilizada
+    for (final el in fragment.querySelectorAll('.drop, .droptarget')) {
+      final placeholder = dom.Element.tag('span');
+      placeholder.attributes['style'] =
+          'display:inline-block;min-width:80px;height:20px;'
+          'border:1px dashed #888;border-radius:4px;'
+          'background:rgba(255,255,255,0.04);vertical-align:middle;margin:0 4px;';
+      el.replaceWith(placeholder);
     }
 
     // Inputs de texto → caixas visuais vazias (para Cloze, Numérica…)
@@ -337,7 +372,8 @@ class MoodleHtmlParser {
             'display:inline-block;border:1px dashed #888;border-radius:4px;'
             'background:rgba(255,255,255,0.06);vertical-align:middle;'
             'margin:0 4px;padding:2px 6px;font-size:0.9em;color:#aaa;';
-        placeholder.text = '[${options.take(4).join(' | ')}${options.length > 4 ? "…" : ""}]';
+        placeholder.text =
+            '[${options.take(4).join(' | ')}${options.length > 4 ? "…" : ""}]';
       } else {
         placeholder.attributes['style'] =
             'display:inline-block;min-width:90px;height:18px;'
