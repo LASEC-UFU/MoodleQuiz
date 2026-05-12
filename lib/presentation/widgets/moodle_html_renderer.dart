@@ -1,0 +1,414 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_math_fork/flutter_math.dart';
+import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
+
+import '../../core/theme/app_theme.dart';
+import 'moodle_image.dart';
+
+class MoodleHtmlRenderer extends StatelessWidget {
+  final String html;
+  final TextStyle textStyle;
+
+  const MoodleHtmlRenderer({
+    super.key,
+    required this.html,
+    required this.textStyle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return HtmlWidget(
+      _withLatexTags(html),
+      textStyle: textStyle,
+      customWidgetBuilder: (element) {
+        if (element.localName == 'img') {
+          final src = element.attributes['src'];
+          if (src == null || src.isEmpty) return null;
+
+          if (src.startsWith('data:') ||
+              src.contains('/pix/') ||
+              src.contains('theme/image.php')) {
+            return const SizedBox.shrink();
+          }
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: MoodleImage(
+              src: src,
+              alt: element.attributes['alt'],
+              maxHeight: 260,
+            ),
+          );
+        }
+
+        if (element.localName != 'mq-latex') return null;
+
+        final latex = element.attributes['data-latex'];
+        if (latex == null) return null;
+
+        final decoded = Uri.decodeComponent(latex);
+        final display = element.attributes['data-display'] == 'true';
+        final math = Math.tex(
+          decoded,
+          mathStyle: display ? MathStyle.display : MathStyle.text,
+          textStyle: textStyle.copyWith(color: AppTheme.textPrimary),
+          onErrorFallback: (error) => Text(
+            _latexFallbackText(decoded),
+            style: textStyle.copyWith(color: AppTheme.textPrimary),
+          ),
+        );
+
+        if (!display) return InlineCustomWidget(child: math);
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: math,
+          ),
+        );
+      },
+      customStylesBuilder: (element) {
+        if (element.localName == 'table') {
+          return {'border-collapse': 'collapse', 'width': '100%'};
+        }
+        if (element.localName == 'td' || element.localName == 'th') {
+          return {'border': '1px solid #444', 'padding': '6px 10px'};
+        }
+        if (element.localName == 'img') {
+          return {'max-width': '100%', 'height': 'auto'};
+        }
+        return null;
+      },
+    );
+  }
+
+  static String _withLatexTags(String source) {
+    final buffer = StringBuffer();
+    var index = 0;
+
+    while (index < source.length) {
+      final tagStart = source.indexOf('<', index);
+      if (tagStart < 0) {
+        buffer.write(_replaceLatexInText(source.substring(index)));
+        break;
+      }
+
+      if (tagStart > index) {
+        buffer.write(_replaceLatexInText(source.substring(index, tagStart)));
+      }
+
+      final tagEnd = source.indexOf('>', tagStart);
+      if (tagEnd < 0) {
+        buffer.write(source.substring(tagStart));
+        break;
+      }
+
+      buffer.write(source.substring(tagStart, tagEnd + 1));
+      index = tagEnd + 1;
+    }
+
+    return buffer.toString();
+  }
+
+  static String _replaceLatexInText(String text) {
+    final decoded = _decodeHtmlEntities(text);
+    final delimited = _replaceDelimitedLatex(decoded);
+    if (delimited != null) return delimited;
+
+    final replaced = decoded.split('\n').map(_replaceLooseLatexLine).join('\n');
+    if (replaced != decoded) return replaced;
+
+    final cleaned = _cleanPlainLatexText(decoded);
+    if (cleaned != decoded) return _escapeHtmlText(cleaned);
+
+    return text;
+  }
+
+  static String? _replaceDelimitedLatex(String text) {
+    final buffer = StringBuffer();
+    var index = 0;
+    var changed = false;
+
+    while (index < text.length) {
+      final match = _nextLatex(text, index);
+      if (match == null) {
+        buffer.write(_escapeHtmlText(_cleanPlainLatexText(
+          text.substring(index),
+        )));
+        break;
+      }
+
+      changed = true;
+      buffer.write(_escapeHtmlText(_cleanPlainLatexText(
+        text.substring(index, match.start),
+      )));
+      buffer.write(_latexTag(match.content, display: match.display));
+      index = match.end;
+    }
+
+    return changed ? buffer.toString() : null;
+  }
+
+  static String _replaceLooseLatexLine(String text) {
+    final leading = RegExp(r'^\s*').firstMatch(text)?.group(0) ?? '';
+    final trailing = RegExp(r'\s*$').firstMatch(text)?.group(0) ?? '';
+    final line = text.trim();
+
+    if (line.isEmpty) return text;
+
+    if (_looksLikeLatexLine(line)) {
+      return '$leading${_latexTag(line, display: true)}$trailing';
+    }
+
+    final fragments = _findLooseLatexFragments(line);
+    if (fragments.isEmpty) return text;
+
+    final buffer = StringBuffer(leading);
+    var index = 0;
+    for (final fragment in fragments) {
+      if (fragment.start < index) continue;
+
+      buffer.write(_escapeHtmlText(_cleanPlainLatexText(
+        line.substring(index, fragment.start),
+      )));
+      buffer.write(_latexTag(fragment.content, display: false));
+      index = fragment.end;
+    }
+    buffer.write(_escapeHtmlText(_cleanPlainLatexText(line.substring(index))));
+    buffer.write(trailing);
+
+    return buffer.toString();
+  }
+
+  static bool _looksLikeLatexLine(String line) {
+    final startsAsMath = RegExp(
+      r'^(?:\\(?:Delta|delta|frac|sqrt|sum|int|left|right)\b|[A-Za-z]\s*=|\d)',
+    ).hasMatch(line);
+    if (!startsAsMath) return false;
+
+    if (RegExp(
+            r'\\(?:Delta|delta|frac|cdot|times|div|sqrt|circ|pi|alpha|beta|gamma|theta|lambda|mu|sigma|sum|int|left|right)\b')
+        .hasMatch(line)) {
+      return true;
+    }
+
+    return RegExp(r'^[A-Za-z\\][A-Za-z0-9\\\s{}.,+\-*/^=()]+$')
+            .hasMatch(line) &&
+        line.contains('=') &&
+        (line.contains(r'\') || line.contains('{') || line.contains('^'));
+  }
+
+  static List<_LatexMatch> _findLooseLatexFragments(String line) {
+    final fragments = <_LatexMatch>[];
+    var index = 0;
+
+    while (index < line.length) {
+      final match = _nextLooseLatexFragment(line, index);
+      if (match == null) break;
+
+      fragments.add(match);
+      index = match.end;
+    }
+
+    return fragments;
+  }
+
+  static _LatexMatch? _nextLooseLatexFragment(String line, int from) {
+    final patterns = <RegExp>[
+      RegExp(
+        r'\d+(?:\{,\}\d+)?(?:\\,)?\^?\{?\\circ\}?\s*[A-Za-z]',
+      ),
+      RegExp(
+        r'\\(?:Delta|delta|frac|cdot|times|div|sqrt|circ|pi|alpha|beta|gamma|theta|lambda|mu|sigma|sum|int|left|right)\b(?:\{,\}|[^.;\n])*',
+      ),
+      RegExp(
+        r'[A-Za-z\\][A-Za-z0-9\\\s{},+\-*/^=()]*=\s*[A-Za-z0-9\\\s{},+\-*/^()]+',
+      ),
+    ];
+
+    _LatexMatch? best;
+    for (final pattern in patterns) {
+      final match = pattern.matchAsPrefix(line, from) ??
+          pattern.allMatches(line, from).firstOrNull;
+      if (match == null) continue;
+
+      final content = match.group(0)?.trim() ?? '';
+      if (content.isEmpty) continue;
+      if (!_looksLikeLatexFragment(content)) continue;
+
+      final candidate = _LatexMatch(
+        start: match.start,
+        end: match.end,
+        content: content,
+        display: false,
+      );
+
+      if (best == null || candidate.start < best.start) best = candidate;
+    }
+
+    return best;
+  }
+
+  static bool _looksLikeLatexFragment(String text) {
+    return text.contains(r'\') ||
+        text.contains('{') ||
+        text.contains('^') ||
+        text.contains('=');
+  }
+
+  static _LatexMatch? _nextLatex(String text, int from) {
+    final candidates = <_LatexDelimiter>[
+      const _LatexDelimiter(r'\(', r'\)', false),
+      const _LatexDelimiter(r'\[', r'\]', true),
+      const _LatexDelimiter(r'$$', r'$$', true),
+    ];
+
+    _LatexMatch? best;
+    for (final delimiter in candidates) {
+      final start = text.indexOf(delimiter.open, from);
+      if (start < 0) continue;
+
+      final contentStart = start + delimiter.open.length;
+      final end = text.indexOf(delimiter.close, contentStart);
+      if (end < 0) continue;
+
+      final match = _LatexMatch(
+        start: start,
+        end: end + delimiter.close.length,
+        content: text.substring(contentStart, end).trim(),
+        display: delimiter.display,
+      );
+
+      if (best == null || match.start < best.start) best = match;
+    }
+
+    return best;
+  }
+
+  static String _latexTag(String latex, {required bool display}) {
+    final encoded = Uri.encodeComponent(_normalizeLatex(latex));
+    return '<mq-latex data-latex="$encoded" data-display="$display"></mq-latex>';
+  }
+
+  static String _normalizeLatex(String latex) {
+    final decoded = _decodeHtmlEntities(latex)
+        .replaceAll(RegExp(r'\{,\}'), ',')
+        .replaceAllMapped(
+          RegExp(r'\^\\circ\}?([A-Za-z])'),
+          (match) => r'^\circ ' '${match.group(1)}',
+        )
+        .replaceAllMapped(
+          RegExp(r'\^\{\\circ([A-Za-z])'),
+          (match) => r'^\circ ' '${match.group(1)}',
+        )
+        .replaceAllMapped(
+          RegExp(r'\^\{\\circ\}([A-Za-z])'),
+          (match) => r'^{\circ} ' '${match.group(1)}',
+        )
+        .replaceAll(r'\,', ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    final buffer = StringBuffer();
+    var balance = 0;
+    for (final codeUnit in decoded.codeUnits) {
+      final char = String.fromCharCode(codeUnit);
+      if (char == '{') {
+        balance++;
+        buffer.write(char);
+      } else if (char == '}') {
+        if (balance > 0) {
+          balance--;
+          buffer.write(char);
+        }
+      } else {
+        buffer.write(char);
+      }
+    }
+
+    return buffer.toString();
+  }
+
+  static String _latexFallbackText(String latex) {
+    return _decodeHtmlEntities(latex)
+        .replaceAll(RegExp(r'\{,\}'), ',')
+        .replaceAll(RegExp(r'\\,'), ' ')
+        .replaceAllMapped(
+          RegExp(r'\^\{?\\circ\}?\s*([A-Za-z])'),
+          (match) => '${String.fromCharCode(176)}${match.group(1)}',
+        )
+        .replaceAllMapped(
+          RegExp(r'\\circ\}?\s*([A-Za-z])'),
+          (match) => '${String.fromCharCode(176)}${match.group(1)}',
+        )
+        .replaceAll(r'\Delta', String.fromCharCode(916))
+        .replaceAll(r'\delta', String.fromCharCode(948))
+        .replaceAll(r'\cdot', String.fromCharCode(183))
+        .replaceAll(r'\times', String.fromCharCode(215))
+        .replaceAll(r'\div', String.fromCharCode(247))
+        .replaceAll(RegExp(r'[{}]'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  static String _cleanPlainLatexText(String text) {
+    return text.replaceAll(RegExp(r'\{,\}'), ',').replaceAll(r'\,', ' ');
+  }
+
+  static String _escapeHtmlText(String value) {
+    return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+  }
+
+  static String _decodeHtmlEntities(String value) {
+    final named = value
+        .replaceAll('&bsol;', r'\')
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'");
+
+    return named.replaceAllMapped(
+      RegExp(r'&#(?:x([0-9a-fA-F]+)|([0-9]+));'),
+      (match) {
+        final hex = match.group(1);
+        final decimal = match.group(2);
+        final codePoint = hex != null
+            ? int.tryParse(hex, radix: 16)
+            : int.tryParse(decimal ?? '');
+
+        if (codePoint == null) return match.group(0) ?? '';
+        return String.fromCharCode(codePoint);
+      },
+    );
+  }
+}
+
+class _LatexDelimiter {
+  final String open;
+  final String close;
+  final bool display;
+
+  const _LatexDelimiter(this.open, this.close, this.display);
+}
+
+class _LatexMatch {
+  final int start;
+  final int end;
+  final String content;
+  final bool display;
+
+  const _LatexMatch({
+    required this.start,
+    required this.end,
+    required this.content,
+    required this.display,
+  });
+}

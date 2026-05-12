@@ -251,6 +251,7 @@ class QuizRepositoryImpl implements IQuizRepository {
       inputBaseName: parsed.inputBaseName,
       seqCheck: parsed.seqCheck,
       type: resolvedType,
+      answerControls: parsed.answerControls,
       answerInputName: parsed.answerInputName,
       matchData: parsed.matchData,
       gapInputData: parsed.gapInputData,
@@ -330,6 +331,7 @@ class QuizRepositoryImpl implements IQuizRepository {
             inputBaseName: parsed.inputBaseName,
             seqCheck: parsed.seqCheck,
             type: resolvedType,
+            answerControls: parsed.answerControls,
             answerInputName: parsed.answerInputName,
             matchData: parsed.matchData,
             gapInputData: parsed.gapInputData,
@@ -443,6 +445,7 @@ class QuizRepositoryImpl implements IQuizRepository {
             type: q.type,
             generalFeedback: feedback,
             rightAnswerHtml: rightAnswerHtml,
+            answerControls: q.answerControls,
             answerInputName: q.answerInputName,
             matchData: MatchData(
               subQuestions: updatedSubQuestions,
@@ -466,6 +469,7 @@ class QuizRepositoryImpl implements IQuizRepository {
           type: q.type,
           generalFeedback: feedback,
           rightAnswerHtml: rightAnswerHtml,
+          answerControls: q.answerControls,
           answerInputName: q.answerInputName,
           matchData: q.matchData,
           gapInputData: q.gapInputData,
@@ -510,6 +514,7 @@ class QuizRepositoryImpl implements IQuizRepository {
         type: q.type,
         generalFeedback: feedback,
         rightAnswerHtml: rightAnswerHtml,
+        answerControls: q.answerControls,
         answerInputName: q.answerInputName,
         matchData: q.matchData,
         gapInputData: q.gapInputData,
@@ -538,8 +543,7 @@ class QuizRepositoryImpl implements IQuizRepository {
     // seqcheck e submit sempre derivados do inputBaseName (base comum a todos os tipos)
     final seqCheckKey =
         question.inputBaseName.replaceFirst('answer', ':sequencecheck');
-    final submitKey =
-        question.inputBaseName.replaceFirst('answer', '-submit');
+    final submitKey = question.inputBaseName.replaceFirst('answer', '-submit');
 
     final answerData = {
       ...answers,
@@ -616,7 +620,8 @@ class QuizRepositoryImpl implements IQuizRepository {
         if (htmlHasCorrect && !htmlHasIncorrect) return true;
         if (htmlHasIncorrect) return false;
         // Moodle exibe rightanswer apenas quando a resposta está errada
-        if (qHtml.contains('rightanswer') && !qHtml.contains('class="correct"')) {
+        if (qHtml.contains('rightanswer') &&
+            !qHtml.contains('class="correct"')) {
           return false;
         }
 

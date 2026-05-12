@@ -43,5 +43,44 @@ void main() {
           contains(
               'https://moodle.example.edu/pluginfile.php/99/answer.png?token=abc123'));
     });
+
+    test('extracts generic answer controls from Moodle html', () {
+      const html = '''
+<div class="que multianswer deferredfeedback notyetanswered">
+  <div class="qtext">
+    <p>Complete os campos:</p>
+    <label for="short">Resposta curta</label>
+    <input type="text" id="short" name="q42:2_answer" value="">
+    <select name="q42:2_sub1">
+      <option value="0">Escolha...</option>
+      <option value="1">Alpha</option>
+      <option value="2">Beta</option>
+    </select>
+    <label for="essay">Texto</label>
+    <textarea id="essay" name="q42:2_answer_text"></textarea>
+    <label for="check0">Marcar opcao</label>
+    <input type="checkbox" id="check0" name="q42:2_choice0" value="1">
+  </div>
+  <input type="hidden" name="q42:2_:sequencecheck" value="1">
+</div>
+''';
+
+      final parsed = MoodleHtmlParser.parse(
+        html: html,
+        attemptId: 42,
+        slot: 2,
+        token: 'abc123',
+        baseUrl: 'https://moodle.example.edu',
+      );
+
+      final controls = {for (final c in parsed.answerControls) c.name: c};
+      expect(controls['q42:2_answer']?.type, 'text');
+      expect(controls['q42:2_sub1']?.type, 'select');
+      expect(controls['q42:2_sub1']?.options.map((o) => o.text),
+          ['Alpha', 'Beta']);
+      expect(controls['q42:2_answer_text']?.type, 'textarea');
+      expect(controls['q42:2_choice0']?.type, 'checkbox');
+      expect(controls.containsKey('q42:2_:sequencecheck'), isFalse);
+    });
   });
 }

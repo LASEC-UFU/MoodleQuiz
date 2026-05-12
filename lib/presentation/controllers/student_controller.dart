@@ -37,6 +37,7 @@ class StudentController extends ChangeNotifier {
   bool _hasAnswered = false;
   bool _isSubmitting = false;
   bool _lastAnswerCorrect = false;
+  bool _lastAnswerGraded = true;
   bool _isLoadingQuestion = false;
   String? _error;
   String? _attemptError;
@@ -74,6 +75,7 @@ class StudentController extends ChangeNotifier {
   bool get hasAnswered => _hasAnswered;
   bool get isSubmitting => _isSubmitting;
   bool get lastAnswerCorrect => _lastAnswerCorrect;
+  bool get lastAnswerGraded => _lastAnswerGraded;
   bool get isLoadingQuestion => _isLoadingQuestion;
   String? get error => _error;
   String? get attemptError => _attemptError;
@@ -114,6 +116,8 @@ class StudentController extends ChangeNotifier {
     _attemptError = null;
     _selectedAnswers = {};
     _selectedChoiceText = null;
+    _lastAnswerCorrect = false;
+    _lastAnswerGraded = true;
     notifyListeners();
     _checkAndStartPolling(user);
   }
@@ -172,7 +176,11 @@ class StudentController extends ChangeNotifier {
   ///   - gapselect:   selectAnswer(gapInputName, selectedValue)
   void selectAnswer(String inputName, String value) {
     if (_hasAnswered || !_quizState.isActive) return;
-    _selectedAnswers[inputName] = value;
+    if (value.isEmpty) {
+      _selectedAnswers.remove(inputName);
+    } else {
+      _selectedAnswers[inputName] = value;
+    }
 
     // Atualiza texto legível para exibição no feedback pós-resposta
     final q = _currentQuestion;
@@ -190,6 +198,8 @@ class StudentController extends ChangeNotifier {
         _selectedChoiceText = 'Associação enviada';
       } else if (q.isGapSelect || q.isDdwtos) {
         _selectedChoiceText = 'Lacunas preenchidas';
+      } else {
+        _selectedChoiceText = 'Resposta registrada';
       }
     }
     notifyListeners();
@@ -214,14 +224,15 @@ class StudentController extends ChangeNotifier {
         _isSubmitting ||
         courseId == null ||
         _selectedAnswers.isEmpty) {
-      dlog.log('STUDENT', 'submitAnswer cancelado — pré-condição falhou', data: {
-        'question': q != null ? 'slot=${q.slot}' : 'null',
-        'attemptId': id,
-        'hasAnswered': _hasAnswered,
-        'isSubmitting': _isSubmitting,
-        'courseId': courseId,
-        'answersEmpty': _selectedAnswers.isEmpty,
-      });
+      dlog.log('STUDENT', 'submitAnswer cancelado — pré-condição falhou',
+          data: {
+            'question': q != null ? 'slot=${q.slot}' : 'null',
+            'attemptId': id,
+            'hasAnswered': _hasAnswered,
+            'isSubmitting': _isSubmitting,
+            'courseId': courseId,
+            'answersEmpty': _selectedAnswers.isEmpty,
+          });
       return;
     }
 
@@ -249,7 +260,8 @@ class StudentController extends ChangeNotifier {
       final correct =
           await _quizRepo.submitPage(user, id, q, Map.from(_selectedAnswers));
 
-      dlog.log('STUDENT', '★ Resultado: ${correct ? "CORRETO ✓" : "INCORRETO ✗"}',
+      dlog.log(
+          'STUDENT', '★ Resultado: ${correct ? "CORRETO ✓" : "INCORRETO ✗"}',
           data: {'score_a_registrar': correct ? baseScore : 0});
 
       await _quizRepo.submitScore(
@@ -261,6 +273,7 @@ class StudentController extends ChangeNotifier {
       );
 
       _lastAnswerCorrect = correct;
+      _lastAnswerGraded = !q.isEssay;
       _hasAnswered = true;
     } catch (e) {
       dlog.log('STUDENT', '✗ ERRO ao submeter: $e');
@@ -314,6 +327,7 @@ class StudentController extends ChangeNotifier {
         _selectedChoiceText = null;
         _hasAnswered = false;
         _lastAnswerCorrect = false;
+        _lastAnswerGraded = true;
         _autoSubmitted = false;
         _currentQuestion = null;
         _attemptId = null;
@@ -332,6 +346,7 @@ class StudentController extends ChangeNotifier {
         _selectedChoiceText = null;
         _hasAnswered = false;
         _lastAnswerCorrect = false;
+        _lastAnswerGraded = true;
         _autoSubmitted = false;
         _currentQuestion = null;
 

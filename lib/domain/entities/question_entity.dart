@@ -1,7 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import '../../core/utils/moodle_html_parser.dart'
-    show MatchData, GapInputData, ParsedChoice;
+    show MatchData, GapInputData, MoodleAnswerControl, ParsedChoice;
 
 /// Representa uma questão do Moodle já parseada e pronta para exibição.
 class QuestionEntity extends Equatable {
@@ -12,11 +12,13 @@ class QuestionEntity extends Equatable {
   final String displayHtml; // HTML completo para exibição somente leitura
   final List<ParsedChoice> choices;
   final List<String> imageUrls;
-  final String inputBaseName; // "q{attemptId}:{slot}_answer" (base para seqcheck)
+  final String
+      inputBaseName; // "q{attemptId}:{slot}_answer" (base para seqcheck)
   final String seqCheck;
   final String type; // tipo real do Moodle
   final String generalFeedback;
   final String rightAnswerHtml;
+  final List<MoodleAnswerControl> answerControls;
 
   // Dados específicos por tipo
   final String? answerInputName; // campo de texto para numerical/shortanswer
@@ -36,6 +38,7 @@ class QuestionEntity extends Equatable {
     this.type = 'multichoice',
     this.generalFeedback = '',
     this.rightAnswerHtml = '',
+    this.answerControls = const [],
     this.answerInputName,
     this.matchData,
     this.gapInputData,
@@ -45,15 +48,11 @@ class QuestionEntity extends Equatable {
 
   /// Múltipla escolha ou V/F (radio buttons): interativo com botões.
   bool get isMultiChoice =>
-      type == 'multichoice' ||
-      type == 'truefalse' ||
-      type == 'calculatedmulti';
+      type == 'multichoice' || type == 'truefalse' || type == 'calculatedmulti';
 
   /// Numérica ou Calculada: campo de texto numérico.
   bool get isNumerical =>
-      type == 'numerical' ||
-      type == 'calculated' ||
-      type == 'calculatedsimple';
+      type == 'numerical' || type == 'calculated' || type == 'calculatedsimple';
 
   /// Resposta curta: campo de texto livre.
   bool get isShortAnswer => type == 'shortanswer';
@@ -80,13 +79,20 @@ class QuestionEntity extends Equatable {
   bool get isGeoGebra => type == 'geogebra';
 
   /// Arrastar e soltar em imagem.
-  bool get isDdImage =>
-      type == 'ddimageortext' || type == 'ddmarker';
+  bool get isDdImage => type == 'ddimageortext' || type == 'ddmarker';
 
   /// Tipos que têm widget interativo no app.
   bool get isInteractive =>
-      isMultiChoice || isNumerical || isShortAnswer || isMatch ||
-      isGapSelect || isDdwtos;
+      isMultiChoice ||
+      isNumerical ||
+      isShortAnswer ||
+      isMatch ||
+      isGapSelect ||
+      isDdwtos ||
+      isCloze ||
+      isOrdering ||
+      isEssay ||
+      answerControls.any((c) => c.isAnswerable);
 
   @override
   List<Object?> get props => [slot];

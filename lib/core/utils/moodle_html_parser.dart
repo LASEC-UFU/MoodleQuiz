@@ -10,7 +10,8 @@ import 'package:html/parser.dart' as html_parser;
 class ParsedChoice {
   final String value; // "0", "1", "2"…
   final String text; // texto exibido para o aluno
-  final String htmlText; // alternativa como HTML rico (preserva imagens/tabelas)
+  final String
+      htmlText; // alternativa como HTML rico (preserva imagens/tabelas)
   final bool isCorrect; // true se esta alternativa é a resposta correta
 
   const ParsedChoice({
@@ -19,6 +20,33 @@ class ParsedChoice {
     this.htmlText = '',
     this.isCorrect = false,
   });
+}
+
+/// Controle de resposta bruto extraido do HTML do Moodle.
+class MoodleAnswerControl {
+  final String name;
+  final String type;
+  final String value;
+  final String label;
+  final String htmlLabel;
+  final List<ParsedChoice> options;
+
+  const MoodleAnswerControl({
+    required this.name,
+    required this.type,
+    this.value = '',
+    this.label = '',
+    this.htmlLabel = '',
+    this.options = const [],
+  });
+
+  bool get isHidden => type == 'hidden';
+  bool get isText => type == 'text' || type == 'number';
+  bool get isLongText => type == 'textarea';
+  bool get isSingleChoice => type == 'radio';
+  bool get isMultipleChoice => type == 'checkbox';
+  bool get isSelect => type == 'select';
+  bool get isAnswerable => !isHidden;
 }
 
 /// Sub-questão de uma questão de Associação (match).
@@ -73,12 +101,15 @@ class ParsedQuestion {
   final String displayHtml; // HTML completo da questão (todos os blocos)
   final List<ParsedChoice> choices;
   final List<String> imageUrls;
-  final String inputBaseName; // "q{attemptId}:{slot}_answer" (usado para seqcheck)
+  final String
+      inputBaseName; // "q{attemptId}:{slot}_answer" (usado para seqcheck)
   final String seqCheck; // valor do input sequencecheck
   final String type; // tipo real do Moodle (ou inferido)
+  final List<MoodleAnswerControl> answerControls;
 
   // Dados específicos por tipo
-  final String? answerInputName; // nome do campo de texto (numerical/shortanswer)
+  final String?
+      answerInputName; // nome do campo de texto (numerical/shortanswer)
   final MatchData? matchData; // estrutura de associação (match)
   final GapInputData? gapInputData; // estrutura de lacunas (gapselect/ddwtos)
 
@@ -92,15 +123,14 @@ class ParsedQuestion {
     required this.inputBaseName,
     required this.seqCheck,
     required this.type,
+    this.answerControls = const [],
     this.answerInputName,
     this.matchData,
     this.gapInputData,
   });
 
   bool get isMultiChoice =>
-      type == 'multichoice' ||
-      type == 'truefalse' ||
-      type == 'calculatedmulti';
+      type == 'multichoice' || type == 'truefalse' || type == 'calculatedmulti';
 }
 
 // ── Parser ────────────────────────────────────────────────────────────────────
@@ -119,13 +149,16 @@ class MoodleHtmlParser {
     final htmlType = _extractTypeFromHtml(html);
 
     final choices = _extractChoices(html, token, baseUrl);
+    final answerControls = _extractAnswerControls(html, token, baseUrl);
 
     // Resolve o tipo final: prefere o tipo inferido do HTML; fallback para contagem de radios
     String type;
     if (htmlType.isNotEmpty) {
       if (htmlType == 'multichoice' || htmlType == 'calculatedmulti') {
         // Valida com contagem de choices para truefalse
-        type = (choices.isNotEmpty && choices.length == 2) ? 'truefalse' : htmlType;
+        type = (choices.isNotEmpty && choices.length == 2)
+            ? 'truefalse'
+            : htmlType;
       } else {
         type = htmlType;
       }
@@ -172,6 +205,7 @@ class MoodleHtmlParser {
       inputBaseName: inputBase,
       seqCheck: seqCheck,
       type: type,
+      answerControls: answerControls,
       answerInputName: answerInputName,
       matchData: matchData,
       gapInputData: gapInputData,
@@ -389,10 +423,14 @@ class MoodleHtmlParser {
 
     // Selects → mostra as opções disponíveis como lista visual compacta
     for (final select in fragment.querySelectorAll('select')) {
-      final options = select.querySelectorAll('option').where((o) {
-        final v = o.attributes['value'] ?? '';
-        return v.isNotEmpty && v != '0';
-      }).map((o) => _stripHtml(o.innerHtml).trim()).where((t) => t.isNotEmpty);
+      final options = select
+          .querySelectorAll('option')
+          .where((o) {
+            final v = o.attributes['value'] ?? '';
+            return v.isNotEmpty && v != '0';
+          })
+          .map((o) => _stripHtml(o.innerHtml).trim())
+          .where((t) => t.isNotEmpty);
 
       final placeholder = dom.Element.tag('span');
       if (options.isNotEmpty) {
@@ -428,8 +466,8 @@ class MoodleHtmlParser {
     final fragment = html_parser.parseFragment(html);
 
     // Moodle 4.x: linhas em table.answer ou tabelas genéricas dentro de .ablock
-    final rows = fragment.querySelectorAll(
-        'table.answer tr, .ablock table tr, .answer tr');
+    final rows = fragment
+        .querySelectorAll('table.answer tr, .ablock table tr, .answer tr');
 
     final subQuestions = <MatchSubQuestion>[];
     final options = <ParsedChoice>[];
@@ -527,9 +565,9 @@ class MoodleHtmlParser {
     // ── Estratégia 2: drop spans + drag items (ddwtos JS) ──────────────────
     final drops = fragment.querySelectorAll(
         '.drop, span[class*="drop"][class*="empty"], span[class*="drop"][class*="active"]');
-    final drags = fragment.querySelectorAll(
-        '.drag:not(.dragplaceholder), .dragitem, '
-        'span[class*="drag"]:not([class*="placeholder"])');
+    final drags =
+        fragment.querySelectorAll('.drag:not(.dragplaceholder), .dragitem, '
+            'span[class*="drag"]:not([class*="placeholder"])');
 
     if (drops.isNotEmpty && drags.isNotEmpty) {
       final options = <ParsedChoice>[];
@@ -583,9 +621,9 @@ class MoodleHtmlParser {
     }
 
     // Drop spans → marcadores numerados
-    for (final el in fragment.querySelectorAll(
-        '.drop, span[class*="drop"][class*="empty"], '
-        'span[class*="drop"][class*="active"]')) {
+    for (final el in fragment
+        .querySelectorAll('.drop, span[class*="drop"][class*="empty"], '
+            'span[class*="drop"][class*="active"]')) {
       replaceWithMarker(el);
     }
 
@@ -597,9 +635,9 @@ class MoodleHtmlParser {
     }
 
     // Remove elementos de controle
-    for (final el in fragment.querySelectorAll(
-        '.accesshide, .sr-only, input[type="hidden"], '
-        'input[type="submit"], input[type="button"]')) {
+    for (final el in fragment
+        .querySelectorAll('.accesshide, .sr-only, input[type="hidden"], '
+            'input[type="submit"], input[type="button"]')) {
       el.remove();
     }
 
@@ -631,6 +669,197 @@ class MoodleHtmlParser {
   }
 
   // ── Extração do HTML do enunciado ─────────────────────────────────────────
+
+  static List<MoodleAnswerControl> _extractAnswerControls(
+      String html, String token, String baseUrl) {
+    final fragment = html_parser.parseFragment(html);
+    final labelByFor = <String, _ChoiceContent>{};
+    final labelById = <String, _ChoiceContent>{};
+
+    for (final label in fragment.querySelectorAll('label[for]')) {
+      final id = label.attributes['for'] ?? '';
+      if (id.isEmpty) continue;
+      final content = _choiceContentFromElement(label, token, baseUrl);
+      if (content.hasContent) labelByFor[id] = content;
+    }
+
+    for (final label
+        in fragment.querySelectorAll('[data-region="answer-label"]')) {
+      final id = label.id;
+      if (id.isEmpty) continue;
+      final content = _choiceContentFromElement(label, token, baseUrl);
+      if (content.hasContent) labelById[id] = content;
+    }
+
+    final controls = <MoodleAnswerControl>[];
+    final radioGroups = <String, List<ParsedChoice>>{};
+    final radioGroupOrder = <String>[];
+
+    for (final input in fragment.querySelectorAll('input')) {
+      final name = input.attributes['name'] ?? '';
+      if (!_isAnswerFieldName(name)) continue;
+
+      final type = (input.attributes['type'] ?? 'text').toLowerCase();
+      if (_shouldSkipInputType(type)) continue;
+
+      final value = input.attributes['value'] ?? '';
+      final label = _controlLabel(input, labelByFor, labelById, token, baseUrl);
+
+      if (type == 'radio') {
+        if (value.isEmpty || value == '-1') continue;
+        radioGroups.putIfAbsent(name, () {
+          radioGroupOrder.add(name);
+          return <ParsedChoice>[];
+        }).add(ParsedChoice(
+          value: value,
+          text: label.text,
+          htmlText: label.html,
+        ));
+        continue;
+      }
+
+      if (type == 'checkbox') {
+        controls.add(MoodleAnswerControl(
+          name: name,
+          type: 'checkbox',
+          value: value.isEmpty ? '1' : value,
+          label: label.text,
+          htmlLabel: label.html,
+        ));
+        continue;
+      }
+
+      if (type == 'hidden') {
+        controls.add(MoodleAnswerControl(
+          name: name,
+          type: 'hidden',
+          value: value,
+        ));
+        continue;
+      }
+
+      controls.add(MoodleAnswerControl(
+        name: name,
+        type: type == 'number' ? 'number' : 'text',
+        value: value,
+        label: label.text,
+        htmlLabel: label.html,
+      ));
+    }
+
+    for (final select in fragment.querySelectorAll('select')) {
+      final name = select.attributes['name'] ?? '';
+      if (!_isAnswerFieldName(name)) continue;
+      final label =
+          _controlLabel(select, labelByFor, labelById, token, baseUrl);
+      final options = <ParsedChoice>[];
+      for (final option in select.querySelectorAll('option')) {
+        final value = option.attributes['value'] ?? '';
+        if (value.isEmpty || value == '0') continue;
+        final htmlText = _rewriteResourceUrls(option.innerHtml, token, baseUrl);
+        final text = _stripHtml(htmlText).trim();
+        if (text.isEmpty && htmlText.trim().isEmpty) continue;
+        options.add(ParsedChoice(
+          value: value,
+          text: text,
+          htmlText: htmlText.trim(),
+        ));
+      }
+      controls.add(MoodleAnswerControl(
+        name: name,
+        type: 'select',
+        label: label.text,
+        htmlLabel: label.html,
+        options: options,
+      ));
+    }
+
+    for (final textarea in fragment.querySelectorAll('textarea')) {
+      final name = textarea.attributes['name'] ?? '';
+      if (!_isAnswerFieldName(name)) continue;
+      final label =
+          _controlLabel(textarea, labelByFor, labelById, token, baseUrl);
+      controls.add(MoodleAnswerControl(
+        name: name,
+        type: 'textarea',
+        value: textarea.text,
+        label: label.text,
+        htmlLabel: label.html,
+      ));
+    }
+
+    for (final name in radioGroupOrder.reversed) {
+      final options = radioGroups[name] ?? const <ParsedChoice>[];
+      if (options.isEmpty) continue;
+      controls.insert(
+        0,
+        MoodleAnswerControl(
+          name: name,
+          type: 'radio',
+          options: options,
+        ),
+      );
+    }
+
+    return controls;
+  }
+
+  static bool _isAnswerFieldName(String name) {
+    if (name.isEmpty || !name.startsWith('q')) return false;
+    if (name.contains(':sequencecheck')) return false;
+    if (name.endsWith('-submit')) return false;
+    return true;
+  }
+
+  static bool _shouldSkipInputType(String type) {
+    return type == 'submit' ||
+        type == 'button' ||
+        type == 'reset' ||
+        type == 'image' ||
+        type == 'file';
+  }
+
+  static _ChoiceContent _controlLabel(
+    dom.Element element,
+    Map<String, _ChoiceContent> labelByFor,
+    Map<String, _ChoiceContent> labelById,
+    String token,
+    String baseUrl,
+  ) {
+    final id = element.id;
+    if (id.isNotEmpty && labelByFor.containsKey(id)) return labelByFor[id]!;
+
+    final ariaLabelledBy = element.attributes['aria-labelledby'] ?? '';
+    if (ariaLabelledBy.isNotEmpty && labelById.containsKey(ariaLabelledBy)) {
+      return labelById[ariaLabelledBy]!;
+    }
+
+    final nearest = _nearestControlLabel(element);
+    if (nearest != null) {
+      final html = _rewriteResourceUrls(nearest.innerHtml, token, baseUrl);
+      final text = _stripHtml(html).trim();
+      if (text.isNotEmpty || html.trim().isNotEmpty) {
+        return _ChoiceContent(text: text, html: html.trim());
+      }
+    }
+
+    return const _ChoiceContent(text: '', html: '');
+  }
+
+  static dom.Element? _nearestControlLabel(dom.Element element) {
+    dom.Element? current = element.parent;
+    var depth = 0;
+    while (current != null && depth < 4) {
+      if (current.localName == 'label') return current;
+      final textCell = current.querySelector('.text, .prompt, .qtext');
+      if (textCell != null && textCell.text.trim().isNotEmpty) {
+        return textCell;
+      }
+      current = current.parent;
+      depth++;
+    }
+    return null;
+  }
 
   static String _extractHtmlText(String html, String token, String baseUrl) {
     String content =

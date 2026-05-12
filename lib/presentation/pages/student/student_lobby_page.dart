@@ -98,6 +98,7 @@ class _StudentLobbyPageState extends State<StudentLobbyPage> {
     if (state.isClosed) {
       return _ClosedQuestionView(
         wasCorrect: student.lastAnswerCorrect,
+        wasGraded: student.lastAnswerGraded,
         answered: student.hasAnswered,
         selectedText: student.selectedChoiceText,
         myScore: myScore,
@@ -390,6 +391,7 @@ class _ScoreSummaryCard extends StatelessWidget {
 
 class _ClosedQuestionView extends StatelessWidget {
   final bool wasCorrect;
+  final bool wasGraded;
   final bool answered;
   final String? selectedText;
   final ScoreEntity? myScore;
@@ -397,6 +399,7 @@ class _ClosedQuestionView extends StatelessWidget {
 
   const _ClosedQuestionView({
     required this.wasCorrect,
+    required this.wasGraded,
     required this.answered,
     required this.selectedText,
     required this.myScore,
@@ -419,18 +422,22 @@ class _ClosedQuestionView extends StatelessWidget {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: answered
-                        ? (wasCorrect
-                            ? [AppTheme.success, const Color(0xFF00A152)]
-                            : [AppTheme.danger, const Color(0xFFB71C1C)])
+                        ? (!wasGraded
+                            ? [AppTheme.accent, AppTheme.primary]
+                            : (wasCorrect
+                                ? [AppTheme.success, const Color(0xFF00A152)]
+                                : [AppTheme.danger, const Color(0xFFB71C1C)]))
                         : [AppTheme.warning, const Color(0xFFF57F17)],
                   ),
                   borderRadius: BorderRadius.circular(50),
                   boxShadow: [
                     BoxShadow(
                       color: (answered
-                              ? (wasCorrect
-                                  ? AppTheme.success
-                                  : AppTheme.danger)
+                              ? (!wasGraded
+                                  ? AppTheme.accent
+                                  : (wasCorrect
+                                      ? AppTheme.success
+                                      : AppTheme.danger))
                               : AppTheme.warning)
                           .withValues(alpha: 0.4),
                       blurRadius: 24,
@@ -439,7 +446,9 @@ class _ClosedQuestionView extends StatelessWidget {
                 ),
                 child: Icon(
                   answered
-                      ? (wasCorrect ? Icons.check_circle : Icons.cancel)
+                      ? (!wasGraded
+                          ? Icons.check_circle
+                          : (wasCorrect ? Icons.check_circle : Icons.cancel))
                       : Icons.timer_off,
                   color: Colors.white,
                   size: 52,
@@ -448,7 +457,9 @@ class _ClosedQuestionView extends StatelessWidget {
               const SizedBox(height: 24),
               Text(
                 answered
-                    ? (wasCorrect ? 'Correto! +1000 pts' : 'Incorreto!')
+                    ? (!wasGraded
+                        ? 'Resposta enviada!'
+                        : (wasCorrect ? 'Correto! +1000 pts' : 'Incorreto!'))
                     : 'Tempo esgotado!',
                 style: AppTheme.headlineMedium,
               ),
@@ -480,8 +491,11 @@ class _ClosedQuestionView extends StatelessWidget {
                       Text(
                         selectedText!,
                         style: TextStyle(
-                          color:
-                              wasCorrect ? AppTheme.success : AppTheme.danger,
+                          color: !wasGraded
+                              ? AppTheme.accent
+                              : (wasCorrect
+                                  ? AppTheme.success
+                                  : AppTheme.danger),
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
                         ),
