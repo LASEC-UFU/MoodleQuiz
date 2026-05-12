@@ -11,6 +11,7 @@ import '../../../core/utils/responsive.dart';
 import '../../../domain/entities/question_entity.dart';
 import '../../controllers/professor_controller.dart';
 import '../../widgets/moodle_image.dart';
+import '../../widgets/question_engine_widget.dart';
 
 /// Tela de revisão da questão para o professor apresentar aos alunos.
 /// Mostra o enunciado completo (HTML rico) e as alternativas com a
@@ -199,7 +200,26 @@ class _QuestionReveal extends StatelessWidget {
     // Decide qual HTML usar para o enunciado
     final questionHtml = question.isMultiChoice
         ? (question.htmlText.isNotEmpty ? question.htmlText : '')
-        : (question.displayHtml.isNotEmpty ? question.displayHtml : question.htmlText);
+        : (question.displayHtml.isNotEmpty
+            ? question.displayHtml
+            : question.htmlText);
+
+    if (!showFeedback) {
+      return SingleChildScrollView(
+        padding:
+            Responsive.horizontalPadding(context).copyWith(top: 8, bottom: 32),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1200),
+            child: QuestionEngineWidget(
+              question: question,
+              mode: QuestionEngineMode.reveal,
+              showCorrect: showCorrect,
+            ),
+          ),
+        ),
+      );
+    }
 
     return SingleChildScrollView(
       padding:
@@ -215,7 +235,8 @@ class _QuestionReveal extends StatelessWidget {
                 padding: const EdgeInsets.all(20),
                 decoration: AppTheme.cardDecoration(glowing: false),
                 child: questionHtml.isNotEmpty
-                    ? MoodleHtml(html: questionHtml, textStyle: questionTextStyle)
+                    ? MoodleHtml(
+                        html: questionHtml, textStyle: questionTextStyle)
                     : Text(
                         question.text,
                         style: TextStyle(
@@ -237,8 +258,7 @@ class _QuestionReveal extends StatelessWidget {
                   ..._buildChoicesList(isMobile),
 
                 // Associação (Match): tabela premissa → resposta
-                if (question.isMatch)
-                  _buildMatchReveal(isMobile),
+                if (question.isMatch) _buildMatchReveal(isMobile),
 
                 // Numérica / Calculada / Resposta curta: rightAnswerHtml
                 if ((question.isNumerical || question.isShortAnswer) &&
@@ -328,20 +348,20 @@ class _QuestionReveal extends StatelessWidget {
                   ? MoodleHtml(
                       html: choice.htmlText,
                       textStyle: TextStyle(
-                        color: correct ? AppTheme.success : AppTheme.textPrimary,
+                        color:
+                            correct ? AppTheme.success : AppTheme.textPrimary,
                         fontSize: isMobile ? 14 : 16,
-                        fontWeight:
-                            correct ? FontWeight.w700 : FontWeight.w500,
+                        fontWeight: correct ? FontWeight.w700 : FontWeight.w500,
                         height: 1.4,
                       ),
                     )
                   : Text(
                       choice.text,
                       style: TextStyle(
-                        color: correct ? AppTheme.success : AppTheme.textPrimary,
+                        color:
+                            correct ? AppTheme.success : AppTheme.textPrimary,
                         fontSize: isMobile ? 14 : 16,
-                        fontWeight:
-                            correct ? FontWeight.w700 : FontWeight.w500,
+                        fontWeight: correct ? FontWeight.w700 : FontWeight.w500,
                       ),
                     ),
             ),
@@ -422,8 +442,7 @@ class _QuestionReveal extends StatelessWidget {
                 : '—';
 
             return Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 border: Border(
                   top: idx > 0
@@ -459,7 +478,9 @@ class _QuestionReveal extends StatelessWidget {
                     child: Text(
                       showCorrect ? correctText : '______',
                       style: TextStyle(
-                        color: showCorrect ? AppTheme.success : AppTheme.textSecondary,
+                        color: showCorrect
+                            ? AppTheme.success
+                            : AppTheme.textSecondary,
                         fontSize: isMobile ? 13 : 15,
                         fontWeight:
                             showCorrect ? FontWeight.w700 : FontWeight.w400,

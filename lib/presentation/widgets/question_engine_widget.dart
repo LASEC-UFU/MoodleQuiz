@@ -39,6 +39,8 @@ class QuestionEngineWidget extends StatelessWidget {
   });
 
   bool get _isAnswerMode => mode == QuestionEngineMode.answer;
+  bool get _controlsDisabled =>
+      !_isAnswerMode || hasAnswered || onSelectAnswer == null;
 
   static const _letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
@@ -115,8 +117,7 @@ class QuestionEngineWidget extends StatelessWidget {
     if (question.isMultiChoice && question.choices.isNotEmpty) {
       return question.htmlText;
     }
-    if (_isAnswerMode &&
-        (question.isGapSelect || question.isDdwtos) &&
+    if ((question.isGapSelect || question.isDdwtos) &&
         question.gapInputData != null) {
       return MoodleHtmlParser.extractTextWithGapMarkers(
         question.htmlText.isNotEmpty ? question.htmlText : question.displayHtml,
@@ -130,39 +131,37 @@ class QuestionEngineWidget extends StatelessWidget {
   }
 
   List<Widget> _buildAnswerSurface(TextStyle textStyle) {
+    final surface = <Widget>[];
+
     if (question.isMultiChoice && question.choices.isNotEmpty) {
-      return _isAnswerMode
-          ? _buildChoiceInputs()
-          : _buildStaticChoices(choices: question.choices);
+      surface.addAll(_buildChoiceInputs());
+    } else {
+      final checkboxControls = _answerableControls
+          .where((c) => c.isMultipleChoice)
+          .toList(growable: false);
+      if (checkboxControls.isNotEmpty) {
+        surface.add(_buildCheckboxInputs(checkboxControls));
+      } else if (question.isMatch && question.matchData != null) {
+        surface.add(_buildMatchInputs(textStyle));
+      } else if ((question.isGapSelect || question.isDdwtos) &&
+          question.gapInputData != null) {
+        surface.add(_buildGapInputs());
+      } else {
+        final genericControls = _genericControls;
+        if (genericControls.isNotEmpty) {
+          surface.add(_buildGenericControls(genericControls));
+        }
+      }
     }
 
-    final checkboxControls = _answerableControls
-        .where((c) => c.isMultipleChoice)
-        .toList(growable: false);
-    if (checkboxControls.isNotEmpty) {
-      return _isAnswerMode
-          ? [_buildCheckboxInputs(checkboxControls)]
-          : [_buildStaticCheckboxes(checkboxControls)];
-    }
-
-    if (question.isMatch && question.matchData != null) {
-      return _isAnswerMode
-          ? [_buildMatchInputs(textStyle)]
-          : [_buildStaticMatch(textStyle)];
-    }
-
-    if ((question.isGapSelect || question.isDdwtos) &&
-        question.gapInputData != null) {
-      return _isAnswerMode
-          ? [_buildGapInputs()]
-          : _buildStaticGapAnswer(textStyle);
-    }
-
-    final genericControls = _genericControls;
-    if (genericControls.isNotEmpty) {
-      return _isAnswerMode
-          ? [_buildGenericControls(genericControls)]
-          : [_buildStaticGenericControls(genericControls)];
+    if (surface.isNotEmpty) {
+      if (!_isAnswerMode &&
+          showCorrect &&
+          question.rightAnswerHtml.isNotEmpty) {
+        surface.add(SizedBox(height: compact ? 8 : 12));
+        surface.add(_buildRightAnswerCard(textStyle));
+      }
+      return surface;
     }
 
     if (!_isAnswerMode && showCorrect && question.rightAnswerHtml.isNotEmpty) {
@@ -264,71 +263,11 @@ class QuestionEngineWidget extends StatelessWidget {
           label: letter,
           text: choice.text,
           htmlText: choice.htmlText,
-          isSelected: selected == choice.value,
-          isDisabled: hasAnswered,
+          isSelected:
+              selected == choice.value || (showCorrect && choice.isCorrect),
+          isDisabled: _controlsDisabled,
           onTap: () =>
               onSelectAnswer?.call(question.inputBaseName, choice.value),
-        ),
-      );
-    }).toList();
-  }
-
-  List<Widget> _buildStaticChoices({required List<ParsedChoice> choices}) {
-    return choices.asMap().entries.map((entry) {
-      final index = entry.key;
-      final choice = entry.value;
-      final letter = index < _letters.length ? _letters[index] : '${index + 1}';
-      final correct = showCorrect && choice.isCorrect;
-
-      return Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: EdgeInsets.symmetric(
-          horizontal: compact ? 10 : 14,
-          vertical: compact ? 8 : 12,
-        ),
-        decoration: BoxDecoration(
-          color: correct
-              ? AppTheme.success.withValues(alpha: 0.18)
-              : AppTheme.bgCardAlt,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: correct ? AppTheme.success : AppTheme.bgCardAlt,
-            width: correct ? 1.5 : 1,
-          ),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _badge(letter, correct),
-            const SizedBox(width: 10),
-            Expanded(
-              child: choice.htmlText.isNotEmpty
-                  ? MoodleHtmlRenderer(
-                      html: choice.htmlText,
-                      textStyle: TextStyle(
-                        color:
-                            correct ? AppTheme.success : AppTheme.textPrimary,
-                        fontSize: compact ? 13 : 16,
-                        fontWeight: correct ? FontWeight.w700 : FontWeight.w500,
-                        height: 1.4,
-                      ),
-                    )
-                  : Text(
-                      choice.text,
-                      style: TextStyle(
-                        color:
-                            correct ? AppTheme.success : AppTheme.textPrimary,
-                        fontSize: compact ? 13 : 16,
-                        fontWeight: correct ? FontWeight.w700 : FontWeight.w500,
-                      ),
-                    ),
-            ),
-            if (correct) ...[
-              const SizedBox(width: 8),
-              const Icon(Icons.check_circle_rounded,
-                  color: AppTheme.success, size: 20),
-            ],
-          ],
         ),
       );
     }).toList();
@@ -364,7 +303,7 @@ class QuestionEngineWidget extends StatelessWidget {
           final selected = selectedAnswers[control.name] == control.value;
           return CheckboxListTile(
             value: selected,
-            onChanged: hasAnswered
+            onChanged: _controlsDisabled
                 ? null
                 : (next) => onSelectAnswer?.call(
                       control.name,
@@ -379,27 +318,6 @@ class QuestionEngineWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildStaticCheckboxes(List<MoodleAnswerControl> controls) {
-    return Container(
-      padding: EdgeInsets.all(compact ? 10 : 14),
-      decoration: AppTheme.cardDecoration(color: AppTheme.bgCardAlt),
-      child: Column(
-        children: controls
-            .map(
-              (control) => Row(
-                children: [
-                  const Icon(Icons.check_box_outline_blank_rounded,
-                      color: AppTheme.textSecondary, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(child: _controlLabel(control)),
-                ],
-              ),
-            )
-            .toList(),
-      ),
-    );
-  }
-
   Widget _buildMatchInputs(TextStyle textStyle) {
     final matchData = question.matchData!;
     return Container(
@@ -409,7 +327,8 @@ class QuestionEngineWidget extends StatelessWidget {
         children: matchData.subQuestions.asMap().entries.map((entry) {
           final index = entry.key;
           final sub = entry.value;
-          final selected = selectedAnswers[sub.inputName];
+          final selected = selectedAnswers[sub.inputName] ??
+              (!_isAnswerMode && showCorrect ? sub.correctValue : null);
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Column(
@@ -437,67 +356,6 @@ class QuestionEngineWidget extends StatelessWidget {
                   onChanged: (value) => onSelectAnswer?.call(
                     sub.inputName,
                     value ?? '',
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildStaticMatch(TextStyle textStyle) {
-    final matchData = question.matchData;
-    if (matchData == null || matchData.subQuestions.isEmpty) {
-      return showCorrect && question.rightAnswerHtml.isNotEmpty
-          ? _buildRightAnswerCard(textStyle)
-          : const SizedBox.shrink();
-    }
-
-    final optionText = {for (final o in matchData.options) o.value: o.text};
-    return Container(
-      decoration: BoxDecoration(
-        color: AppTheme.bgCard,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppTheme.bgCardAlt),
-      ),
-      child: Column(
-        children: matchData.subQuestions.map((sub) {
-          final answer = sub.correctValue != null
-              ? optionText[sub.correctValue] ?? ''
-              : '';
-          return Padding(
-            padding: EdgeInsets.all(compact ? 10 : 12),
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: sub.htmlText.isNotEmpty
-                      ? MoodleHtmlRenderer(
-                          html: sub.htmlText,
-                          textStyle:
-                              textStyle.copyWith(fontSize: compact ? 12 : 14),
-                        )
-                      : Text(sub.text, style: textStyle),
-                ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 8),
-                  child: Icon(Icons.arrow_forward_rounded,
-                      color: AppTheme.accent, size: 16),
-                ),
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    showCorrect && answer.isNotEmpty ? answer : '______',
-                    style: TextStyle(
-                      color: showCorrect
-                          ? AppTheme.success
-                          : AppTheme.textSecondary,
-                      fontSize: compact ? 12 : 14,
-                      fontWeight:
-                          showCorrect ? FontWeight.w700 : FontWeight.w400,
-                    ),
                   ),
                 ),
               ],
@@ -543,21 +401,6 @@ class QuestionEngineWidget extends StatelessWidget {
     );
   }
 
-  List<Widget> _buildStaticGapAnswer(TextStyle textStyle) {
-    if (showCorrect && question.rightAnswerHtml.isNotEmpty) {
-      return [_buildRightAnswerCard(textStyle)];
-    }
-    return [
-      _buildInfoBanner(
-        icon: Icons.edit_note_rounded,
-        color: AppTheme.accent,
-        message: question.isDdwtos
-            ? 'Arrastar e soltar palavras - respondido neste app com seletores.'
-            : 'Selecionar palavras - lacunas respondidas neste app.',
-      ),
-    ];
-  }
-
   Widget _buildGenericControls(List<MoodleAnswerControl> controls) {
     return Container(
       padding: const EdgeInsets.all(14),
@@ -589,7 +432,7 @@ class QuestionEngineWidget extends StatelessWidget {
               control,
               TextFormField(
                 initialValue: selectedAnswers[control.name] ?? control.value,
-                enabled: !hasAnswered,
+                enabled: !_controlsDisabled,
                 minLines: control.isLongText ? 4 : 1,
                 maxLines: control.isLongText ? 8 : 1,
                 keyboardType:
@@ -606,54 +449,6 @@ class QuestionEngineWidget extends StatelessWidget {
             ),
           );
         }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildStaticGenericControls(List<MoodleAnswerControl> controls) {
-    return Container(
-      padding: EdgeInsets.all(compact ? 10 : 14),
-      decoration: AppTheme.cardDecoration(color: AppTheme.bgCardAlt),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ...controls.map((control) {
-            if (control.isSelect || control.isSingleChoice) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: _labeledField(
-                  control,
-                  Text(
-                    control.options.map((o) => o.text).join(' / '),
-                    style: const TextStyle(color: AppTheme.textSecondary),
-                  ),
-                ),
-              );
-            }
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: _labeledField(
-                control,
-                Container(
-                  height: control.isLongText ? 80 : 38,
-                  decoration: BoxDecoration(
-                    color: AppTheme.bgDark,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppTheme.bgCardAlt),
-                  ),
-                ),
-              ),
-            );
-          }),
-          if (showCorrect && question.rightAnswerHtml.isNotEmpty)
-            _buildRightAnswerCard(
-              TextStyle(
-                color: AppTheme.success,
-                fontSize: compact ? 13 : 15,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-        ],
       ),
     );
   }
@@ -735,7 +530,7 @@ class QuestionEngineWidget extends StatelessWidget {
               ),
             )
             .toList(),
-        onChanged: hasAnswered ? null : onChanged,
+        onChanged: _controlsDisabled ? null : onChanged,
       ),
     );
   }
