@@ -198,35 +198,80 @@ class MoodleHtmlParser {
     return content.trim();
   }
 
+  /// Extrai o HTML do bloco `.rightanswer` da revisão (se houver).
+  /// Útil para tipos não múltipla escolha (Cloze, Drag&Drop, Numerical,
+  /// Match, Shortanswer…) onde o gabarito não pode ser projetado em
+  /// alternativas de rádio.
+  static String parseRightAnswerHtml(
+      String reviewHtml, String token, String baseUrl) {
+    final content = _extractTag(reviewHtml, 'rightanswer') ?? '';
+    if (content.isEmpty) return '';
+    return _rewriteResourceUrls(content.trim(), token, baseUrl);
+  }
+
   // ── HTML completo para exibição somente leitura ──────────────────────────
 
-  /// Retorna o HTML COMPLETO da questão para exibição (aluno / professor).
-  /// Preserva imagens e conteúdo visual de TODOS os blocos (qtext, ablock,
-  /// dropzones, drag-items, etc.).
+  /// Retorna o HTML da QUESTÃO em si para exibição (aluno / professor),
+  /// imitando a aparência do Moodle: apenas o conteúdo de `.formulation`
+  /// (que contém `.qtext` + `.ablock`), SEM cromo de gestão (botão de
+  /// marcar questão, "v1 (mais recente)", cabeçalho "Texto da questão",
+  /// botões "Verificar" etc.).
   ///
-  /// Importante: para manter a aparência do Moodle em questões de
-  /// Arrastar&Soltar/Cloze/Associação, NÃO removemos inputs/botões/select.
-  /// Removemos apenas tags potencialmente inseguras ou sem valor visual.
-  /// Essencial para questões de Arrastar&Soltar, Associação, GeoGebra, Cloze…
+  /// Em questões de Arrastar&Soltar/Cloze/Associação, os inputs `text`
+  /// (que o Moodle usa como placeholders das lacunas) são convertidos em
+  /// caixas visuais vazias; spans de leitor de tela ("Em branco 1 …",
+  /// "Questão N") são removidos para não poluir o texto.
   static String extractDisplayHtml(String html, String token, String baseUrl) {
     final fragment = html_parser.parseFragment(html);
 
-    // Remove apenas elementos potencialmente inseguros ou não renderizáveis.
-    for (final el in fragment.querySelectorAll('script, style, noscript')) {
+    // Remove tags inseguras ou sem valor visual
+    for (final el in fragment.querySelectorAll(
+        'script, style, noscript, button, .submitbtns, .qn_buttontoggle, '
+        '.questionflag, .questionflagsavebutton, .info, .history, '
+        '.qheader, .grade, .state, .toggle-button, .editquestion, '
+        '.que-finish-attempt, .editquestion-toolbar')) {
       el.remove();
     }
 
-    // Reconstrói o HTML a partir dos nós do fragmento
-    final buffer = StringBuffer();
-    for (final node in fragment.nodes) {
-      if (node is dom.Element) {
-        buffer.write(node.outerHtml);
-      } else if (node is dom.Text) {
-        buffer.write(node.data);
-      }
+    // Procura `.formulation` (ou `.qtext`); se não houver, mantém o fragmento.
+    dom.Element? formulation = fragment.querySelector('.formulation') ??
+        fragment.querySelector('.qtext');
+    if (formulation != null) {
+      // Trabalha apenas dentro da formulação para descartar tudo o mais.
+      final clone = html_parser.parseFragment(formulation.outerHtml);
+      _cleanupFormulation(clone);
+      return _rewriteResourceUrls(clone.outerHtml, token, baseUrl);
     }
 
-    return _rewriteResourceUrls(buffer.toString(), token, baseUrl);
+    _cleanupFormulation(fragment);
+    return _rewriteResourceUrls(fragment.outerHtml, token, baseUrl);
+  }
+
+  /// Limpezas comuns aplicadas dentro do bloco da questão:
+  /// - converte `<input type="text">` em caixas visuais vazias (drag&drop / cloze)
+  /// - remove spans/labels apenas para leitor de tela
+  static void _cleanupFormulation(dom.DocumentFragment fragment) {
+    // Spans só para leitor de tela ("Em branco N Questão M", "sr-only", etc.)
+    for (final el in fragment.querySelectorAll(
+        '.accesshide, .sr-only, .visually-hidden, .visuallyhidden')) {
+      el.remove();
+    }
+
+    // Inputs/selects de resposta → caixas vazias (apenas visual)
+    for (final input in fragment.querySelectorAll('input, select')) {
+      final type = (input.attributes['type'] ?? '').toLowerCase();
+      if (type == 'hidden' || type == 'submit' || type == 'button') {
+        input.remove();
+        continue;
+      }
+      final placeholder = dom.Element.tag('span');
+      placeholder.attributes['style'] =
+          'display:inline-block;min-width:90px;height:18px;'
+          'border:1px solid #888;border-radius:4px;'
+          'background:rgba(255,255,255,0.06);vertical-align:middle;'
+          'margin:0 4px;';
+      input.replaceWith(placeholder);
+    }
   }
 
   // ── Extração do HTML do enunciado (com URLs corrigidas, sem forms) ──────────

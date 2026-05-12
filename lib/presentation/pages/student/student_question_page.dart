@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/theme/app_theme.dart';
@@ -8,7 +7,7 @@ import '../../../core/utils/responsive.dart';
 import '../../../domain/entities/question_entity.dart';
 import '../../widgets/timer_widget.dart';
 import '../../widgets/option_button.dart';
-import '../../widgets/moodle_image.dart';
+import '../../widgets/moodle_html.dart';
 
 /// Tela de resposta de questão – usada inline dentro do lobby do estudante.
 /// Suporta múltipla escolha (interativa) e todos os demais tipos do Moodle
@@ -35,46 +34,10 @@ class StudentQuestionPage extends StatelessWidget {
 
   static const _letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
-  // ── Renderizador HTML comum (imagens + tabelas + estilos Moodle) ───────────
+  // ── Renderizador HTML comum (compartilhado com a vista do professor) ─────
 
   Widget _buildHtml(String html, TextStyle textStyle) {
-    return HtmlWidget(
-      html,
-      customWidgetBuilder: (element) {
-        if (element.localName != 'img') return null;
-        final src = element.attributes['src'];
-        if (src == null || src.isEmpty) return null;
-
-        // Ícones/recursos decorativos do Moodle não devem gerar aviso visual.
-        if (src.startsWith('data:') ||
-            src.contains('/pix/') ||
-            src.contains('theme/image.php')) {
-          return const SizedBox.shrink();
-        }
-
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: MoodleImage(
-            src: src,
-            alt: element.attributes['alt'],
-            maxHeight: 300,
-          ),
-        );
-      },
-      textStyle: textStyle,
-      customStylesBuilder: (element) {
-        if (element.localName == 'table') {
-          return {'border-collapse': 'collapse', 'width': '100%'};
-        }
-        if (element.localName == 'td' || element.localName == 'th') {
-          return {'border': '1px solid #444', 'padding': '6px 10px'};
-        }
-        if (element.localName == 'img') {
-          return {'max-width': '100%', 'height': 'auto'};
-        }
-        return null;
-      },
-    );
+    return MoodleHtml(html: html, textStyle: textStyle);
   }
 
   // ── Timer (reutilizado em ambas as vistas) ─────────────────────────────────

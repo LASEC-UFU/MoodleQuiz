@@ -134,7 +134,9 @@ class _RevealScaffoldState extends State<_RevealScaffold> {
               ),
 
               // ── Checkbox mostrar resposta correta ─────────────────
-              if (question != null && question.isMultiChoice)
+              if (question != null &&
+                  (question.isMultiChoice ||
+                      question.rightAnswerHtml.isNotEmpty))
                 Padding(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -203,7 +205,7 @@ class _QuestionReveal extends StatelessWidget {
                 decoration: AppTheme.cardDecoration(glowing: false),
                 child: question.isMultiChoice
                     ? (question.htmlText.isNotEmpty
-                        ? _MoodleHtml(
+                        ? MoodleHtml(
                             html: question.htmlText,
                             textStyle: TextStyle(
                               fontSize: isMobile ? 16 : 20,
@@ -221,7 +223,7 @@ class _QuestionReveal extends StatelessWidget {
                             ),
                           ))
                     : (question.displayHtml.isNotEmpty
-                        ? _MoodleHtml(
+                        ? MoodleHtml(
                             html: question.displayHtml,
                             textStyle: TextStyle(
                               fontSize: isMobile ? 16 : 20,
@@ -241,6 +243,39 @@ class _QuestionReveal extends StatelessWidget {
               ),
 
               const SizedBox(height: 16),
+
+              // ── Resposta correta para tipos não-MC (Cloze, Drag&Drop…) ─
+              if (!question.isMultiChoice &&
+                  showCorrect &&
+                  question.rightAnswerHtml.isNotEmpty)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.success.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppTheme.success, width: 2),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.check_circle_rounded,
+                          color: AppTheme.success, size: 22),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: MoodleHtml(
+                          html: question.rightAnswerHtml,
+                          textStyle: TextStyle(
+                            color: AppTheme.success,
+                            fontSize: isMobile ? 15 : 17,
+                            fontWeight: FontWeight.w700,
+                            height: 1.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
               // ── Alternativas ou Feedback ──────────────────────────────
               if (!showFeedback)
@@ -290,7 +325,7 @@ class _QuestionReveal extends StatelessWidget {
                         const SizedBox(width: 14),
                         Expanded(
                           child: choice.htmlText.isNotEmpty
-                              ? _MoodleHtml(
+                              ? MoodleHtml(
                                   html: choice.htmlText,
                                   textStyle: TextStyle(
                                     color: correct
@@ -421,18 +456,18 @@ class _MoodleFeedbackHtml extends StatelessWidget {
   Widget _htmlBlock(String html) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
-      child: _MoodleHtml(html: html, textStyle: textStyle),
+      child: MoodleHtml(html: html, textStyle: textStyle),
     );
   }
 
   Widget _mathBlock(String latex) {
-    final normalized = _MoodleHtml._normalizeLatex(latex);
+    final normalized = MoodleHtml._normalizeLatex(latex);
     final math = Math.tex(
       normalized,
       mathStyle: MathStyle.display,
       textStyle: textStyle.copyWith(color: AppTheme.textPrimary),
       onErrorFallback: (error) => Text(
-        _MoodleHtml._latexFallbackText(normalized),
+        MoodleHtml._latexFallbackText(normalized),
         style: textStyle.copyWith(color: AppTheme.textPrimary),
       ),
     );
@@ -484,7 +519,7 @@ class _MoodleFeedbackHtml extends StatelessWidget {
       final match = _nextInlineLatex(text, index);
       if (match == null) {
         spans.add(TextSpan(
-          text: _MoodleHtml._cleanPlainLatexText(text.substring(index)),
+          text: MoodleHtml._cleanPlainLatexText(text.substring(index)),
           style: style,
         ));
         break;
@@ -492,7 +527,7 @@ class _MoodleFeedbackHtml extends StatelessWidget {
 
       if (match.start > index) {
         spans.add(TextSpan(
-          text: _MoodleHtml._cleanPlainLatexText(
+          text: MoodleHtml._cleanPlainLatexText(
             text.substring(index, match.start),
           ),
           style: style,
@@ -503,11 +538,11 @@ class _MoodleFeedbackHtml extends StatelessWidget {
         alignment: PlaceholderAlignment.baseline,
         baseline: TextBaseline.alphabetic,
         child: Math.tex(
-          _MoodleHtml._normalizeLatex(match.content),
+          MoodleHtml._normalizeLatex(match.content),
           mathStyle: MathStyle.text,
           textStyle: style.copyWith(color: AppTheme.textPrimary),
           onErrorFallback: (error) => Text(
-            _MoodleHtml._latexFallbackText(match.content),
+            MoodleHtml._latexFallbackText(match.content),
             style: style.copyWith(color: AppTheme.textPrimary),
           ),
         ),
@@ -520,8 +555,8 @@ class _MoodleFeedbackHtml extends StatelessWidget {
   }
 
   _LatexMatch? _nextInlineLatex(String text, int from) {
-    final delimited = _MoodleHtml._nextLatex(text, from);
-    final loose = _MoodleHtml._nextLooseLatexFragment(text, from);
+    final delimited = MoodleHtml._nextLatex(text, from);
+    final loose = MoodleHtml._nextLooseLatexFragment(text, from);
 
     if (delimited == null) return loose;
     if (loose == null) return delimited;
@@ -532,24 +567,25 @@ class _MoodleFeedbackHtml extends StatelessWidget {
     final line = text.trim();
     if (line.isEmpty) return null;
 
-    final delimited = _MoodleHtml._nextLatex(line, 0);
+    final delimited = MoodleHtml._nextLatex(line, 0);
     if (delimited != null &&
         delimited.start == 0 &&
         delimited.end == line.length) {
       return delimited.content;
     }
 
-    if (_MoodleHtml._looksLikeLatexLine(line)) return line;
+    if (MoodleHtml._looksLikeLatexLine(line)) return line;
 
     return null;
   }
 }
 
-class _MoodleHtml extends StatelessWidget {
+class MoodleHtml extends StatelessWidget {
   final String html;
   final TextStyle textStyle;
 
-  const _MoodleHtml({
+  const MoodleHtml({
+    super.key,
     required this.html,
     required this.textStyle,
   });

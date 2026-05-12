@@ -17,6 +17,8 @@ class QuestionEntity extends Equatable {
   final String
       type; // tipo real do Moodle: "multichoice", "truefalse", "essay", "shortanswer", "match", "numerical", "other", etc.
   final String generalFeedback; // feedback geral da questão (do gabarito)
+  final String
+      rightAnswerHtml; // HTML da resposta correta (apenas não-multichoice)
 
   const QuestionEntity({
     required this.slot,
@@ -30,6 +32,7 @@ class QuestionEntity extends Equatable {
     required this.seqCheck,
     this.type = 'multichoice',
     this.generalFeedback = '',
+    this.rightAnswerHtml = '',
   });
 
   /// Retorna true para tipos que usam alternativas de rádio (múltipla escolha e V/F).

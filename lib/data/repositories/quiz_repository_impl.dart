@@ -385,10 +385,33 @@ class QuizRepositoryImpl implements IQuizRepository {
     int skipped = 0;
     for (final q in allQuestions) {
       // Questões sem alternativas (Cloze, Arrastar&Soltar, Numérica…) são
-      // incluídas para exibição somente leitura — sem marcação de gabarito.
+      // incluídas para exibição somente leitura — com gabarito em HTML
+      // (extraído de .rightanswer da revisão, quando disponível).
       if (q.choices.isEmpty) {
-        log('  ○ slot=${q.slot} (${q.type}) sem alternativas — incluída como somente leitura');
-        result.add(q);
+        final reviewHtml = reviewHtmlBySlot[q.slot] ?? '';
+        final rightAnswerHtml = reviewHtml.isEmpty
+            ? ''
+            : MoodleHtmlParser.parseRightAnswerHtml(
+                reviewHtml, user.token, user.baseUrl);
+        final feedback = reviewHtml.isEmpty
+            ? ''
+            : MoodleHtmlParser.parseGeneralFeedback(reviewHtml);
+        log('  ○ slot=${q.slot} (${q.type}) sem alternativas — incluída como somente leitura'
+            '${rightAnswerHtml.isNotEmpty ? ' (gabarito HTML extraído)' : ''}');
+        result.add(QuestionEntity(
+          slot: q.slot,
+          page: q.page,
+          text: q.text,
+          htmlText: q.htmlText,
+          displayHtml: q.displayHtml,
+          choices: q.choices,
+          imageUrls: q.imageUrls,
+          inputBaseName: q.inputBaseName,
+          seqCheck: q.seqCheck,
+          type: q.type,
+          generalFeedback: feedback,
+          rightAnswerHtml: rightAnswerHtml,
+        ));
         continue;
       }
 
@@ -420,6 +443,8 @@ class QuizRepositoryImpl implements IQuizRepository {
               ))
           .toList();
       final feedback = MoodleHtmlParser.parseGeneralFeedback(reviewHtml);
+      final rightAnswerHtml = MoodleHtmlParser.parseRightAnswerHtml(
+          reviewHtml, user.token, user.baseUrl);
       result.add(QuestionEntity(
         slot: q.slot,
         page: q.page,
@@ -432,6 +457,7 @@ class QuizRepositoryImpl implements IQuizRepository {
         seqCheck: q.seqCheck,
         type: q.type,
         generalFeedback: feedback,
+        rightAnswerHtml: rightAnswerHtml,
       ));
     }
     if (skipped > 0) log('Questões abertas ignoradas: $skipped');
