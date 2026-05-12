@@ -842,6 +842,14 @@ class _SelectedQuestionCardState extends State<_SelectedQuestionCard> {
                         if (element.localName != 'img') return null;
                         final src = element.attributes['src'];
                         if (src == null || src.isEmpty) return null;
+
+                        // Mesma regra do aluno: ignora assets decorativos do Moodle.
+                        if (src.startsWith('data:') ||
+                            src.contains('/pix/') ||
+                            src.contains('theme/image.php')) {
+                          return const SizedBox.shrink();
+                        }
+
                         return Padding(
                           padding: const EdgeInsets.symmetric(vertical: 8),
                           child: MoodleImage(
@@ -949,6 +957,14 @@ class _SelectedQuestionCardState extends State<_SelectedQuestionCard> {
                                       if (src == null || src.isEmpty) {
                                         return null;
                                       }
+
+                                      // Mesma regra do aluno: ignora assets decorativos do Moodle.
+                                      if (src.startsWith('data:') ||
+                                          src.contains('/pix/') ||
+                                          src.contains('theme/image.php')) {
+                                        return const SizedBox.shrink();
+                                      }
+
                                       return Padding(
                                         padding: const EdgeInsets.symmetric(
                                             vertical: 6),
