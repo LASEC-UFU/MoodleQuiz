@@ -21,9 +21,13 @@ abstract class IQuizRepository {
   Future<QuestionEntity> getQuestion(UserEntity user, int attemptId, int slot);
 
   /// Submete resposta ao Moodle e retorna se acertou.
-  /// Finaliza a tentativa internamente se o quiz usa "deferred feedback".
+  /// [answers] é um mapa de inputName → value que cobre todos os tipos:
+  ///   - multichoice/truefalse: {"q12345:1_answer": "2"}
+  ///   - numerical/shortanswer: {"q12345:1_answer": "42.5"}
+  ///   - match: {"q12345:1_sub0": "1", "q12345:1_sub1": "3", …}
+  ///   - gapselect: {"q12345:1_p1": "2", "q12345:1_p2": "1", …}
   Future<bool> submitPage(UserEntity user, int attemptId,
-      QuestionEntity question, String choiceValue);
+      QuestionEntity question, Map<String, String> answers);
 
   /// Finaliza a tentativa do usuário no Moodle.
   Future<void> finishAttempt(UserEntity user, int attemptId);

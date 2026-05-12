@@ -10,8 +10,7 @@ import 'package:html/parser.dart' as html_parser;
 class ParsedChoice {
   final String value; // "0", "1", "2"…
   final String text; // texto exibido para o aluno
-  final String
-      htmlText; // alternativa como HTML rico (preserva imagens/tabelas)
+  final String htmlText; // alternativa como HTML rico (preserva imagens/tabelas)
   final bool isCorrect; // true se esta alternativa é a resposta correta
 
   const ParsedChoice({
@@ -22,19 +21,41 @@ class ParsedChoice {
   });
 }
 
+/// Sub-questão de uma questão de Associação (match).
+class MatchSubQuestion {
+  final String text; // texto da premissa
+  final String htmlText; // premissa como HTML
+  final String inputName; // nome do campo select, e.g. "q12345:1_sub0"
+
+  const MatchSubQuestion({
+    required this.text,
+    required this.htmlText,
+    required this.inputName,
+  });
+}
+
+/// Dados estruturados de uma questão de Associação.
+class MatchData {
+  final List<MatchSubQuestion> subQuestions;
+  final List<ParsedChoice> options; // opções iguais para todas as sub-questões
+
+  const MatchData({required this.subQuestions, required this.options});
+}
+
 class ParsedQuestion {
   final int slot;
   final String text; // texto da questão (HTML stripped — fallback)
-  final String
-      htmlText; // enunciado como HTML com URLs corrigidas (para renderização rica)
-  final String
-      displayHtml; // HTML completo da questão (todos os blocos, sem interativos)
+  final String htmlText; // enunciado como HTML com URLs corrigidas
+  final String displayHtml; // HTML completo da questão (todos os blocos)
   final List<ParsedChoice> choices;
   final List<String> imageUrls;
-  final String inputBaseName; // "q{attemptId}:{slot}_answer"
+  final String inputBaseName; // "q{attemptId}:{slot}_answer" (usado para seqcheck)
   final String seqCheck; // valor do input sequencecheck
-  final String
-      type; // tipo real do Moodle (ou inferido): "multichoice", "truefalse", "essay", "shortanswer", etc.
+  final String type; // tipo real do Moodle (ou inferido)
+
+  // Dados específicos por tipo
+  final String? answerInputName; // nome do campo de texto (numerical/shortanswer)
+  final MatchData? matchData; // estrutura de associação (match)
 
   const ParsedQuestion({
     required this.slot,
@@ -46,9 +67,14 @@ class ParsedQuestion {
     required this.inputBaseName,
     required this.seqCheck,
     required this.type,
+    this.answerInputName,
+    this.matchData,
   });
 
-  bool get isMultiChoice => type == 'multichoice' || type == 'truefalse';
+  bool get isMultiChoice =>
+      type == 'multichoice' ||
+      type == 'truefalse' ||
+      type == 'calculatedmulti';
 }
 
 // ── Parser ────────────────────────────────────────────────────────────────────
@@ -62,22 +88,50 @@ class MoodleHtmlParser {
     required String token,
     required String baseUrl,
   }) {
+    // Extrai o tipo diretamente da classe CSS do elemento raiz da questão.
+    // Moodle renderiza: class="que {type} {behaviour} {state}"
+    final htmlType = _extractTypeFromHtml(html);
+
+    final choices = _extractChoices(html, token, baseUrl);
+
+    // Resolve o tipo final: prefere o tipo inferido do HTML; fallback para contagem de radios
+    String type;
+    if (htmlType.isNotEmpty) {
+      if (htmlType == 'multichoice' || htmlType == 'calculatedmulti') {
+        // Valida com contagem de choices para truefalse
+        type = (choices.isNotEmpty && choices.length == 2) ? 'truefalse' : htmlType;
+      } else {
+        type = htmlType;
+      }
+    } else {
+      // Fallback legado: conta radio buttons
+      type = choices.length == 2
+          ? 'truefalse'
+          : (choices.isEmpty ? 'other' : 'multichoice');
+    }
+
     final text = _extractText(html);
     final htmlText = _extractHtmlText(html, token, baseUrl);
     final displayHtml = extractDisplayHtml(html, token, baseUrl);
-    final choices = _extractChoices(html, token, baseUrl);
     final images = _extractImages(html, token, baseUrl);
     final seqCheck = _extractSeqCheck(html);
 
-    // Extrai o nome real dos inputs do HTML em vez de hardcodar.
-    // O Moodle usa o question_usage.id (uniqueid), que pode diferir do attemptId.
     final extractedBase = _extractInputBaseName(html);
     final hardcoded = 'q$attemptId:${slot}_answer';
     final inputBase = extractedBase ?? hardcoded;
 
-    final type = choices.length == 2
-        ? 'truefalse'
-        : (choices.isEmpty ? 'other' : 'multichoice');
+    // Dados específicos por tipo
+    MatchData? matchData;
+    String? answerInputName;
+
+    if (type == 'match') {
+      matchData = _extractMatchData(html, token, baseUrl);
+    } else if (type == 'numerical' ||
+        type == 'calculated' ||
+        type == 'calculatedsimple' ||
+        type == 'shortanswer') {
+      answerInputName = _extractAnswerInputName(html) ?? inputBase;
+    }
 
     return ParsedQuestion(
       slot: slot,
@@ -89,24 +143,18 @@ class MoodleHtmlParser {
       inputBaseName: inputBase,
       seqCheck: seqCheck,
       type: type,
+      answerInputName: answerInputName,
+      matchData: matchData,
     );
   }
 
   /// Extrai os values dos inputs de rádio cuja resposta é correta.
-  ///
-  /// Moodle 4.x: o gabarito aparece como:
-  ///   `<div class="rightanswer">A resposta correta é: TEXTO</div>`
-  /// Extrai o TEXTO e acha o radio cujo label bate com esse texto.
-  ///
-  /// Fallback legacy: containers `<li|div class="... correct ...">` com `<input type="radio">`.
   static List<String> parseCorrectValues(String reviewHtml) {
     // ── Método primário: aria-labelledby + rightanswer ────────────────────────
-    // 1. Constrói mapa labelId → value a partir dos radios
     final attrRe = RegExp(r'([\w-]+)="([^"]*)"', caseSensitive: false);
     final radioRe =
         RegExp(r'<input\b[^>]*type="radio"[^>]*/?>', caseSensitive: false);
 
-    // mapa: labelDivId → value
     final idToValue = <String, String>{};
     for (final m in radioRe.allMatches(reviewHtml)) {
       final tag = m.group(0) ?? '';
@@ -121,7 +169,6 @@ class MoodleHtmlParser {
       }
     }
 
-    // 2. Constrói mapa labelDivId → texto limpo
     final labelDivRe = RegExp(
       r'<div\b[^>]+id="([^"]+)"[^>]*data-region="answer-label"[^>]*>(.*?)</div>\s*</div>',
       caseSensitive: false,
@@ -139,7 +186,6 @@ class MoodleHtmlParser {
       if (id.isNotEmpty && text.isNotEmpty) idToText[id] = text;
     }
 
-    // 3. Extrai o texto correto do div.rightanswer
     final rightAnswerRe = RegExp(
       r'<div[^>]*class="[^"]*rightanswer[^"]*"[^>]*>(.*?)</div>',
       caseSensitive: false,
@@ -147,7 +193,6 @@ class MoodleHtmlParser {
     );
     final rightMatch = rightAnswerRe.firstMatch(reviewHtml);
     if (rightMatch != null) {
-      // Texto pode ser "A resposta correta é: TEXTO" — pega só o TEXTO
       String correctText = _stripHtml(rightMatch.group(1) ?? '').trim();
       final sepIdx = correctText.indexOf(':');
       if (sepIdx >= 0 && sepIdx < correctText.length - 1) {
@@ -155,7 +200,6 @@ class MoodleHtmlParser {
       }
 
       if (correctText.isNotEmpty) {
-        // Compara com os textos dos labels
         for (final entry in idToText.entries) {
           if (entry.value == correctText ||
               entry.value.contains(correctText) ||
@@ -191,17 +235,39 @@ class MoodleHtmlParser {
     return correctValues;
   }
 
+  /// Extrai os pares corretos de uma questão de Associação no HTML de revisão.
+  /// Retorna mapa: inputName → correctValue (e.g. "q12345:1_sub0" → "2")
+  static Map<String, String> parseCorrectMatchValues(String reviewHtml) {
+    final result = <String, String>{};
+    final fragment = html_parser.parseFragment(reviewHtml);
+
+    // Cada linha da tabela de resposta da revisão tem a coluna de texto e a
+    // coluna com o select já com a opção correta selecionada (selected="selected")
+    for (final row in fragment
+        .querySelectorAll('table.answer tr, table.generaltable tr')) {
+      final select = row.querySelector('select');
+      if (select == null) continue;
+      final inputName = select.attributes['name'] ?? '';
+      if (inputName.isEmpty) continue;
+
+      // Opção marcada como correta no HTML de revisão
+      final correctOption =
+          select.querySelector('option[selected], option[selected="selected"]');
+      if (correctOption != null) {
+        final val = correctOption.attributes['value'] ?? '';
+        if (val.isNotEmpty && val != '0') result[inputName] = val;
+      }
+    }
+    return result;
+  }
+
   /// Extrai o feedback geral da questão do HTML de revisão.
-  /// Moodle coloca em `<div class="generalfeedback">...</div>`.
   static String parseGeneralFeedback(String reviewHtml) {
     final content = _extractTag(reviewHtml, 'generalfeedback') ?? '';
     return content.trim();
   }
 
   /// Extrai o HTML do bloco `.rightanswer` da revisão (se houver).
-  /// Útil para tipos não múltipla escolha (Cloze, Drag&Drop, Numerical,
-  /// Match, Shortanswer…) onde o gabarito não pode ser projetado em
-  /// alternativas de rádio.
   static String parseRightAnswerHtml(
       String reviewHtml, String token, String baseUrl) {
     final content = _extractTag(reviewHtml, 'rightanswer') ?? '';
@@ -211,20 +277,9 @@ class MoodleHtmlParser {
 
   // ── HTML completo para exibição somente leitura ──────────────────────────
 
-  /// Retorna o HTML da QUESTÃO em si para exibição (aluno / professor),
-  /// imitando a aparência do Moodle: apenas o conteúdo de `.formulation`
-  /// (que contém `.qtext` + `.ablock`), SEM cromo de gestão (botão de
-  /// marcar questão, "v1 (mais recente)", cabeçalho "Texto da questão",
-  /// botões "Verificar" etc.).
-  ///
-  /// Em questões de Arrastar&Soltar/Cloze/Associação, os inputs `text`
-  /// (que o Moodle usa como placeholders das lacunas) são convertidos em
-  /// caixas visuais vazias; spans de leitor de tela ("Em branco 1 …",
-  /// "Questão N") são removidos para não poluir o texto.
   static String extractDisplayHtml(String html, String token, String baseUrl) {
     final fragment = html_parser.parseFragment(html);
 
-    // Remove tags inseguras ou sem valor visual
     for (final el in fragment.querySelectorAll(
         'script, style, noscript, button, .submitbtns, .qn_buttontoggle, '
         '.questionflag, .questionflagsavebutton, .info, .history, '
@@ -233,11 +288,9 @@ class MoodleHtmlParser {
       el.remove();
     }
 
-    // Procura `.formulation` (ou `.qtext`); se não houver, mantém o fragmento.
     dom.Element? formulation = fragment.querySelector('.formulation') ??
         fragment.querySelector('.qtext');
     if (formulation != null) {
-      // Trabalha apenas dentro da formulação para descartar tudo o mais.
       final clone = html_parser.parseFragment(formulation.outerHtml);
       _cleanupFormulation(clone);
       return _rewriteResourceUrls(clone.outerHtml, token, baseUrl);
@@ -247,23 +300,21 @@ class MoodleHtmlParser {
     return _rewriteResourceUrls(fragment.outerHtml, token, baseUrl);
   }
 
-  /// Limpezas comuns aplicadas dentro do bloco da questão:
-  /// - converte `<input type="text">` em caixas visuais vazias (drag&drop / cloze)
-  /// - remove spans/labels apenas para leitor de tela
   static void _cleanupFormulation(dom.DocumentFragment fragment) {
-    // Spans só para leitor de tela ("Em branco N Questão M", "sr-only", etc.)
     for (final el in fragment.querySelectorAll(
         '.accesshide, .sr-only, .visually-hidden, .visuallyhidden')) {
       el.remove();
     }
 
-    // Inputs/selects de resposta → caixas vazias (apenas visual)
-    for (final input in fragment.querySelectorAll('input, select')) {
-      final type = (input.attributes['type'] ?? '').toLowerCase();
-      if (type == 'hidden' || type == 'submit' || type == 'button') {
-        input.remove();
-        continue;
-      }
+    // Inputs ocultos e de controle: remove
+    for (final input in fragment.querySelectorAll('input[type="hidden"], '
+        'input[type="submit"], input[type="button"]')) {
+      input.remove();
+    }
+
+    // Inputs de texto → caixas visuais vazias (para Cloze, Numérica…)
+    for (final input
+        in fragment.querySelectorAll('input[type="text"], input:not([type])')) {
       final placeholder = dom.Element.tag('span');
       placeholder.attributes['style'] =
           'display:inline-block;min-width:90px;height:18px;'
@@ -272,18 +323,120 @@ class MoodleHtmlParser {
           'margin:0 4px;';
       input.replaceWith(placeholder);
     }
+
+    // Selects → mostra as opções disponíveis como lista visual compacta
+    for (final select in fragment.querySelectorAll('select')) {
+      final options = select.querySelectorAll('option').where((o) {
+        final v = o.attributes['value'] ?? '';
+        return v.isNotEmpty && v != '0';
+      }).map((o) => _stripHtml(o.innerHtml).trim()).where((t) => t.isNotEmpty);
+
+      final placeholder = dom.Element.tag('span');
+      if (options.isNotEmpty) {
+        placeholder.attributes['style'] =
+            'display:inline-block;border:1px dashed #888;border-radius:4px;'
+            'background:rgba(255,255,255,0.06);vertical-align:middle;'
+            'margin:0 4px;padding:2px 6px;font-size:0.9em;color:#aaa;';
+        placeholder.text = '[${options.take(4).join(' | ')}${options.length > 4 ? "…" : ""}]';
+      } else {
+        placeholder.attributes['style'] =
+            'display:inline-block;min-width:90px;height:18px;'
+            'border:1px solid #888;border-radius:4px;'
+            'background:rgba(255,255,255,0.06);vertical-align:middle;'
+            'margin:0 4px;';
+      }
+      select.replaceWith(placeholder);
+    }
   }
 
-  // ── Extração do HTML do enunciado (com URLs corrigidas, sem forms) ──────────
+  // ── Extração do tipo pelo HTML ─────────────────────────────────────────────
 
-  /// Retorna o HTML do enunciado com URLs de imagens corrigidas.
-  /// Remove blocos de resposta (inputs, botões) mas preserva formatação.
+  /// Extrai o tipo da questão da classe CSS Moodle: `class="que {type} …"`.
+  static String _extractTypeFromHtml(String html) {
+    final re = RegExp(r'class="que\s+([\w-]+)', caseSensitive: false);
+    return re.firstMatch(html)?.group(1)?.toLowerCase() ?? '';
+  }
+
+  // ── Extração dos dados de Associação (match) ──────────────────────────────
+
+  static MatchData? _extractMatchData(
+      String html, String token, String baseUrl) {
+    final fragment = html_parser.parseFragment(html);
+
+    // Moodle 4.x: linhas em table.answer ou tabelas genéricas dentro de .ablock
+    final rows = fragment.querySelectorAll(
+        'table.answer tr, .ablock table tr, .answer tr');
+
+    final subQuestions = <MatchSubQuestion>[];
+    final options = <ParsedChoice>[];
+    bool optionsExtracted = false;
+
+    for (final row in rows) {
+      final textCell = row.querySelector('.text') ??
+          row.querySelector('td.text') ??
+          row.querySelector('td:first-child');
+      final select = row.querySelector('select');
+
+      if (textCell == null || select == null) continue;
+
+      final inputName = select.attributes['name'] ?? '';
+      if (inputName.isEmpty) continue;
+
+      final premiseHtml =
+          _rewriteResourceUrls(textCell.innerHtml, token, baseUrl);
+      final premiseText = _stripHtml(premiseHtml).trim();
+
+      if (premiseText.isNotEmpty || premiseHtml.isNotEmpty) {
+        subQuestions.add(MatchSubQuestion(
+          text: premiseText,
+          htmlText: premiseHtml,
+          inputName: inputName,
+        ));
+      }
+
+      if (!optionsExtracted) {
+        for (final option in select.querySelectorAll('option')) {
+          final value = option.attributes['value'] ?? '';
+          if (value.isEmpty || value == '0') continue;
+          final text = _stripHtml(option.innerHtml).trim();
+          if (text.isNotEmpty) {
+            options.add(ParsedChoice(value: value, text: text));
+          }
+        }
+        optionsExtracted = true;
+      }
+    }
+
+    if (subQuestions.isEmpty) return null;
+    return MatchData(subQuestions: subQuestions, options: options);
+  }
+
+  // ── Extração do nome do campo de texto ────────────────────────────────────
+
+  /// Extrai o nome do campo `<input type="text">` (numerical/shortanswer).
+  static String? _extractAnswerInputName(String html) {
+    final re = RegExp(
+      r'<input\b[^>]*type="text"[^>]*name="([^"]+)"',
+      caseSensitive: false,
+    );
+    final m = re.firstMatch(html);
+    if (m != null) return m.group(1);
+
+    // Fallback: sem type (tratado como text pelo browser)
+    final reNoType = RegExp(
+      r'<input\b(?![^>]*type=)[^>]*name="(q[^"]+_answer)"',
+      caseSensitive: false,
+    );
+    return reNoType.firstMatch(html)?.group(1);
+  }
+
+  // ── Extração do HTML do enunciado ─────────────────────────────────────────
+
   static String _extractHtmlText(String html, String token, String baseUrl) {
     String content =
         _extractTag(html, 'qtext') ?? _extractTag(html, 'formulation') ?? '';
     if (content.isEmpty) content = html;
     content = _removeBlock(content, r'class="(?:ablock|answer)');
-    // Corrige URLs de imagens inline
     content = _rewriteResourceUrls(content, token, baseUrl);
     return content;
   }
@@ -293,13 +446,8 @@ class MoodleHtmlParser {
   static String _extractText(String html) {
     String text =
         _extractTag(html, 'qtext') ?? _extractTag(html, 'formulation') ?? '';
-
-    if (text.isEmpty) {
-      text = html;
-    }
-
+    if (text.isEmpty) text = html;
     text = _removeBlock(text, r'class="(?:ablock|answer)');
-
     return _stripHtml(text).trim();
   }
 
@@ -310,8 +458,6 @@ class MoodleHtmlParser {
     final choices = <ParsedChoice>[];
     final fragment = html_parser.parseFragment(html);
 
-    // Moodle 4.x: <input aria-labelledby="ID"> + <div id="ID">texto</div>
-    // Constrói mapa id → conteúdo a partir de todos os divs com data-region="answer-label".
     final ariaLabelMap = <String, _ChoiceContent>{};
     for (final element
         in fragment.querySelectorAll('[data-region="answer-label"]')) {
@@ -321,7 +467,6 @@ class MoodleHtmlParser {
       if (content.hasContent) ariaLabelMap[id] = content;
     }
 
-    // Fallback: <label for="ID">texto</label>
     final forLabelMap = <String, _ChoiceContent>{};
     for (final element in fragment.querySelectorAll('label[for]')) {
       final forAttr = element.attributes['for'] ?? '';
@@ -330,7 +475,6 @@ class MoodleHtmlParser {
       if (content.hasContent) forLabelMap[forAttr] = content;
     }
 
-    // Itera sobre os <input type="radio">
     for (final input in fragment.querySelectorAll('input')) {
       final type = input.attributes['type']?.toLowerCase() ?? '';
       if (type != 'radio') continue;
@@ -338,7 +482,6 @@ class MoodleHtmlParser {
       final value = input.attributes['value'] ?? '';
       if (value.isEmpty || value == '-1') continue;
 
-      // Prioridade: aria-labelledby → label for → fallback
       final id = input.id;
       final ariaLabelledBy = input.attributes['aria-labelledby'] ?? '';
       final content = ariaLabelMap[ariaLabelledBy] ??
@@ -364,14 +507,11 @@ class MoodleHtmlParser {
       r'''<img[^>]+src=(["'])(.*?)\1''',
       caseSensitive: false,
     );
-
     for (final m in imgRe.allMatches(html)) {
       var src = m.group(2) ?? '';
       if (src.isEmpty) continue;
-
       images.add(_normalizeResourceUrl(src, token, baseUrl));
     }
-
     return images;
   }
 
@@ -380,7 +520,6 @@ class MoodleHtmlParser {
     for (final span in element.querySelectorAll('.answernumber')) {
       span.remove();
     }
-
     final cleanedHtml = _rewriteResourceUrls(element.innerHtml, token, baseUrl);
     final text = _stripHtml(cleanedHtml).trim();
     return _ChoiceContent(text: text, html: cleanedHtml.trim());
@@ -436,29 +575,22 @@ class MoodleHtmlParser {
   // ── Extração do sequencecheck ─────────────────────────────────────────────
 
   static String _extractSeqCheck(String html) {
-    // Passo 1: encontra o <input> inteiro que contenha :sequencecheck no name
-    // (independente da ordem dos atributos)
     final inputRe = RegExp(
       r'<input\b[^>]*name="[^"]*:sequencecheck"[^>]*/?>',
       caseSensitive: false,
     );
     final inputTag = inputRe.firstMatch(html)?.group(0) ?? '';
     if (inputTag.isEmpty) return '1';
-
-    // Passo 2: extrai value= de dentro desse elemento
     final valueRe = RegExp(r'\bvalue="([^"]*)"', caseSensitive: false);
     return valueRe.firstMatch(inputTag)?.group(1) ?? '1';
   }
 
   // ── Extração do inputBaseName real ─────────────────────────────────────────
 
-  /// Extrai o name real dos inputs do HTML do Moodle.
-  /// O Moodle usa `q{usageId}:{slot}_answer` nos radio buttons.
-  /// O usageId (uniqueid) pode ser diferente do attemptId.
   static String? _extractInputBaseName(String html) {
     final attrRe = RegExp(r'([\w-]+)="([^"]*)"', caseSensitive: false);
 
-    // 1) Tenta extrair o name de um <input type="radio">
+    // 1) Tenta de radio buttons (multichoice/truefalse)
     final radioRe =
         RegExp(r'<input\b[^>]*type="radio"[^>]*/?>', caseSensitive: false);
     for (final m in radioRe.allMatches(html)) {
@@ -471,7 +603,6 @@ class MoodleHtmlParser {
     }
 
     // 2) Fallback: deduz do input :sequencecheck
-    //    ex: name="q12345:1_:sequencecheck" → "q12345:1_answer"
     final allInputsRe = RegExp(r'<input\b[^>]*/?>', caseSensitive: false);
     for (final m in allInputsRe.allMatches(html)) {
       final inputTag = m.group(0)!;
@@ -490,7 +621,6 @@ class MoodleHtmlParser {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  /// Extrai conteúdo de `<div class="...{className}...">...</div>`
   static String? _extractTag(String html, String className) {
     final re = RegExp(
       'class="[^"]*$className[^"]*"',
@@ -520,7 +650,6 @@ class MoodleHtmlParser {
     return null;
   }
 
-  /// Remove um bloco HTML que contém a classe/atributo indicado.
   static String _removeBlock(String html, String pattern) {
     final re = RegExp(pattern, caseSensitive: false);
     final match = re.firstMatch(html);
@@ -550,7 +679,6 @@ class MoodleHtmlParser {
     return html;
   }
 
-  /// Remove todas as tags HTML e decodifica entidades básicas.
   static String _stripHtml(String html) {
     return html
         .replaceAll(

@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
@@ -10,54 +10,66 @@ import '../../domain/entities/score_entity.dart';
 import '../../domain/entities/user_entity.dart';
 import '../../domain/repositories/i_quiz_repository.dart';
 
-/// Gerencia estado do estudante: seleÃ§Ã£o de disciplina + tentativa Moodle + polling.
+/// Gerencia estado do estudante: seleção de disciplina + tentativa Moodle + polling.
 class StudentController extends ChangeNotifier {
   final IQuizRepository _quizRepo;
 
-  // â”€â”€ SeleÃ§Ã£o de disciplina â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Seleção de disciplina ───────────────────────────────────────────────────
   List<MoodleCourse> _courses = [];
   int? _selectedCourseId;
   bool _isLoadingCourses = false;
-  // null = nÃ£o verificado | false = sem mq_state | true = tem mq_state
   bool? _hasActivity;
 
-  // â”€â”€ Tentativa Moodle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Tentativa Moodle ───────────────────────────────────────────────────────
   int? _attemptId;
   int? _currentQuizId;
   QuestionEntity? _currentQuestion;
 
-  // â”€â”€ Estado do quiz â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Estado do quiz ─────────────────────────────────────────────────────────
   QuizStateEntity _quizState = QuizStateEntity.empty();
   List<ScoreEntity> _scores = [];
-  String? _selectedChoice;
-  String? _selectedChoiceText; // texto legível capturado no momento da seleção
+
+  // Mapa unificado de respostas: inputName → value.
+  // Para todos os tipos: multichoice, numerical, shortanswer, match, gapselect.
+  Map<String, String> _selectedAnswers = {};
+
+  String? _selectedChoiceText; // texto legível para exibição no feedback
   bool _hasAnswered = false;
   bool _isSubmitting = false;
   bool _lastAnswerCorrect = false;
   bool _isLoadingQuestion = false;
   String? _error;
-  String? _attemptError; // erro ao criar tentativa (não bloqueia polling)
+  String? _attemptError;
   Timer? _pollTimer;
   int _lastSeenSlot = 0;
   bool _autoSubmitted = false;
-  bool _isRefreshingState = false; // guarda contra polls sobrepostos
+  bool _isRefreshingState = false;
 
-  StudentController({
-    required IQuizRepository quizRepo,
-  }) : _quizRepo = quizRepo;
+  StudentController({required IQuizRepository quizRepo}) : _quizRepo = quizRepo;
 
-  // â”€â”€ Getters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Getters ─────────────────────────────────────────────────────────────────
   List<MoodleCourse> get courses => _courses;
   int? get selectedCourseId => _selectedCourseId;
   bool get isLoadingCourses => _isLoadingCourses;
-
-  /// null = verificando | false = sem mq_state | true = tem
   bool? get hasActivity => _hasActivity;
   int? get attemptId => _attemptId;
   QuizStateEntity get quizState => _quizState;
   QuestionEntity? get currentQuestion => _currentQuestion;
   List<ScoreEntity> get scores => _scores;
-  String? get selectedChoice => _selectedChoice;
+
+  /// Para retrocompatibilidade: valor selecionado no multichoice.
+  String? get selectedChoice {
+    final q = _currentQuestion;
+    if (q == null) return null;
+    return _selectedAnswers[q.inputBaseName];
+  }
+
+  /// Mapa completo de respostas (todos os tipos).
+  Map<String, String> get selectedAnswers => Map.unmodifiable(_selectedAnswers);
+
+  /// True se há pelo menos uma resposta parcial preenchida.
+  bool get hasAnyAnswer => _selectedAnswers.isNotEmpty;
+
   String? get selectedChoiceText => _selectedChoiceText;
   bool get hasAnswered => _hasAnswered;
   bool get isSubmitting => _isSubmitting;
@@ -74,7 +86,7 @@ class StudentController extends ChangeNotifier {
     }
   }
 
-  // â”€â”€ SeleÃ§Ã£o de disciplina â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Seleção de disciplina ───────────────────────────────────────────────────
 
   Future<void> loadCourses(UserEntity user) async {
     _isLoadingCourses = true;
@@ -90,18 +102,17 @@ class StudentController extends ChangeNotifier {
     }
   }
 
-  /// Define o curso cujo mq_state serÃ¡ monitorado.
-  /// Verifica se a atividade existe antes de iniciar o polling.
   void selectCourse(UserEntity user, int courseId) {
     stopPolling();
     _selectedCourseId = courseId;
-    _hasActivity = null; // verificando
+    _hasActivity = null;
     _lastSeenSlot = 0;
     _quizState = QuizStateEntity.empty();
     _currentQuestion = null;
     _scores = [];
     _error = null;
     _attemptError = null;
+    _selectedAnswers = {};
     _selectedChoiceText = null;
     notifyListeners();
     _checkAndStartPolling(user);
@@ -111,15 +122,13 @@ class StudentController extends ChangeNotifier {
     final courseId = _selectedCourseId;
     if (courseId == null) return;
     try {
-      // Uma chamada de teste â€” se lanÃ§ar "mq_state nÃ£o encontrada" â†’ sem atividade
       await _quizRepo.getQuizState(user, courseId);
       _hasActivity = true;
       notifyListeners();
       startPolling(user);
     } catch (e) {
       final msg = e.toString();
-      // Mensagem especÃ­fica do MoodleStateDatasource quando nÃ£o acha o Database
-      if (msg.contains('mq_state') || msg.contains('nÃ£o encontrada')) {
+      if (msg.contains('mq_state') || msg.contains('não encontrada')) {
         _hasActivity = false;
       } else {
         _hasActivity = null;
@@ -129,16 +138,15 @@ class StudentController extends ChangeNotifier {
     }
   }
 
-  // â”€â”€ Ciclo de tentativa â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Ciclo de tentativa ─────────────────────────────────────────────────────
 
   Future<void> ensureAttempt(UserEntity user, int quizId) async {
     if (_attemptId != null && _currentQuizId == quizId) return;
     try {
       _attemptId = await _quizRepo.startAttempt(user, quizId);
       _currentQuizId = quizId;
-      _attemptError = null; // sucesso — limpa aviso anterior
+      _attemptError = null;
     } catch (e) {
-      // Não bloqueia o polling, mas avisa o aluno sobre o problema.
       _attemptError = e.toString();
     }
   }
@@ -154,43 +162,66 @@ class StudentController extends ChangeNotifier {
     } catch (_) {}
   }
 
-  // â”€â”€ Resposta â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Resposta ───────────────────────────────────────────────────────────────
 
-  void selectChoice(String choiceValue) {
+  /// Registra uma resposta para um campo específico.
+  /// Unificado para todos os tipos:
+  ///   - multichoice: selectAnswer(q.inputBaseName, choiceValue)
+  ///   - match:       selectAnswer(subQuestion.inputName, selectedValue)
+  ///   - numerical:   selectAnswer(q.answerInputName, typedText)
+  ///   - gapselect:   selectAnswer(gapInputName, selectedValue)
+  void selectAnswer(String inputName, String value) {
     if (_hasAnswered || !_quizState.isActive) return;
-    _selectedChoice = choiceValue;
-    // Captura o texto legível agora, enquanto _currentQuestion está disponível
-    try {
-      _selectedChoiceText = _currentQuestion?.choices
-          .firstWhere((c) => c.value == choiceValue)
-          .text;
-    } catch (_) {
-      _selectedChoiceText = null;
+    _selectedAnswers[inputName] = value;
+
+    // Atualiza texto legível para exibição no feedback pós-resposta
+    final q = _currentQuestion;
+    if (q != null) {
+      if (q.isMultiChoice && inputName == q.inputBaseName) {
+        try {
+          _selectedChoiceText =
+              q.choices.firstWhere((c) => c.value == value).text;
+        } catch (_) {
+          _selectedChoiceText = value;
+        }
+      } else if (q.isNumerical || q.isShortAnswer) {
+        _selectedChoiceText = value;
+      } else if (q.isMatch) {
+        _selectedChoiceText = 'Associação enviada';
+      } else if (q.isGapSelect || q.isDdwtos) {
+        _selectedChoiceText = 'Lacunas preenchidas';
+      }
     }
     notifyListeners();
   }
 
+  /// Retrocompatibilidade: para multichoice usa selectAnswer com inputBaseName.
+  void selectChoice(String value) {
+    final inputName = _currentQuestion?.inputBaseName ?? '';
+    if (inputName.isEmpty) return;
+    selectAnswer(inputName, value);
+  }
+
   Future<void> submitAnswer(UserEntity user) async {
     final dlog = DebugLogger.instance;
-    final choice = _selectedChoice;
     final q = _currentQuestion;
     final id = _attemptId;
     final courseId = _selectedCourseId;
-    if (choice == null ||
-        q == null ||
+
+    if (q == null ||
         id == null ||
         _hasAnswered ||
         _isSubmitting ||
-        courseId == null) {
-      dlog.log('STUDENT', 'submitAnswer cancelado — pré-condição falhou',
-          data: {
-            'choice': choice,
-            'question': q != null ? 'slot=${q.slot}' : 'null',
-            'attemptId': id,
-            'hasAnswered': _hasAnswered,
-            'isSubmitting': _isSubmitting,
-            'courseId': courseId,
-          });
+        courseId == null ||
+        _selectedAnswers.isEmpty) {
+      dlog.log('STUDENT', 'submitAnswer cancelado — pré-condição falhou', data: {
+        'question': q != null ? 'slot=${q.slot}' : 'null',
+        'attemptId': id,
+        'hasAnswered': _hasAnswered,
+        'isSubmitting': _isSubmitting,
+        'courseId': courseId,
+        'answersEmpty': _selectedAnswers.isEmpty,
+      });
       return;
     }
 
@@ -208,26 +239,19 @@ class StudentController extends ChangeNotifier {
         'attemptId': id,
         'slot': q.slot,
         'page': q.page,
-        'choiceValue': choice,
-        'choiceText': _selectedChoiceText ?? '?',
+        'type': q.type,
+        'answers': _selectedAnswers.toString(),
         'timerWasPending': wasTimerPending,
-        'timerStartHandledByProfessorPoll': wasTimerPending,
         'timeBonus': bonus,
         'baseScore': baseScore,
-        'inputBaseName': q.inputBaseName,
-        'seqCheck': q.seqCheck,
       });
 
-      // Moodle é a única fonte de verdade.
-      final correct = await _quizRepo.submitPage(user, id, q, choice);
+      final correct =
+          await _quizRepo.submitPage(user, id, q, Map.from(_selectedAnswers));
 
-      dlog.log(
-          'STUDENT', '★ Resultado: ${correct ? "CORRETO ✓" : "INCORRETO ✗"}',
-          data: {
-            'score_a_registrar': correct ? baseScore : 0,
-          });
+      dlog.log('STUDENT', '★ Resultado: ${correct ? "CORRETO ✓" : "INCORRETO ✗"}',
+          data: {'score_a_registrar': correct ? baseScore : 0});
 
-      // Registra pontuação no leaderboard
       await _quizRepo.submitScore(
         user: user,
         courseId: courseId,
@@ -247,7 +271,7 @@ class StudentController extends ChangeNotifier {
     }
   }
 
-  // â”€â”€ Polling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Polling ────────────────────────────────────────────────────────────────
 
   void startPolling(UserEntity user) {
     _pollTimer?.cancel();
@@ -261,7 +285,7 @@ class StudentController extends ChangeNotifier {
     _pollTimer = null;
   }
 
-  // â”€â”€ Privado â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Privado ────────────────────────────────────────────────────────────────
 
   Future<void> _refreshState(UserEntity user) async {
     final courseId = _selectedCourseId;
@@ -281,16 +305,12 @@ class StudentController extends ChangeNotifier {
         'hasQuestion': _currentQuestion != null,
       });
 
-      // Atualiza _quizState ANTES de qualquer notifyListeners() intermediário
-      // para evitar que a UI continue exibindo o estado anterior enquanto a
-      // questão está sendo carregada.
       _quizState = newState;
 
-      // Detecta reset do quiz (voltou ao estado 'waiting' após uma rodada)
       if (newState.isWaiting && _lastSeenSlot > 0) {
         dlog.log('STUDENT_POLL', 'reset detectado (voltou para waiting)');
         _lastSeenSlot = 0;
-        _selectedChoice = null;
+        _selectedAnswers = {};
         _selectedChoiceText = null;
         _hasAnswered = false;
         _lastAnswerCorrect = false;
@@ -307,9 +327,8 @@ class StudentController extends ChangeNotifier {
           'slot': newState.currentSlot,
           'quizId': newState.quizId,
         });
-        // Marca o slot imediatamente para evitar re-entradas no próximo poll
         _lastSeenSlot = newState.currentSlot;
-        _selectedChoice = null;
+        _selectedAnswers = {};
         _selectedChoiceText = null;
         _hasAnswered = false;
         _lastAnswerCorrect = false;
@@ -318,10 +337,6 @@ class StudentController extends ChangeNotifier {
 
         if (newState.quizId > 0) {
           await ensureAttempt(user, newState.quizId);
-          dlog.log('STUDENT_POLL', 'ensureAttempt resultado', data: {
-            'attemptId': _attemptId,
-            'attemptError': _attemptError,
-          });
         }
 
         final id = _attemptId;
@@ -332,28 +347,20 @@ class StudentController extends ChangeNotifier {
             _currentQuestion =
                 await _quizRepo.getQuestion(user, id, newState.currentSlot);
             _error = null;
-            dlog.log('STUDENT_POLL', '✓ questão carregada', data: {
-              'slot': _currentQuestion?.slot,
-            });
           } catch (e) {
             _error = e.toString();
             dlog.log('STUDENT_POLL', '✗ ERRO ao carregar questão: $e');
           } finally {
             _isLoadingQuestion = false;
           }
-        } else {
-          dlog.log('STUDENT_POLL',
-              'sem attemptId válido — questão não será carregada neste ciclo');
         }
       }
 
-      // Retry: se a questão não foi carregada no ciclo anterior (attempt ou
-      // getQuestion falharam), tenta novamente sem resetar o estado do aluno.
+      // Retry: questão não carregada no ciclo anterior
       if (newState.isActive &&
           newState.currentSlot == _lastSeenSlot &&
           _currentQuestion == null &&
           !_isLoadingQuestion) {
-        dlog.log('STUDENT_POLL', 'retry: questão ainda não carregada');
         if (_attemptId == null && newState.quizId > 0) {
           await ensureAttempt(user, newState.quizId);
         }
@@ -365,21 +372,20 @@ class StudentController extends ChangeNotifier {
             _currentQuestion =
                 await _quizRepo.getQuestion(user, id, newState.currentSlot);
             _error = null;
-            dlog.log('STUDENT_POLL', '✓ retry: questão carregada');
           } catch (e) {
             _error = e.toString();
-            dlog.log('STUDENT_POLL', '✗ retry ERRO: $e');
           } finally {
             _isLoadingQuestion = false;
           }
         }
       }
 
+      // Auto-submit quando timer expirar e houver resposta parcial
       if (newState.isClosed &&
           !_hasAnswered &&
           !_isSubmitting &&
           !_autoSubmitted &&
-          _selectedChoice != null) {
+          _selectedAnswers.isNotEmpty) {
         _autoSubmitted = true;
         await submitAnswer(user);
       }
@@ -388,7 +394,6 @@ class StudentController extends ChangeNotifier {
         await finishAttempt(user);
       }
 
-      // getScores em try isolado: falha aqui não pode ocultar a questão.
       try {
         _scores = await _quizRepo.getScores(user, courseId);
       } catch (e) {

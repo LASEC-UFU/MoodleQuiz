@@ -8,17 +8,18 @@ class QuestionEntity extends Equatable {
   final int page; // página da questão (0-indexed)
   final String text; // enunciado sem tags HTML (fallback)
   final String htmlText; // enunciado como HTML com URLs corrigidas
-  final String
-      displayHtml; // HTML completo (todos os blocos, sem interativos) — para exibição
+  final String displayHtml; // HTML completo para exibição somente leitura
   final List<ParsedChoice> choices;
   final List<String> imageUrls;
-  final String inputBaseName; // "q{attemptId}:{slot}_answer"
-  final String seqCheck; // valor do hidden sequencecheck
-  final String
-      type; // tipo real do Moodle: "multichoice", "truefalse", "essay", "shortanswer", "match", "numerical", "other", etc.
-  final String generalFeedback; // feedback geral da questão (do gabarito)
-  final String
-      rightAnswerHtml; // HTML da resposta correta (apenas não-multichoice)
+  final String inputBaseName; // "q{attemptId}:{slot}_answer" (base para seqcheck)
+  final String seqCheck;
+  final String type; // tipo real do Moodle
+  final String generalFeedback;
+  final String rightAnswerHtml;
+
+  // Dados específicos por tipo
+  final String? answerInputName; // campo de texto para numerical/shortanswer
+  final MatchData? matchData; // estrutura de associação (match)
 
   const QuestionEntity({
     required this.slot,
@@ -33,10 +34,55 @@ class QuestionEntity extends Equatable {
     this.type = 'multichoice',
     this.generalFeedback = '',
     this.rightAnswerHtml = '',
+    this.answerInputName,
+    this.matchData,
   });
 
-  /// Retorna true para tipos que usam alternativas de rádio (múltipla escolha e V/F).
-  bool get isMultiChoice => type == 'multichoice' || type == 'truefalse';
+  // ── Classificação por tipo ─────────────────────────────────────────────────
+
+  /// Múltipla escolha ou V/F (radio buttons): interativo com botões.
+  bool get isMultiChoice =>
+      type == 'multichoice' ||
+      type == 'truefalse' ||
+      type == 'calculatedmulti';
+
+  /// Numérica ou Calculada: campo de texto numérico.
+  bool get isNumerical =>
+      type == 'numerical' ||
+      type == 'calculated' ||
+      type == 'calculatedsimple';
+
+  /// Resposta curta: campo de texto livre.
+  bool get isShortAnswer => type == 'shortanswer';
+
+  /// Associação (match): pares de premissas e respostas via dropdowns.
+  bool get isMatch => type == 'match';
+
+  /// Selecionar palavras que faltam (gapselect): dropdowns inline no texto.
+  bool get isGapSelect => type == 'gapselect';
+
+  /// Arrastar e soltar palavras no texto (ddwtos): palavras e lacunas.
+  bool get isDdwtos => type == 'ddwtos';
+
+  /// Respostas embutidas (Cloze/multianswer): mix de tipos.
+  bool get isCloze => type == 'multianswer';
+
+  /// Ordenação: lista reordenável.
+  bool get isOrdering => type == 'ordering';
+
+  /// Dissertativa: sem auto-avaliação.
+  bool get isEssay => type == 'essay';
+
+  /// GeoGebra: applet externo.
+  bool get isGeoGebra => type == 'geogebra';
+
+  /// Arrastar e soltar em imagem.
+  bool get isDdImage =>
+      type == 'ddimageortext' || type == 'ddmarker';
+
+  /// Tipos que têm widget interativo no app.
+  bool get isInteractive =>
+      isMultiChoice || isNumerical || isShortAnswer || isMatch || isGapSelect;
 
   @override
   List<Object?> get props => [slot];

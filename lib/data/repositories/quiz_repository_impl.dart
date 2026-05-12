@@ -1,7 +1,8 @@
 import 'dart:convert';
 
 import '../../core/utils/debug_logger.dart';
-import '../../core/utils/moodle_html_parser.dart';
+import '../../core/utils/moodle_html_parser.dart'
+    show MoodleHtmlParser, ParsedChoice, MatchData;
 import '../../domain/entities/moodle_course.dart';
 import '../../domain/entities/moodle_quiz.dart';
 import '../../domain/entities/question_entity.dart';
@@ -241,8 +242,7 @@ class QuizRepositoryImpl implements IQuizRepository {
 
     return QuestionEntity(
       slot: parsed.slot,
-      page: (qMap['page'] as num? ?? 0)
-          .toInt(), // página real do Moodle (0-based)
+      page: (qMap['page'] as num? ?? 0).toInt(),
       text: parsed.text,
       htmlText: parsed.htmlText,
       displayHtml: parsed.displayHtml,
@@ -251,6 +251,8 @@ class QuizRepositoryImpl implements IQuizRepository {
       inputBaseName: parsed.inputBaseName,
       seqCheck: parsed.seqCheck,
       type: resolvedType,
+      answerInputName: parsed.answerInputName,
+      matchData: parsed.matchData,
     );
   }
 
@@ -327,6 +329,8 @@ class QuizRepositoryImpl implements IQuizRepository {
             inputBaseName: parsed.inputBaseName,
             seqCheck: parsed.seqCheck,
             type: resolvedType,
+            answerInputName: parsed.answerInputName,
+            matchData: parsed.matchData,
           ));
           slotToPage[slot] = qPage;
         }
@@ -384,20 +388,60 @@ class QuizRepositoryImpl implements IQuizRepository {
     final result = <QuestionEntity>[];
     int skipped = 0;
     for (final q in allQuestions) {
-      // Questões sem alternativas (Cloze, Arrastar&Soltar, Numérica…) são
-      // incluídas para exibição somente leitura — com gabarito em HTML
-      // (extraído de .rightanswer da revisão, quando disponível).
+      final reviewHtml = reviewHtmlBySlot[q.slot] ?? '';
+      final feedback = reviewHtml.isEmpty
+          ? ''
+          : MoodleHtmlParser.parseGeneralFeedback(reviewHtml);
+      final rightAnswerHtml = reviewHtml.isEmpty
+          ? ''
+          : MoodleHtmlParser.parseRightAnswerHtml(
+              reviewHtml, user.token, user.baseUrl);
+
+      // Questões sem alternativas de rádio: incluídas para somente leitura
+      // (Numérica, Calculada, ShortAnswer, Match, GapSelect, Cloze…)
       if (q.choices.isEmpty) {
-        final reviewHtml = reviewHtmlBySlot[q.slot] ?? '';
-        final rightAnswerHtml = reviewHtml.isEmpty
-            ? ''
-            : MoodleHtmlParser.parseRightAnswerHtml(
-                reviewHtml, user.token, user.baseUrl);
-        final feedback = reviewHtml.isEmpty
-            ? ''
-            : MoodleHtmlParser.parseGeneralFeedback(reviewHtml);
-        log('  ○ slot=${q.slot} (${q.type}) sem alternativas — incluída como somente leitura'
-            '${rightAnswerHtml.isNotEmpty ? ' (gabarito HTML extraído)' : ''}');
+        log('  ○ slot=${q.slot} (${q.type}) sem alternativas de rádio'
+            '${rightAnswerHtml.isNotEmpty ? ' — gabarito HTML extraído' : ''}');
+
+        // Para match: marca respostas corretas via seleção no HTML de revisão
+        final matchData = q.matchData;
+        if (matchData != null && reviewHtml.isNotEmpty) {
+          final correctPairs =
+              MoodleHtmlParser.parseCorrectMatchValues(reviewHtml);
+          if (correctPairs.isNotEmpty) {
+            log('  ✓ slot=${q.slot} (match) pares corretos: $correctPairs');
+          }
+          // Marcamos as opções corretas nas sub-questões (para reveal page)
+          final updatedOptions = matchData.options
+              .map((o) => ParsedChoice(
+                    value: o.value,
+                    text: o.text,
+                    htmlText: o.htmlText,
+                    isCorrect: correctPairs.values.contains(o.value),
+                  ))
+              .toList();
+          result.add(QuestionEntity(
+            slot: q.slot,
+            page: q.page,
+            text: q.text,
+            htmlText: q.htmlText,
+            displayHtml: q.displayHtml,
+            choices: q.choices,
+            imageUrls: q.imageUrls,
+            inputBaseName: q.inputBaseName,
+            seqCheck: q.seqCheck,
+            type: q.type,
+            generalFeedback: feedback,
+            rightAnswerHtml: rightAnswerHtml,
+            answerInputName: q.answerInputName,
+            matchData: MatchData(
+              subQuestions: matchData.subQuestions,
+              options: updatedOptions,
+            ),
+          ));
+          continue;
+        }
+
         result.add(QuestionEntity(
           slot: q.slot,
           page: q.page,
@@ -411,11 +455,12 @@ class QuizRepositoryImpl implements IQuizRepository {
           type: q.type,
           generalFeedback: feedback,
           rightAnswerHtml: rightAnswerHtml,
+          answerInputName: q.answerInputName,
+          matchData: q.matchData,
         ));
         continue;
       }
 
-      final reviewHtml = reviewHtmlBySlot[q.slot] ?? '';
       if (reviewHtml.isEmpty) {
         log('  ? slot=${q.slot} sem revisão — gabarito não disponível');
         result.add(q);
@@ -424,7 +469,6 @@ class QuizRepositoryImpl implements IQuizRepository {
       final correctValues = MoodleHtmlParser.parseCorrectValues(reviewHtml);
       log('  ✓ slot=${q.slot} gabarito: $correctValues');
 
-      // Debug: log detalhado do gabarito para o DebugLogger
       DebugLogger.instance.log(
           'GABARITO', 'slot=${q.slot} correctValues=$correctValues',
           data: {
@@ -432,7 +476,6 @@ class QuizRepositoryImpl implements IQuizRepository {
                 .map((c) => 'value="${c.value}" text="${c.text}"')
                 .join(' | '),
             'reviewHtmlLength': reviewHtml.length,
-            'reviewContainsRightAnswer': reviewHtml.contains('rightanswer'),
           });
       final newChoices = q.choices
           .map((c) => ParsedChoice(
@@ -442,9 +485,6 @@ class QuizRepositoryImpl implements IQuizRepository {
                 isCorrect: correctValues.contains(c.value),
               ))
           .toList();
-      final feedback = MoodleHtmlParser.parseGeneralFeedback(reviewHtml);
-      final rightAnswerHtml = MoodleHtmlParser.parseRightAnswerHtml(
-          reviewHtml, user.token, user.baseUrl);
       result.add(QuestionEntity(
         slot: q.slot,
         page: q.page,
@@ -458,6 +498,8 @@ class QuizRepositoryImpl implements IQuizRepository {
         type: q.type,
         generalFeedback: feedback,
         rightAnswerHtml: rightAnswerHtml,
+        answerInputName: q.answerInputName,
+        matchData: q.matchData,
       ));
     }
     if (skipped > 0) log('Questões abertas ignoradas: $skipped');
@@ -466,16 +508,9 @@ class QuizRepositoryImpl implements IQuizRepository {
 
   @override
   Future<bool> submitPage(UserEntity user, int attemptId,
-      QuestionEntity question, String choiceValue) async {
+      QuestionEntity question, Map<String, String> answers) async {
     final dlog = DebugLogger.instance;
     dlog.separator('SUBMIT PAGE');
-
-    // Log detalhado do que está sendo enviado
-    final choiceText = question.choices
-            .where((c) => c.value == choiceValue)
-            .map((c) => c.text)
-            .firstOrNull ??
-        '?';
 
     dlog.log('SUBMIT', 'Dados da questão', data: {
       'attemptId': attemptId,
@@ -484,41 +519,28 @@ class QuizRepositoryImpl implements IQuizRepository {
       'type': question.type,
       'inputBaseName': question.inputBaseName,
       'seqCheck': question.seqCheck,
-      'choiceValue': choiceValue,
-      'choiceText': choiceText,
-      'totalChoices': question.choices.length,
-      'allChoices': question.choices
-          .map((c) =>
-              'value="${c.value}" text="${c.text}" correct=${c.isCorrect}')
-          .join(' | '),
+      'answers': answers.toString(),
     });
 
-    final answerKey = question.inputBaseName;
+    // seqcheck e submit sempre derivados do inputBaseName (base comum a todos os tipos)
     final seqCheckKey =
         question.inputBaseName.replaceFirst('answer', ':sequencecheck');
-    // No Moodle, variáveis de comportamento usam prefixo "-" (hífen),
-    // enquanto metadados do engine usam ":" (e.g. :sequencecheck).
-    // O botão "Verificar" do quiz se chama -submit, não :submit.
-    final submitKey = question.inputBaseName.replaceFirst('answer', '-submit');
+    final submitKey =
+        question.inputBaseName.replaceFirst('answer', '-submit');
 
     final answerData = {
-      answerKey: choiceValue,
+      ...answers,
       seqCheckKey: question.seqCheck,
       submitKey: '1',
     };
 
-    dlog.log('SUBMIT', 'Payload para Moodle', data: {
-      answerKey: choiceValue,
-      seqCheckKey: question.seqCheck,
-      submitKey: '1',
-    });
+    dlog.log('SUBMIT', 'Payload para Moodle', data: answerData);
 
-    // Salva e avalia a resposta sem fechar a tentativa.
     await _moodle.processAttempt(
         user.baseUrl, user.token, attemptId, answerData,
         page: question.page);
 
-    // Lê o estado da questão após a avaliação.
+    // Lê o estado pós-avaliação
     try {
       dlog.log('SUBMIT',
           'Lendo estado pós-avaliação (getAttemptData page=${question.page})…');
@@ -532,88 +554,62 @@ class QuizRepositoryImpl implements IQuizRepository {
       for (final q in questions) {
         final qMap = q as Map;
         final qSlot = (qMap['slot'] as num?)?.toInt();
+        if (qSlot != question.slot) continue;
+
         final state = qMap['state']?.toString() ?? '';
-        final status = qMap['status']?.toString() ?? '';
         final stateclass = qMap['stateclass']?.toString() ?? '';
-        final seqCheckApi = qMap['sequencecheck']?.toString() ?? '';
-        final flagged = qMap['flagged'];
         final qHtml = qMap['html'] as String? ?? '';
 
-        dlog.log('SUBMIT', 'Questão retornada', data: {
-          'slot': qSlot,
-          'state': state,
-          'stateclass': stateclass,
-          'status': status,
-          'sequencecheck': seqCheckApi,
-          'flagged': flagged,
-          'htmlLength': qHtml.length,
+        // Classe de estado do div raiz — genérica para qualquer tipo de questão
+        // Moodle renderiza: class="que {type} {behaviour} {stateClass}"
+        final divClassMatch =
+            RegExp(r'class="que\s+\w[\w-]*\s+\w[\w-]*\s+(\w+)"')
+                .firstMatch(qHtml);
+        final queStateClass = divClassMatch?.group(1) ?? '';
+
+        final htmlHasCorrect = qHtml.contains('class="correct"') ||
+            qHtml.contains('class="gradedright"');
+        final htmlHasIncorrect = qHtml.contains('class="incorrect"') ||
+            qHtml.contains('class="gradedwrong"') ||
+            qHtml.contains('class="notanswered"');
+
+        dlog.log('SUBMIT', '★ Diagnóstico', data: {
+          'state_api': state.isEmpty ? '(vazio)' : state,
+          'stateclass_api': stateclass.isEmpty ? '(vazio)' : stateclass,
+          'queStateClass_html':
+              queStateClass.isEmpty ? '(não encontrado)' : queStateClass,
+          'html_correct': htmlHasCorrect,
+          'html_incorrect': htmlHasIncorrect,
+          'htmlPreview': qHtml.length > 200 ? qHtml.substring(0, 200) : qHtml,
         });
 
-        if (qSlot == question.slot) {
-          // Analisa o HTML para pistas de avaliação
-          final htmlHasCorrect = qHtml.contains('class="correct"') ||
-              qHtml.contains('class="gradedright"');
-          final htmlHasIncorrect = qHtml.contains('class="incorrect"') ||
-              qHtml.contains('class="gradedwrong"') ||
-              qHtml.contains('class="notanswered"');
-          final htmlHasRightAnswer = qHtml.contains('rightanswer');
-          final htmlHasFeedback = qHtml.contains('class="feedback"') ||
-              qHtml.contains('specificfeedback') ||
-              qHtml.contains('generalfeedback');
-          // Verifica se o div principal tem a classe de estado
-          final divClassMatch =
-              RegExp(r'class="que\s+multichoice\s+immediatefeedback\s+(\w+)"')
-                  .firstMatch(qHtml);
-          final queStateClass = divClassMatch?.group(1) ?? '';
+        // 1) Campo state da API
+        if (state == 'gradedright') return true;
+        if (state == 'gradedwrong' || state == 'gradedpartial') return false;
 
-          dlog.log('SUBMIT', '★ Diagnóstico completo', data: {
-            'state_api': state.isEmpty ? '(vazio)' : state,
-            'stateclass_api': stateclass.isEmpty ? '(vazio)' : stateclass,
-            'status_api': status,
-            'queStateClass_html':
-                queStateClass.isEmpty ? '(não encontrado)' : queStateClass,
-            'html_correct': htmlHasCorrect,
-            'html_incorrect': htmlHasIncorrect,
-            'html_rightanswer': htmlHasRightAnswer,
-            'html_feedback': htmlHasFeedback,
-            'htmlPreview_200':
-                qHtml.length > 200 ? qHtml.substring(0, 200) : qHtml,
-          });
-
-          // 1) Prioridade: campo state da API
-          if (state == 'gradedright') return true;
-          if (state == 'gradedwrong' || state == 'gradedpartial') return false;
-
-          // 2) Fallback: stateclass da API
-          if (stateclass == 'correct') return true;
-          if (stateclass == 'incorrect' || stateclass == 'notanswered') {
-            return false;
-          }
-
-          // 3) Fallback: classe no div principal do HTML
-          if (queStateClass == 'correct') return true;
-          if (queStateClass == 'incorrect' || queStateClass == 'notanswered') {
-            return false;
-          }
-
-          // 4) Fallback: pistas genéricas no HTML
-          if (htmlHasCorrect && !htmlHasIncorrect) return true;
-          if (htmlHasIncorrect) return false;
-          if (htmlHasRightAnswer) {
-            // Se tem "rightanswer" no HTML, foi avaliado como errado
-            // (Moodle mostra a resposta certa apenas quando errou)
-            return false;
-          }
-
-          dlog.log('SUBMIT',
-              '⚠ Nenhum indicador de correção encontrado. Possíveis causas:');
-          dlog.log(
-              'SUBMIT', '  1) Quiz usa deferred feedback (não avalia na hora)');
-          dlog.log('SUBMIT',
-              '  2) Opções de revisão não mostram "Se está correto" durante tentativa');
-
-          break;
+        // 2) stateclass da API
+        if (stateclass == 'correct') return true;
+        if (stateclass == 'incorrect' || stateclass == 'notanswered') {
+          return false;
         }
+
+        // 3) Classe do div raiz no HTML
+        if (queStateClass == 'correct') return true;
+        if (queStateClass == 'incorrect' || queStateClass == 'notanswered') {
+          return false;
+        }
+
+        // 4) Pistas genéricas no HTML
+        if (htmlHasCorrect && !htmlHasIncorrect) return true;
+        if (htmlHasIncorrect) return false;
+        // Moodle exibe rightanswer apenas quando a resposta está errada
+        if (qHtml.contains('rightanswer') && !qHtml.contains('class="correct"')) {
+          return false;
+        }
+
+        dlog.log('SUBMIT',
+            '⚠ Nenhum indicador encontrado — quiz possivelmente usa deferred feedback');
+        break;
       }
     } catch (e) {
       dlog.log('SUBMIT', '✗ ERRO ao ler estado pós-avaliação: $e');

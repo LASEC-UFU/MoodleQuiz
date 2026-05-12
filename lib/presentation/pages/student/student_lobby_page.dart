@@ -81,10 +81,10 @@ class _StudentLobbyPageState extends State<StudentLobbyPage> {
       return StudentQuestionPage(
         question: student.currentQuestion!,
         endsAt: state.endsAt,
-        selectedChoice: student.selectedChoice,
+        selectedAnswers: student.selectedAnswers,
         hasAnswered: student.hasAnswered,
         isSubmitting: student.isSubmitting,
-        onSelect: student.selectChoice,
+        onSelectAnswer: student.selectAnswer,
         onSubmit: () => student.submitAnswer(auth.user!),
       );
     }
