@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/app_theme.dart';
-import 'moodle_image.dart';
+import 'moodle_html_renderer.dart';
 
 /// Botão de alternativa do quiz – responsivo e acessível.
 class OptionButton extends StatelessWidget {
@@ -86,21 +85,8 @@ class OptionButton extends StatelessWidget {
                 // Texto da alternativa
                 Expanded(
                   child: htmlText.isNotEmpty
-                      ? HtmlWidget(
-                          htmlText,
-                          customWidgetBuilder: (element) {
-                            if (element.localName != 'img') return null;
-                            final src = element.attributes['src'];
-                            if (src == null || src.isEmpty) return null;
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 6),
-                              child: MoodleImage(
-                                src: src,
-                                alt: element.attributes['alt'],
-                                maxHeight: 160,
-                              ),
-                            );
-                          },
+                      ? MoodleHtmlRenderer(
+                          html: htmlText,
                           textStyle: GoogleFonts.nunito(
                             fontSize: 15,
                             fontWeight:
@@ -110,28 +96,6 @@ class OptionButton extends StatelessWidget {
                                 : AppTheme.textSecondary,
                             height: 1.4,
                           ),
-                          customStylesBuilder: (element) {
-                            if (element.localName == 'img') {
-                              return {
-                                'max-width': '100%',
-                                'height': 'auto',
-                              };
-                            }
-                            if (element.localName == 'table') {
-                              return {
-                                'border-collapse': 'collapse',
-                                'width': '100%',
-                              };
-                            }
-                            if (element.localName == 'td' ||
-                                element.localName == 'th') {
-                              return {
-                                'border': '1px solid #444',
-                                'padding': '6px 10px',
-                              };
-                            }
-                            return null;
-                          },
                         )
                       : Text(
                           text,

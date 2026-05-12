@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
+import 'package:html/dom.dart' as dom;
 
 import '../../core/theme/app_theme.dart';
 import 'moodle_image.dart';
@@ -17,13 +18,34 @@ class MoodleHtmlRenderer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final repairedHtml = _repairBrokenMoodleTexHtml(html);
+
     return HtmlWidget(
-      _withLatexTags(html),
+      _withLatexTags(repairedHtml),
       textStyle: textStyle,
       customWidgetBuilder: (element) {
+        if (element.localName == 'span') {
+          final repaired = _repairedBrokenTexSpan(element);
+          if (repaired != null) {
+            return InlineCustomWidget(
+              child: Text(
+                repaired,
+                style: textStyle.copyWith(color: AppTheme.textPrimary),
+              ),
+            );
+          }
+        }
+
         if (element.localName == 'img') {
           final src = element.attributes['src'];
           if (src == null || src.isEmpty) return null;
+          final latex = _latexFromImage(element, src);
+          if (latex != null) {
+            return _mathWidget(
+              latex,
+              display: _isDisplayLatexImage(element),
+            );
+          }
 
           if (src.startsWith('data:') ||
               src.contains('/pix/') ||
@@ -48,25 +70,7 @@ class MoodleHtmlRenderer extends StatelessWidget {
 
         final decoded = Uri.decodeComponent(latex);
         final display = element.attributes['data-display'] == 'true';
-        final math = Math.tex(
-          decoded,
-          mathStyle: display ? MathStyle.display : MathStyle.text,
-          textStyle: textStyle.copyWith(color: AppTheme.textPrimary),
-          onErrorFallback: (error) => Text(
-            _latexFallbackText(decoded),
-            style: textStyle.copyWith(color: AppTheme.textPrimary),
-          ),
-        );
-
-        if (!display) return InlineCustomWidget(child: math);
-
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: math,
-          ),
-        );
+        return _mathWidget(decoded, display: display);
       },
       customStylesBuilder: (element) {
         if (element.localName == 'table') {
@@ -81,6 +85,86 @@ class MoodleHtmlRenderer extends StatelessWidget {
         return null;
       },
     );
+  }
+
+  Widget _mathWidget(String latex, {required bool display}) {
+    final normalized = _normalizeLatex(_repairLatex(latex));
+    final math = Math.tex(
+      normalized,
+      mathStyle: display ? MathStyle.display : MathStyle.text,
+      textStyle: textStyle.copyWith(color: AppTheme.textPrimary),
+      onErrorFallback: (error) => Text(
+        _latexFallbackText(normalized),
+        style: textStyle.copyWith(color: AppTheme.textPrimary),
+      ),
+    );
+
+    if (!display) return InlineCustomWidget(child: math);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: math,
+      ),
+    );
+  }
+
+  static String? _latexFromImage(dom.Element element, String src) {
+    final classAttr = element.attributes['class']?.toLowerCase() ?? '';
+    final candidate = (element.attributes['alt'] ??
+            element.attributes['title'] ??
+            element.attributes['aria-label'] ??
+            '')
+        .trim();
+    final isTexImage = classAttr.contains('texrender') ||
+        classAttr.contains('latex') ||
+        _isMoodleTexSrc(src);
+
+    if (candidate.isEmpty) return null;
+    final decoded = _decodeHtmlEntities(candidate);
+    if (isTexImage || _looksLikeLatexFragment(decoded)) return decoded;
+    return null;
+  }
+
+  static bool _isDisplayLatexImage(dom.Element element) {
+    final classAttr = element.attributes['class']?.toLowerCase() ?? '';
+    return classAttr.contains('display') || classAttr.contains('dtex');
+  }
+
+  static String? _repairedBrokenTexSpan(dom.Element element) {
+    final src = element.attributes['src'] ?? '';
+    if (!_isMoodleTexSrc(src)) return null;
+
+    final markers = <String>[];
+    for (final entry in element.attributes.entries) {
+      final key = entry.key.toString().toLowerCase();
+      if (key == 'alt' || key == 'title' || key == 'src') continue;
+
+      final raw = '${entry.key} ${entry.value}';
+      for (final match in RegExp(r'\[\d+\]').allMatches(raw)) {
+        final marker = match.group(0);
+        if (marker != null && !markers.contains(marker)) {
+          markers.add(marker);
+        }
+      }
+    }
+
+    if (markers.isNotEmpty) {
+      return markers.join(' ${String.fromCharCode(183)} ');
+    }
+
+    final fallback = element.attributes['alt'] ??
+        element.attributes['title'] ??
+        element.attributes['aria-label'] ??
+        '';
+    if (fallback.trim().isEmpty) return null;
+
+    return _humanizeBrokenMoodleTexText(fallback);
+  }
+
+  static bool _isMoodleTexSrc(String src) {
+    return src.contains('/filter/tex/') || src.contains('tex/pix.php');
   }
 
   static String _withLatexTags(String source) {
@@ -113,6 +197,9 @@ class MoodleHtmlRenderer extends StatelessWidget {
 
   static String _replaceLatexInText(String text) {
     final decoded = _decodeHtmlEntities(text);
+    final repaired = _repairBrokenMoodleTexText(decoded);
+    if (repaired != decoded) return _escapeHtmlText(repaired);
+
     final delimited = _replaceDelimitedLatex(decoded);
     if (delimited != null) return delimited;
 
@@ -123,6 +210,67 @@ class MoodleHtmlRenderer extends StatelessWidget {
     if (cleaned != decoded) return _escapeHtmlText(cleaned);
 
     return text;
+  }
+
+  static String _repairBrokenMoodleTexHtml(String source) {
+    return source.replaceAllMapped(
+      RegExp(
+        r'((?:\\[A-Za-z]+|[A-Za-z])[^<]{0,180})<span\s+class=?([^"]*?)"\s+(?:alt|title)="([^"]*)"[^>]*\bsrc="[^"]*(?:filter/tex|tex/pix)[^"]*"[^>]*\/?>',
+        caseSensitive: false,
+        dotAll: true,
+      ),
+      (match) {
+        final prefix = match.group(1) ?? '';
+        final leakedClass = match.group(2) ?? '';
+        final alt = match.group(3) ?? '';
+        final candidate =
+            leakedClass.trim().isNotEmpty ? '$prefix$leakedClass' : alt;
+
+        final repaired = _humanizeBrokenMoodleTexText(candidate);
+        return _escapeHtmlText(repaired);
+      },
+    );
+  }
+
+  static String _repairBrokenMoodleTexText(String text) {
+    final lower = text.toLowerCase();
+    final hasSpanLeak = lower.contains('<span');
+    final hasBlankLeak = RegExp(
+      r'em\s+branco\s+\d+\s+quest\S*\s+\d+\s*\[\d+\]',
+      caseSensitive: false,
+    ).hasMatch(text);
+
+    if (!hasSpanLeak || !hasBlankLeak) return text;
+
+    var candidate = text;
+    final leakedAttribute = RegExp(
+      r'"\s+(?:alt|title|src)=',
+      caseSensitive: false,
+    ).firstMatch(candidate);
+    if (leakedAttribute != null) {
+      candidate = candidate.substring(0, leakedAttribute.start);
+    }
+
+    final repaired = _humanizeBrokenMoodleTexText(candidate);
+    return repaired.isEmpty ? text : repaired;
+  }
+
+  static String _humanizeBrokenMoodleTexText(String value) {
+    var text = _decodeHtmlEntities(value)
+        .replaceAll(RegExp(r'<span\s+class=?', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'<[^>]*>'), ' ')
+        .replaceAll('"', ' ');
+
+    text = text.replaceAllMapped(
+      RegExp(
+        r'\bEm\s+branco\s+\d+\s+Quest\S*\s+\d+\s*(\[\d+\])',
+        caseSensitive: false,
+      ),
+      (match) => match.group(1) ?? '',
+    );
+
+    text = _latexFallbackText(text);
+    return text.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 
   static String? _replaceDelimitedLatex(String text) {
@@ -328,6 +476,18 @@ class MoodleHtmlRenderer extends StatelessWidget {
     }
 
     return buffer.toString();
+  }
+
+  static String _repairLatex(String latex) {
+    final text = _decodeHtmlEntities(latex).trim();
+    if (RegExp(r'^rho\s*=', caseSensitive: false).hasMatch(text)) {
+      return text.replaceFirst(RegExp(r'^rho', caseSensitive: false), r'\rho');
+    }
+    if (RegExp(r'^ho\s*=').hasMatch(text) &&
+        RegExp(r'(?:kg/m|m/s|pa\b)', caseSensitive: false).hasMatch(text)) {
+      return text.replaceFirst(RegExp(r'^ho'), r'\rho');
+    }
+    return text;
   }
 
   static String _latexFallbackText(String latex) {

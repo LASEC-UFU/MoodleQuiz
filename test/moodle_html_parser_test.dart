@@ -41,7 +41,7 @@ void main() {
       expect(
           parsed.choices.single.htmlText,
           contains(
-              'https://moodle.example.edu/pluginfile.php/99/answer.png?token=abc123'));
+              'https://moodle.example.edu/webservice/pluginfile.php/99/answer.png?token=abc123'));
     });
 
     test('extracts generic answer controls from Moodle html', () {

@@ -16,13 +16,82 @@ class MoodleImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final candidates = _candidateUrls(src);
     return ConstrainedBox(
       constraints: BoxConstraints(maxHeight: maxHeight),
-      child: Image.network(
-        src,
-        fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => MoodleImageError(src: src, alt: alt),
+      child: _MoodleImageAttempt(
+        urls: candidates,
+        alt: alt,
       ),
+    );
+  }
+
+  static List<String> _candidateUrls(String source) {
+    final urls = <String>[];
+
+    void add(String value) {
+      final trimmed = value.trim();
+      if (trimmed.isEmpty || urls.contains(trimmed)) return;
+      urls.add(trimmed);
+    }
+
+    add(source);
+    add(source.replaceAll(' ', '%20'));
+
+    if (source.contains('/pluginfile.php')) {
+      add(source.replaceFirst('/pluginfile.php', '/webservice/pluginfile.php'));
+    }
+
+    if (source.contains('/webservice/pluginfile.php')) {
+      add(source.replaceFirst('/webservice/pluginfile.php', '/pluginfile.php'));
+    }
+
+    return urls;
+  }
+}
+
+class _MoodleImageAttempt extends StatefulWidget {
+  final List<String> urls;
+  final String? alt;
+
+  const _MoodleImageAttempt({
+    required this.urls,
+    this.alt,
+  });
+
+  @override
+  State<_MoodleImageAttempt> createState() => _MoodleImageAttemptState();
+}
+
+class _MoodleImageAttemptState extends State<_MoodleImageAttempt> {
+  int _index = 0;
+
+  @override
+  void didUpdateWidget(covariant _MoodleImageAttempt oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.urls.join('|') != widget.urls.join('|')) {
+      _index = 0;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final urls = widget.urls;
+    if (urls.isEmpty) return MoodleImageError(src: '', alt: widget.alt);
+
+    final current = urls[_index.clamp(0, urls.length - 1)];
+    return Image.network(
+      current,
+      fit: BoxFit.contain,
+      errorBuilder: (_, __, ___) {
+        if (_index < urls.length - 1) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() => _index += 1);
+          });
+          return const SizedBox.shrink();
+        }
+        return MoodleImageError(src: current, alt: widget.alt);
+      },
     );
   }
 }

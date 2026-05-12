@@ -1014,7 +1014,13 @@ class MoodleHtmlParser {
       src = '$root/$src';
     }
 
-    if (src.contains('pluginfile.php') &&
+    if (src.contains('/pluginfile.php')) {
+      src = src.replaceFirst('/pluginfile.php', '/webservice/pluginfile.php');
+    }
+
+    src = src.replaceAll(' ', '%20');
+
+    if (src.contains('/webservice/pluginfile.php') &&
         !RegExp(r'([?&])token=').hasMatch(src)) {
       final sep = src.contains('?') ? '&' : '?';
       src = '$src${sep}token=$token';
