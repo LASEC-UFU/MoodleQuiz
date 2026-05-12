@@ -698,6 +698,7 @@ class MoodleHtmlParser {
     for (final input in fragment.querySelectorAll('input')) {
       final name = input.attributes['name'] ?? '';
       if (!_isAnswerFieldName(name)) continue;
+      if (_isMoodleUiControl(input)) continue;
 
       final type = (input.attributes['type'] ?? 'text').toLowerCase();
       if (_shouldSkipInputType(type)) continue;
@@ -750,6 +751,7 @@ class MoodleHtmlParser {
     for (final select in fragment.querySelectorAll('select')) {
       final name = select.attributes['name'] ?? '';
       if (!_isAnswerFieldName(name)) continue;
+      if (_isMoodleUiControl(select)) continue;
       final label =
           _controlLabel(select, labelByFor, labelById, token, baseUrl);
       final options = <ParsedChoice>[];
@@ -777,6 +779,7 @@ class MoodleHtmlParser {
     for (final textarea in fragment.querySelectorAll('textarea')) {
       final name = textarea.attributes['name'] ?? '';
       if (!_isAnswerFieldName(name)) continue;
+      if (_isMoodleUiControl(textarea)) continue;
       final label =
           _controlLabel(textarea, labelByFor, labelById, token, baseUrl);
       controls.add(MoodleAnswerControl(
@@ -805,10 +808,29 @@ class MoodleHtmlParser {
   }
 
   static bool _isAnswerFieldName(String name) {
-    if (name.isEmpty || !name.startsWith('q')) return false;
-    if (name.contains(':sequencecheck')) return false;
-    if (name.endsWith('-submit')) return false;
+    final lower = name.toLowerCase();
+    if (lower.isEmpty || !lower.startsWith('q')) return false;
+    if (lower.contains(':sequencecheck')) return false;
+    if (lower.contains('flagged') || lower.contains(':flag')) return false;
+    if (lower.endsWith('-submit')) return false;
     return true;
+  }
+
+  static bool _isMoodleUiControl(dom.Element element) {
+    dom.Element? current = element;
+    var depth = 0;
+    while (current != null && depth < 6) {
+      final classAttr = current.attributes['class']?.toLowerCase() ?? '';
+      if (classAttr.contains('questionflag') ||
+          classAttr.contains('questionflagsavebutton') ||
+          classAttr.contains('qn_buttontoggle') ||
+          classAttr.contains('submitbtns')) {
+        return true;
+      }
+      current = current.parent;
+      depth++;
+    }
+    return false;
   }
 
   static bool _shouldSkipInputType(String type) {

@@ -136,20 +136,22 @@ class QuestionEngineWidget extends StatelessWidget {
     if (question.isMultiChoice && question.choices.isNotEmpty) {
       surface.addAll(_buildChoiceInputs());
     } else {
-      final checkboxControls = _answerableControls
-          .where((c) => c.isMultipleChoice)
-          .toList(growable: false);
-      if (checkboxControls.isNotEmpty) {
-        surface.add(_buildCheckboxInputs(checkboxControls));
-      } else if (question.isMatch && question.matchData != null) {
+      if (question.isMatch && question.matchData != null) {
         surface.add(_buildMatchInputs(textStyle));
       } else if ((question.isGapSelect || question.isDdwtos) &&
           question.gapInputData != null) {
         surface.add(_buildGapInputs());
       } else {
-        final genericControls = _genericControls;
-        if (genericControls.isNotEmpty) {
-          surface.add(_buildGenericControls(genericControls));
+        final checkboxControls = _answerableControls
+            .where((c) => c.isMultipleChoice)
+            .toList(growable: false);
+        if (checkboxControls.isNotEmpty) {
+          surface.add(_buildCheckboxInputs(checkboxControls));
+        } else {
+          final genericControls = _genericControls;
+          if (genericControls.isNotEmpty) {
+            surface.add(_buildGenericControls(genericControls));
+          }
         }
       }
     }
@@ -219,18 +221,18 @@ class QuestionEngineWidget extends StatelessWidget {
       return (selectedAnswers[question.inputBaseName] ?? '').isNotEmpty;
     }
 
+    if (question.isMatch && question.matchData != null) {
+      return question.matchData!.subQuestions.every(
+        (s) => (selectedAnswers[s.inputName] ?? '').isNotEmpty,
+      );
+    }
+
     final checkboxControls = _answerableControls
         .where((c) => c.isMultipleChoice)
         .toList(growable: false);
     if (checkboxControls.isNotEmpty) {
       return checkboxControls.any(
         (c) => (selectedAnswers[c.name] ?? '').isNotEmpty,
-      );
-    }
-
-    if (question.isMatch && question.matchData != null) {
-      return question.matchData!.subQuestions.every(
-        (s) => (selectedAnswers[s.inputName] ?? '').isNotEmpty,
       );
     }
 

@@ -60,6 +60,10 @@ void main() {
     <textarea id="essay" name="q42:2_answer_text"></textarea>
     <label for="check0">Marcar opcao</label>
     <input type="checkbox" id="check0" name="q42:2_choice0" value="1">
+    <span class="questionflag">
+      <label for="flag">Marcar questão</label>
+      <input type="checkbox" id="flag" name="q42:2_:flagged" value="1">
+    </span>
   </div>
   <input type="hidden" name="q42:2_:sequencecheck" value="1">
 </div>
@@ -81,6 +85,7 @@ void main() {
       expect(controls['q42:2_answer_text']?.type, 'textarea');
       expect(controls['q42:2_choice0']?.type, 'checkbox');
       expect(controls.containsKey('q42:2_:sequencecheck'), isFalse);
+      expect(controls.containsKey('q42:2_:flagged'), isFalse);
     });
   });
 }
