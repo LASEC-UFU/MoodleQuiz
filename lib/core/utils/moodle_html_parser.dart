@@ -202,15 +202,17 @@ class MoodleHtmlParser {
 
   /// Retorna o HTML COMPLETO da questão para exibição (aluno / professor).
   /// Preserva imagens e conteúdo visual de TODOS os blocos (qtext, ablock,
-  /// dropzones, drag-items, etc.) e remove apenas elementos interativos
-  /// (input, button, select, textarea, form, script).
+  /// dropzones, drag-items, etc.).
+  ///
+  /// Importante: para manter a aparência do Moodle em questões de
+  /// Arrastar&Soltar/Cloze/Associação, NÃO removemos inputs/botões/select.
+  /// Removemos apenas tags potencialmente inseguras ou sem valor visual.
   /// Essencial para questões de Arrastar&Soltar, Associação, GeoGebra, Cloze…
   static String extractDisplayHtml(String html, String token, String baseUrl) {
     final fragment = html_parser.parseFragment(html);
 
-    // Remove apenas elementos puramente interativos / de submissão
-    for (final el in fragment.querySelectorAll(
-        'input, button, select, textarea, form, script, style, noscript')) {
+    // Remove apenas elementos potencialmente inseguros ou não renderizáveis.
+    for (final el in fragment.querySelectorAll('script, style, noscript')) {
       el.remove();
     }
 
