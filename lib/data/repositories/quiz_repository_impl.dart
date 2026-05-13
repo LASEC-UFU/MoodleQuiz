@@ -308,6 +308,10 @@ class QuizRepositoryImpl implements IQuizRepository {
           final qPage = (qMap['page'] as num? ?? page).toInt();
           final type = qMap['type']?.toString() ?? '';
 
+          log('     raw slot=$slot page=$qPage tipo=${type.isEmpty ? "?" : type} '
+              'len=${html.length} flags=${_diagnosticFlags(html)} '
+              'plain="${_diagnosticSnippet(_plainDiagnostic(html), 500)}"');
+
           final parsed = MoodleHtmlParser.parse(
             html: html,
             attemptId: attemptId,
@@ -319,6 +323,26 @@ class QuizRepositoryImpl implements IQuizRepository {
           // Usa o tipo real da API do Moodle; cai para o inferido pelo HTML só se ausente.
           final resolvedType = type.isNotEmpty ? type : parsed.type;
           log('     slot=$slot page=$qPage tipo=$resolvedType alternativas=${parsed.choices.length}');
+          log('     parsed slot=$slot textLen=${parsed.text.length} '
+              'htmlLen=${parsed.htmlText.length} displayLen=${parsed.displayHtml.length} '
+              'gap=${parsed.gapInputData?.gapCount ?? 0} '
+              'flagsText=${_diagnosticFlags(parsed.text)} '
+              'flagsHtml=${_diagnosticFlags(parsed.htmlText)} '
+              'flagsDisplay=${_diagnosticFlags(parsed.displayHtml)}');
+          if (resolvedType == 'gapselect' || resolvedType == 'ddwtos') {
+            _logGapPromptDiagnostics(
+              log,
+              slot: slot,
+              label: 'htmlText',
+              html: parsed.htmlText,
+            );
+            _logGapPromptDiagnostics(
+              log,
+              slot: slot,
+              label: 'displayHtml',
+              html: parsed.displayHtml,
+            );
+          }
 
           allQuestions.add(QuestionEntity(
             slot: parsed.slot,
@@ -822,4 +846,74 @@ class QuizRepositoryImpl implements IQuizRepository {
   @override
   Future<void> setFinished(UserEntity user, int courseId) =>
       _state.setFinished(user.baseUrl, user.token, courseId);
+
+  static void _logGapPromptDiagnostics(
+    void Function(String) log, {
+    required int slot,
+    required String label,
+    required String html,
+  }) {
+    if (html.trim().isEmpty) {
+      log('     prompt slot=$slot $label vazio');
+      return;
+    }
+
+    try {
+      final prompt = MoodleHtmlParser.extractTextWithGapMarkers(html, '', '');
+      log('     prompt slot=$slot $label len=${prompt.length} '
+          'flags=${_diagnosticFlags(prompt)} '
+          'plain="${_diagnosticSnippet(_plainDiagnostic(prompt), 500)}"');
+    } catch (e) {
+      log('     prompt slot=$slot $label ERRO: $e');
+    }
+  }
+
+  static String _diagnosticFlags(String value) {
+    final checks = <String, bool>{
+      'qno': value.contains('qno'),
+      'Incompleto': value.contains('Incompleto'),
+      'Vale': value.contains('Vale '),
+      'Verificar': value.contains('Verificar'),
+      'Em branco': value.contains('Em branco'),
+      'spanClass': value.contains('<span class'),
+      'alt': value.contains('alt='),
+      'src': value.contains('src='),
+      'texImg': value.contains('/filter/tex/') || value.contains('tex/pix.php'),
+      'select': value.contains('<select'),
+      'marker': RegExp(r'\[\d+\]').hasMatch(value),
+    };
+
+    final active = checks.entries
+        .where((entry) => entry.value)
+        .map((entry) => entry.key)
+        .join(',');
+    return active.isEmpty ? 'ok' : active;
+  }
+
+  static String _plainDiagnostic(String html) {
+    return html
+        .replaceAll(
+            RegExp(r'<script\b[^>]*>.*?</script>',
+                caseSensitive: false, dotAll: true),
+            ' ')
+        .replaceAll(
+            RegExp(r'<style\b[^>]*>.*?</style>',
+                caseSensitive: false, dotAll: true),
+            ' ')
+        .replaceAll(RegExp(r'<[^>]+>'), ' ')
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'")
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  static String _diagnosticSnippet(String value, [int max = 600]) {
+    final normalized = value.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (normalized.length <= max) return normalized;
+    return '${normalized.substring(0, max)}...';
+  }
 }

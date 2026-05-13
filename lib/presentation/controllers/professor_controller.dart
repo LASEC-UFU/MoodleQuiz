@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../../core/utils/debug_logger.dart';
+import '../../core/utils/moodle_html_parser.dart';
 import '../../domain/entities/moodle_course.dart';
 import '../../domain/entities/moodle_quiz.dart';
 import '../../domain/entities/question_entity.dart';
@@ -66,6 +67,101 @@ class ProfessorController extends ChangeNotifier {
   String? get error => _error;
   List<String> get log => List.unmodifiable(_log);
   bool get isSetup => _selectedQuiz != null && _questions.isNotEmpty;
+
+  Future<void> runConnectionDiagnostics({
+    QuestionEntity? question,
+    int? index,
+  }) async {
+    final user = _user;
+    final course = _selectedCourse;
+    final quiz = _selectedQuiz;
+
+    _addLog('━━ Diagnóstico de conexão e questão ━━');
+    _addLog('Usuário: ${user?.fullname ?? "(não autenticado)"}');
+    _addLog('Curso: ${course?.fullname ?? "(não selecionado)"} '
+        'id=${course?.id ?? "-"}');
+    _addLog('Quiz: ${quiz?.name ?? "(não selecionado)"} '
+        'id=${quiz?.id ?? "-"} attempt=${_attemptId ?? "-"}');
+    _addLog('Questões carregadas: ${_questions.length}');
+
+    if (user == null || course == null) {
+      _addLog('Conexão: não testada porque usuário/curso não estão prontos.');
+      return;
+    }
+
+    try {
+      final quizzes = await _quizRepo.getQuizzesByCourse(user, course.id);
+      _addLog('Moodle OK: ${quizzes.length} quiz(es) retornado(s) no curso.');
+    } catch (e) {
+      _addLog('Moodle ERRO: $e');
+    }
+
+    try {
+      final state = await _quizRepo.getQuizState(user, course.id);
+      _addLog('Estado compartilhado OK: status=${state.status.name} '
+          'slot=${state.currentSlot} page=${state.currentPage} '
+          'round=${state.roundId}');
+    } catch (e) {
+      _addLog('Estado compartilhado ERRO: $e');
+    }
+
+    try {
+      final scores = await _quizRepo.getScores(user, course.id);
+      _addLog('Pontuações OK: ${scores.length} registro(s).');
+    } catch (e) {
+      _addLog('Pontuações ERRO: $e');
+    }
+
+    if (question != null) {
+      logQuestionDiagnostics(question, index ?? _questions.indexOf(question));
+    }
+  }
+
+  void logQuestionDiagnostics(QuestionEntity question, int index) {
+    final displayIndex = index >= 0 ? index + 1 : '?';
+    final gap = question.gapInputData;
+    final dlog = DebugLogger.instance;
+
+    _addLog(
+        '━━ Diagnóstico da questão $displayIndex / slot ${question.slot} ━━');
+    _addLog('Tipo=${question.type} page=${question.page} '
+        'choices=${question.choices.length} controls=${question.answerControls.length} '
+        'gapCount=${gap?.gapCount ?? 0} gapPrefix=${gap?.inputNamePrefix ?? "-"} '
+        'seq=${question.seqCheck}');
+    _addLog('text len=${question.text.length} '
+        'flags=${_diagnosticFlags(question.text)} '
+        'snip="${_diagnosticSnippet(question.text)}"');
+    _addLog('htmlText len=${question.htmlText.length} '
+        'flags=${_diagnosticFlags(question.htmlText)} '
+        'plain="${_diagnosticSnippet(_plainDiagnostic(question.htmlText))}"');
+    _addLog('displayHtml len=${question.displayHtml.length} '
+        'flags=${_diagnosticFlags(question.displayHtml)} '
+        'plain="${_diagnosticSnippet(_plainDiagnostic(question.displayHtml))}"');
+    _addLog('rightAnswer len=${question.rightAnswerHtml.length} '
+        'flags=${_diagnosticFlags(question.rightAnswerHtml)} '
+        'plain="${_diagnosticSnippet(_plainDiagnostic(question.rightAnswerHtml))}"');
+
+    if (question.isGapSelect || question.isDdwtos) {
+      _logGapPromptCandidate('htmlText', question.htmlText);
+      _logGapPromptCandidate('displayHtml', question.displayHtml);
+    }
+
+    dlog.log('PROF_QUESTION_DIAG', 'Questão selecionada para diagnóstico',
+        data: {
+          'index': displayIndex,
+          'slot': question.slot,
+          'page': question.page,
+          'type': question.type,
+          'textLen': question.text.length,
+          'htmlTextLen': question.htmlText.length,
+          'displayHtmlLen': question.displayHtml.length,
+          'rightAnswerLen': question.rightAnswerHtml.length,
+          'gapCount': gap?.gapCount ?? 0,
+          'flagsText': _diagnosticFlags(question.text),
+          'flagsHtml': _diagnosticFlags(question.htmlText),
+          'flagsDisplay': _diagnosticFlags(question.displayHtml),
+        });
+  }
 
   // ── Seleção de curso / quiz ────────────────────────────────────────────────
 
@@ -317,6 +413,71 @@ class ProfessorController extends ChangeNotifier {
   void _addLog(String msg) {
     _log.add('[${DateTime.now().toIso8601String().substring(11, 19)}] $msg');
     notifyListeners();
+  }
+
+  void _logGapPromptCandidate(String label, String html) {
+    if (html.trim().isEmpty) {
+      _addLog('prompt($label): vazio');
+      return;
+    }
+
+    try {
+      final prompt = MoodleHtmlParser.extractTextWithGapMarkers(html, '', '');
+      _addLog('prompt($label) len=${prompt.length} '
+          'flags=${_diagnosticFlags(prompt)} '
+          'plain="${_diagnosticSnippet(_plainDiagnostic(prompt), 900)}"');
+    } catch (e) {
+      _addLog('prompt($label) ERRO: $e');
+    }
+  }
+
+  static String _diagnosticFlags(String value) {
+    final checks = <String, bool>{
+      'qno': value.contains('qno'),
+      'Incompleto': value.contains('Incompleto'),
+      'Vale': value.contains('Vale '),
+      'Verificar': value.contains('Verificar'),
+      'Em branco': value.contains('Em branco'),
+      'spanClass': value.contains('<span class'),
+      'alt': value.contains('alt='),
+      'src': value.contains('src='),
+      'texImg': value.contains('/filter/tex/') || value.contains('tex/pix.php'),
+      'select': value.contains('<select'),
+      'marker': RegExp(r'\[\d+\]').hasMatch(value),
+    };
+
+    final active = checks.entries
+        .where((entry) => entry.value)
+        .map((entry) => entry.key)
+        .join(',');
+    return active.isEmpty ? 'ok' : active;
+  }
+
+  static String _plainDiagnostic(String html) {
+    return html
+        .replaceAll(
+            RegExp(r'<script\b[^>]*>.*?</script>',
+                caseSensitive: false, dotAll: true),
+            ' ')
+        .replaceAll(
+            RegExp(r'<style\b[^>]*>.*?</style>',
+                caseSensitive: false, dotAll: true),
+            ' ')
+        .replaceAll(RegExp(r'<[^>]+>'), ' ')
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'")
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  static String _diagnosticSnippet(String value, [int max = 600]) {
+    final normalized = value.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (normalized.length <= max) return normalized;
+    return '${normalized.substring(0, max)}...';
   }
 
   Future<void> _loadAllQuestions(UserEntity user, int attemptId) async {

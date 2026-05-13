@@ -74,13 +74,23 @@ class _ProfessorHomePageState extends State<ProfessorHomePage> {
                       prof: prof,
                       auth: auth,
                       questionIndex: _questionIndex,
-                      onIndexChanged: (i) => setState(() => _questionIndex = i),
+                      onIndexChanged: (i) {
+                        setState(() => _questionIndex = i);
+                        if (i >= 0 && i < prof.questions.length) {
+                          prof.logQuestionDiagnostics(prof.questions[i], i);
+                        }
+                      },
                     )
                   : _MobileLayout(
                       prof: prof,
                       auth: auth,
                       questionIndex: _questionIndex,
-                      onIndexChanged: (i) => setState(() => _questionIndex = i),
+                      onIndexChanged: (i) {
+                        setState(() => _questionIndex = i);
+                        if (i >= 0 && i < prof.questions.length) {
+                          prof.logQuestionDiagnostics(prof.questions[i], i);
+                        }
+                      },
                     ),
             ),
           ),
@@ -506,6 +516,54 @@ class _ControlPanelState extends State<_ControlPanel> {
           ],
 
           // ── Botões de ação ───────────────────────────────────────────
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: prof.isLoading
+                      ? null
+                      : () => prof.runConnectionDiagnostics(
+                            question: selectedQ,
+                            index: selectedIndex,
+                          ),
+                  icon: const Icon(Icons.wifi_tethering_rounded,
+                      color: AppTheme.accent, size: 18),
+                  label: const Text('Testar conexão/logs',
+                      style: TextStyle(color: AppTheme.accent)),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: AppTheme.accent),
+                    minimumSize: const Size(double.infinity, 44),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: selectedQ == null
+                      ? null
+                      : () => prof.logQuestionDiagnostics(
+                            selectedQ,
+                            selectedIndex,
+                          ),
+                  icon: const Icon(Icons.bug_report_rounded,
+                      color: AppTheme.warning, size: 18),
+                  label: const Text('Diagnosticar questão',
+                      style: TextStyle(color: AppTheme.warning)),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: AppTheme.warning),
+                    minimumSize: const Size(double.infinity, 44),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
           if (state.isActive)
             _ActionButton(
               label: 'Encerrar Questão',
@@ -998,7 +1056,7 @@ class _CollapsibleLogPanelState extends State<_CollapsibleLogPanel> {
                     color: AppTheme.accent, size: 14),
                 const SizedBox(width: 6),
                 const Expanded(
-                  child: Text('Log de carregamento',
+                  child: Text('Log de carregamento/diagnóstico',
                       style: TextStyle(
                           color: AppTheme.accent,
                           fontSize: 12,
