@@ -285,7 +285,15 @@ class MoodleHtmlParser {
       }
 
       buffer.write(source.substring(index, start));
-      buffer.write(source.substring(valueStart, altMatch.start));
+      // Discard the accessibility label text (classValue). It contains "Em branco N
+      // Questão N" and sometimes concatenated option texts that must not appear in
+      // the rendered output. Only preserve explicit [N] gap markers if present.
+      final gapMarkers = RegExp(r'\[\d+\]')
+          .allMatches(classValue)
+          .map((m) => m.group(0)!)
+          .where((m) => m.isNotEmpty)
+          .join(' ');
+      if (gapMarkers.isNotEmpty) buffer.write(gapMarkers);
       index = end;
     }
 
