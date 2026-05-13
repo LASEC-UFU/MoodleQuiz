@@ -285,15 +285,12 @@ class MoodleHtmlParser {
       }
 
       buffer.write(source.substring(index, start));
-      // Discard the accessibility label text (classValue). It contains "Em branco N
-      // Questão N" and sometimes concatenated option texts that must not appear in
-      // the rendered output. Only preserve explicit [N] gap markers if present.
-      final gapMarkers = RegExp(r'\[\d+\]')
-          .allMatches(classValue)
-          .map((m) => m.group(0)!)
-          .where((m) => m.isNotEmpty)
-          .join(' ');
-      if (gapMarkers.isNotEmpty) buffer.write(gapMarkers);
+      // Write back the real content from the malformed span's class-attribute
+      // fragment. This preserves actual <select> elements (the gap answer
+      // controls) and separator text (e.g. "·"). The "Em branco N Questão N"
+      // accessibility labels are removed in the next step by
+      // _cleanBlankLabelsBeforeControls.
+      buffer.write(classValue);
       index = end;
     }
 
