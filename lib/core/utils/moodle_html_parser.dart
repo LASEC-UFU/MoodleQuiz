@@ -109,6 +109,34 @@ class GapInputData {
   }
 }
 
+/// Choice/marker available in a Moodle ddmarker question.
+class DdMarkerChoice {
+  final int choiceNo;
+  final String inputName;
+  final String text;
+  final bool infinite;
+  final int noOfDrags;
+
+  const DdMarkerChoice({
+    required this.choiceNo,
+    required this.inputName,
+    required this.text,
+    this.infinite = false,
+    this.noOfDrags = 1,
+  });
+}
+
+/// Structured data for Moodle drag-and-drop marker questions.
+class DdMarkerData {
+  final String backgroundImageUrl;
+  final List<DdMarkerChoice> choices;
+
+  const DdMarkerData({
+    required this.backgroundImageUrl,
+    required this.choices,
+  });
+}
+
 class ParsedQuestion {
   final int slot;
   final String text; // texto da questão (HTML stripped — fallback)
@@ -127,6 +155,7 @@ class ParsedQuestion {
       answerInputName; // nome do campo de texto (numerical/shortanswer)
   final MatchData? matchData; // estrutura de associação (match)
   final GapInputData? gapInputData; // estrutura de lacunas (gapselect/ddwtos)
+  final DdMarkerData? ddMarkerData; // estrutura de marcadores sobre imagem
 
   const ParsedQuestion({
     required this.slot,
@@ -142,6 +171,7 @@ class ParsedQuestion {
     this.answerInputName,
     this.matchData,
     this.gapInputData,
+    this.ddMarkerData,
   });
 
   bool get isMultiChoice =>
@@ -217,6 +247,7 @@ class MoodleHtmlParser {
     MatchData? matchData;
     String? answerInputName;
     GapInputData? gapInputData;
+    DdMarkerData? ddMarkerData;
 
     if (type == 'match') {
       matchData = _extractMatchData(normalizedHtml, token, baseUrl);
@@ -227,6 +258,8 @@ class MoodleHtmlParser {
       answerInputName = _extractAnswerInputName(normalizedHtml) ?? inputBase;
     } else if (type == 'gapselect' || type == 'ddwtos') {
       gapInputData = _extractGapInputData(normalizedHtml, slot, attemptId);
+    } else if (type == 'ddmarker') {
+      ddMarkerData = _extractDdMarkerData(normalizedHtml, token, baseUrl);
     }
 
     if ((type == 'gapselect' || type == 'ddwtos') && gapInputData != null) {
@@ -259,6 +292,7 @@ class MoodleHtmlParser {
       answerInputName: answerInputName,
       matchData: matchData,
       gapInputData: gapInputData,
+      ddMarkerData: ddMarkerData,
     );
   }
 
@@ -984,6 +1018,67 @@ class MoodleHtmlParser {
 
     if (subQuestions.isEmpty) return null;
     return MatchData(subQuestions: subQuestions, options: options);
+  }
+
+  // ── Extração de dados de marcadores sobre imagem (ddmarker) ─────────────
+
+  static DdMarkerData? _extractDdMarkerData(
+      String html, String token, String baseUrl) {
+    final normalizedHtml = _normalizeQuestionHtml(html);
+    final fragment = html_parser.parseFragment(normalizedHtml);
+    final image = fragment.querySelector('img.dropbackground') ??
+        fragment.querySelector('.droparea img') ??
+        fragment.querySelector('.ddarea img');
+    final rawImageUrl = image?.attributes['src'] ?? '';
+    if (rawImageUrl.trim().isEmpty) return null;
+
+    final choices = <DdMarkerChoice>[];
+    for (final input in fragment.querySelectorAll('input.choices')) {
+      final name = input.attributes['name'] ?? '';
+      if (!_isAnswerFieldName(name)) continue;
+      final classAttr = input.attributes['class'] ?? '';
+      final choiceNo = _classSuffixAsInt(classAttr, 'choice');
+      if (choiceNo == null) continue;
+
+      final noOfDrags = _classSuffixAsInt(classAttr, 'noofdrags') ?? 1;
+      final text = _markerTextForChoice(fragment, choiceNo);
+      choices.add(DdMarkerChoice(
+        choiceNo: choiceNo,
+        inputName: name,
+        text: text.isNotEmpty ? text : 'Marcador ${choiceNo + 1}',
+        infinite: _hasClassToken(classAttr, 'infinite'),
+        noOfDrags: noOfDrags,
+      ));
+    }
+
+    choices.sort((a, b) => a.choiceNo.compareTo(b.choiceNo));
+    if (choices.isEmpty) return null;
+
+    return DdMarkerData(
+      backgroundImageUrl: _normalizeResourceUrl(rawImageUrl, token, baseUrl),
+      choices: choices,
+    );
+  }
+
+  static int? _classSuffixAsInt(String classAttr, String prefix) {
+    final match =
+        RegExp('(?:^|\\s)$prefix(\\d+)(?:\\s|\$)').firstMatch(classAttr);
+    return match == null ? null : int.tryParse(match.group(1) ?? '');
+  }
+
+  static bool _hasClassToken(String classAttr, String token) {
+    return RegExp('(?:^|\\s)$token(?:\\s|\$)').hasMatch(classAttr);
+  }
+
+  static String _markerTextForChoice(
+      dom.DocumentFragment fragment, int choiceNo) {
+    final direct = fragment.querySelector(
+      '.choice$choiceNo .markertext, .marker.choice$choiceNo, '
+      '.draghome.choice$choiceNo, .dragitem.choice$choiceNo',
+    );
+    if (direct == null) return '';
+    final markerText = direct.querySelector('.markertext');
+    return _stripHtml((markerText ?? direct).innerHtml).trim();
   }
 
   // ── Extração de dados de lacunas (gapselect / ddwtos) ─────────────────────

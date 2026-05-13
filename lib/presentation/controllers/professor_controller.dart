@@ -120,6 +120,7 @@ class ProfessorController extends ChangeNotifier {
   void logQuestionDiagnostics(QuestionEntity question, int index) {
     final displayIndex = index >= 0 ? index + 1 : '?';
     final gap = question.gapInputData;
+    final ddMarker = question.ddMarkerData;
     final dlog = DebugLogger.instance;
 
     _addLog(
@@ -128,6 +129,7 @@ class ProfessorController extends ChangeNotifier {
         'choices=${question.choices.length} controls=${question.answerControls.length} '
         'gapCount=${gap?.gapCount ?? 0} gapPrefix=${gap?.inputNamePrefix ?? "-"} '
         'gapOptions=${gap?.options.length ?? 0} gapGroups=${gap?.optionsByGap.length ?? 0} '
+        'ddMarkers=${ddMarker?.choices.length ?? 0} '
         'seq=${question.seqCheck}');
     _addLog('text len=${question.text.length} '
         'flags=${_diagnosticFlags(question.text)} '

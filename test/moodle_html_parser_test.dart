@@ -483,5 +483,47 @@ void main() {
       expect(prompt, isNot(contains('vazão volumétrica')));
       expect(prompt, isNot(contains('Incompleto')));
     });
+    test('extracts ddmarker background and hidden coordinate fields', () {
+      const html = '''
+<div id="q940:1" class="que ddmarker deferredfeedback notyetanswered">
+  <div class="formulation">
+    <div class="qtext"><p>Marque os erros na imagem.</p></div>
+    <div class="ddarea">
+      <div class="droparea">
+        <img class="dropbackground img-fluid w-100" src="@@PLUGINFILE@@/si_erros_grafia.png" alt="Imagem">
+      </div>
+      <div class="draghomes">
+        <span class="marker user-select-none choice0 infinite">
+          <span class="target"></span><span class="markertext">ERRO</span>
+        </span>
+      </div>
+      <div class="ddform">
+        <input type="hidden" id="q940_1_c0" name="q940:1_c0" value=""
+          class="choices choice0 noofdrags12 infinite">
+      </div>
+    </div>
+  </div>
+  <input type="hidden" name="q940:1_:sequencecheck" value="1">
+</div>
+''';
+
+      final parsed = MoodleHtmlParser.parse(
+        html: html,
+        attemptId: 940,
+        slot: 1,
+        token: 'abc123',
+        baseUrl: 'https://moodle.example.edu',
+      );
+
+      final data = parsed.ddMarkerData!;
+      expect(data.backgroundImageUrl,
+          contains('webservice/pluginfile.php/si_erros_grafia.png'));
+      expect(data.backgroundImageUrl, contains('token=abc123'));
+      expect(data.choices, hasLength(1));
+      expect(data.choices.single.inputName, 'q940:1_c0');
+      expect(data.choices.single.text, 'ERRO');
+      expect(data.choices.single.infinite, isTrue);
+      expect(data.choices.single.noOfDrags, 12);
+    });
   });
 }

@@ -3,7 +3,12 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/moodle_html_parser.dart'
-    show MoodleAnswerControl, MoodleHtmlParser, ParsedChoice;
+    show
+        DdMarkerChoice,
+        DdMarkerData,
+        MoodleAnswerControl,
+        MoodleHtmlParser,
+        ParsedChoice;
 import '../../core/utils/responsive.dart';
 import '../../domain/entities/question_entity.dart';
 import 'moodle_html_renderer.dart';
@@ -119,6 +124,9 @@ class QuestionEngineWidget extends StatelessWidget {
     if (question.isMultiChoice && question.choices.isNotEmpty) {
       return question.htmlText;
     }
+    if (question.isDdImage && question.ddMarkerData != null) {
+      return question.htmlText;
+    }
     if ((question.isGapSelect || question.isDdwtos) &&
         question.gapInputData != null) {
       return _gapPromptHtml;
@@ -183,6 +191,8 @@ class QuestionEngineWidget extends StatelessWidget {
     } else {
       if (question.isMatch && question.matchData != null) {
         surface.add(_buildMatchInputs(textStyle));
+      } else if (question.isDdImage && question.ddMarkerData != null) {
+        surface.add(_buildDdMarkerInputs());
       } else if ((question.isGapSelect || question.isDdwtos) &&
           question.gapInputData != null) {
         surface.add(_buildGapInputs());
@@ -285,6 +295,13 @@ class QuestionEngineWidget extends StatelessWidget {
     if ((question.isGapSelect || question.isDdwtos) && gap != null) {
       return List.generate(gap.gapCount, (i) => gap.inputName(i + 1)).every(
         (name) => (selectedAnswers[name] ?? '').isNotEmpty,
+      );
+    }
+
+    final ddMarker = question.ddMarkerData;
+    if (question.isDdImage && ddMarker != null) {
+      return ddMarker.choices.any(
+        (choice) => (selectedAnswers[choice.inputName] ?? '').isNotEmpty,
       );
     }
 
@@ -445,6 +462,16 @@ class QuestionEngineWidget extends StatelessWidget {
           );
         }),
       ),
+    );
+  }
+
+  Widget _buildDdMarkerInputs() {
+    return _DdMarkerInput(
+      data: question.ddMarkerData!,
+      selectedAnswers: selectedAnswers,
+      disabled: _controlsDisabled,
+      compact: compact,
+      onChanged: (inputName, value) => onSelectAnswer?.call(inputName, value),
     );
   }
 
@@ -690,4 +717,315 @@ class QuestionEngineWidget extends StatelessWidget {
       ),
     );
   }
+}
+
+class _DdMarkerInput extends StatefulWidget {
+  final DdMarkerData data;
+  final Map<String, String> selectedAnswers;
+  final bool disabled;
+  final bool compact;
+  final void Function(String inputName, String value) onChanged;
+
+  const _DdMarkerInput({
+    required this.data,
+    required this.selectedAnswers,
+    required this.disabled,
+    required this.compact,
+    required this.onChanged,
+  });
+
+  @override
+  State<_DdMarkerInput> createState() => _DdMarkerInputState();
+}
+
+class _DdMarkerInputState extends State<_DdMarkerInput> {
+  int _activeChoiceIndex = 0;
+  ImageInfo? _imageInfo;
+  ImageStream? _imageStream;
+  ImageStreamListener? _imageListener;
+  String? _resolvedImageUrl;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _resolveImage();
+  }
+
+  @override
+  void didUpdateWidget(covariant _DdMarkerInput oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.data.backgroundImageUrl != widget.data.backgroundImageUrl) {
+      _imageInfo = null;
+      _resolveImage(force: true);
+    }
+    if (_activeChoiceIndex >= widget.data.choices.length) {
+      _activeChoiceIndex = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _removeImageListener();
+    super.dispose();
+  }
+
+  void _resolveImage({bool force = false}) {
+    final url = widget.data.backgroundImageUrl;
+    if (!force && _resolvedImageUrl == url && _imageInfo != null) return;
+
+    _removeImageListener();
+    _resolvedImageUrl = url;
+    final provider = NetworkImage(url);
+    final stream = provider.resolve(createLocalImageConfiguration(context));
+    final listener = ImageStreamListener((info, _) {
+      if (!mounted) return;
+      setState(() => _imageInfo = info);
+    });
+    _imageStream = stream;
+    _imageListener = listener;
+    stream.addListener(listener);
+  }
+
+  void _removeImageListener() {
+    final listener = _imageListener;
+    final stream = _imageStream;
+    if (listener != null && stream != null) {
+      stream.removeListener(listener);
+    }
+    _imageListener = null;
+    _imageStream = null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final choices = widget.data.choices;
+    if (choices.isEmpty || widget.data.backgroundImageUrl.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final activeChoice = choices[_activeChoiceIndex];
+    final naturalWidth = _imageInfo?.image.width.toDouble();
+    final naturalHeight = _imageInfo?.image.height.toDouble();
+    final aspectRatio = naturalWidth != null &&
+            naturalHeight != null &&
+            naturalWidth > 0 &&
+            naturalHeight > 0
+        ? naturalWidth / naturalHeight
+        : 16 / 9;
+
+    return Container(
+      padding: EdgeInsets.all(widget.compact ? 10 : 14),
+      decoration: AppTheme.cardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildMarkerToolbar(choices),
+          const SizedBox(height: 10),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final height = width / aspectRatio;
+              return GestureDetector(
+                onTapUp: widget.disabled || naturalWidth == null
+                    ? null
+                    : (details) => _addMarker(
+                          activeChoice,
+                          details.localPosition,
+                          Size(width, height),
+                        ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: SizedBox(
+                    width: width,
+                    height: height,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Image.network(
+                          widget.data.backgroundImageUrl,
+                          fit: BoxFit.fill,
+                          gaplessPlayback: true,
+                          errorBuilder: (_, __, ___) => Container(
+                            color: AppTheme.bgDark,
+                            alignment: Alignment.center,
+                            child: const Icon(
+                              Icons.broken_image_rounded,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                        ),
+                        if (naturalWidth != null)
+                          ..._buildPlacedMarkers(
+                            choices,
+                            Size(width, height),
+                            naturalWidth,
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMarkerToolbar(List<DdMarkerChoice> choices) {
+    return Row(
+      children: [
+        Expanded(
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: choices.asMap().entries.map((entry) {
+              final index = entry.key;
+              final choice = entry.value;
+              final count = _pointsFor(choice).length;
+              return ChoiceChip(
+                label:
+                    Text(count > 0 ? '${choice.text} ($count)' : choice.text),
+                selected: index == _activeChoiceIndex,
+                onSelected: widget.disabled
+                    ? null
+                    : (_) => setState(() => _activeChoiceIndex = index),
+                selectedColor: AppTheme.primary,
+                backgroundColor: AppTheme.bgDark,
+                labelStyle: const TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontWeight: FontWeight.w700,
+                ),
+                side: BorderSide(color: AppTheme.bgCardAlt),
+              );
+            }).toList(),
+          ),
+        ),
+        Tooltip(
+          message: 'Limpar marcadores',
+          child: IconButton(
+            onPressed: widget.disabled ? null : _clearMarkers,
+            icon: const Icon(Icons.clear_all_rounded),
+            color: AppTheme.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _buildPlacedMarkers(
+    List<DdMarkerChoice> choices,
+    Size displaySize,
+    double naturalWidth,
+  ) {
+    final scale = displaySize.width / naturalWidth;
+    final markers = <Widget>[];
+
+    for (final choice in choices) {
+      final points = _pointsFor(choice);
+      for (var i = 0; i < points.length; i++) {
+        final point = points[i];
+        markers.add(Positioned(
+          left: point.x * scale,
+          top: point.y * scale,
+          child: GestureDetector(
+            onTap: widget.disabled ? null : () => _removeMarker(choice, i),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppTheme.warning.withValues(alpha: 0.95),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: AppTheme.bgDark, width: 1.5),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black45,
+                    blurRadius: 6,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.my_location_rounded,
+                    size: 12,
+                    color: AppTheme.bgDark,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    choice.text,
+                    style: const TextStyle(
+                      color: AppTheme.bgDark,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ));
+      }
+    }
+
+    return markers;
+  }
+
+  void _addMarker(DdMarkerChoice choice, Offset localPosition, Size size) {
+    final naturalWidth = _imageInfo?.image.width.toDouble();
+    if (naturalWidth == null || naturalWidth <= 0) return;
+
+    final scale = size.width / naturalWidth;
+    final x = (localPosition.dx / scale).round().clamp(0, naturalWidth.round());
+    final naturalHeight = _imageInfo?.image.height.toDouble() ?? size.height;
+    final y =
+        (localPosition.dy / scale).round().clamp(0, naturalHeight.round());
+    final points = [
+      ..._pointsFor(choice),
+      _MarkerPoint(x.toDouble(), y.toDouble())
+    ];
+    widget.onChanged(choice.inputName, _formatPoints(points));
+  }
+
+  void _removeMarker(DdMarkerChoice choice, int index) {
+    final points = [..._pointsFor(choice)];
+    if (index < 0 || index >= points.length) return;
+    points.removeAt(index);
+    widget.onChanged(choice.inputName, _formatPoints(points));
+  }
+
+  void _clearMarkers() {
+    for (final choice in widget.data.choices) {
+      widget.onChanged(choice.inputName, '');
+    }
+  }
+
+  List<_MarkerPoint> _pointsFor(DdMarkerChoice choice) {
+    final raw = widget.selectedAnswers[choice.inputName] ?? '';
+    if (raw.trim().isEmpty) return const [];
+    final points = <_MarkerPoint>[];
+    for (final item in raw.split(';')) {
+      final parts = item.split(',');
+      if (parts.length != 2) continue;
+      final x = double.tryParse(parts[0].trim());
+      final y = double.tryParse(parts[1].trim());
+      if (x == null || y == null) continue;
+      points.add(_MarkerPoint(x, y));
+    }
+    return points;
+  }
+
+  String _formatPoints(List<_MarkerPoint> points) {
+    return points
+        .map((point) => '${point.x.round()},${point.y.round()}')
+        .join(';');
+  }
+}
+
+class _MarkerPoint {
+  final double x;
+  final double y;
+
+  const _MarkerPoint(this.x, this.y);
 }

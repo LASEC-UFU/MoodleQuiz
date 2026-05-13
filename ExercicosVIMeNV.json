@@ -1,0 +1,474 @@
+[
+  {
+    "id": 1,
+    "dificuldade": "baixa",
+    "enunciado": "Analise os exemplos apresentados (símbolos, casas decimais, separadores e grafia por extenso) e assinale a alternativa correta.",
+    "imagens": [],
+    "alternativas": [
+      "Km, Kgm",
+      "μ",
+      "a grama",
+      "2 hs"
+    ],
+    "correta": "15 s",
+    "obs": [
+      "Símbolos do SI não têm plural e são minúsculos, exceto os derivados de nomes próprios (N, Pa, °C).",
+      "Os nomes das unidades são escritos em minúsculas; apenas 'Celsius' usa maiúscula por ser uma exececção.",
+      "Números devem vir com o símbolo da unidade; escrever o número por extenso não substitui o símbolo."
+    ]
+  },
+  {
+    "id": 2,
+    "dificuldade": "baixa",
+    "enunciado": "Marque a alternativa INCORRETA:",
+    "imagens": [],
+    "alternativas": [
+      "80 km/h",
+      "250 K",
+      "μm",
+      "1615,4g"
+    ],
+    "correta": "um Newton",
+    "obs": [
+      "Os nomes das unidades são escritos em minúsculas; apenas 'Celsius' usa maiúscula por ser uma exececção."
+    ]
+  },
+  {
+    "id": 3,
+    "dificuldade": "baixa",
+    "enunciado": "Análise as afirmações abaixo:",
+    "imagens": [],
+    "afirmacoes": {
+      "I": "210 K= duzentos e dez graus Kelvin",
+      "II": "10°C = dez graus Centígrados",
+      "III": "5,0 kg = cinco quilos",
+      "IV": "2,0 N = dois Newton",
+      "V": "220 Vts = duzentos e vinte volts",
+      "VI": "34,7 m/s = trinta e quatro vírgula sete metros por segundos",
+      "VII": "180 mm/m",
+      "VIII": "12,5 m/s/h",
+      "IX": "12.312,4 m",
+      "X": "0,000 0124 3 s",
+      "XI": "35 nm = trinta e cinco nanômetros"
+    },
+    "subenunciado": "Qual(is) da(s) alternativa(s) esta(ão) correta(s).",
+    "correta": "Nunhma",
+    "obs": [
+      "Unidades compostas usam barra única (km/h) ou expoente negativo (m·s⁻¹).",
+      "Até 1948 usava-se 'graus centígrados'; o termo correto atual é 'graus Celsius (°C)'.",
+      "Símbolos de unidade não têm plural (ex.: N, V, m).",
+      "Não existe espaçamento entre os dígitos à direita da vírgula."
+    ],
+    "alternativas": [
+      "Apenas I e X.",
+      "Apenas II.",
+      "Apenas II e IV.",
+      "Apenas I, V e VIII."
+    ],
+    "alternativas_firstrow": 3
+  },
+  {
+    "id": 4,
+    "dificuldade": "baixa",
+    "enunciado": "Aponte a diferença entre 'range' e 'span' nos instrumentos de medição.",
+    "imagens": [],
+    "alternativas": [
+      "Range é a diferença entre limites; span são os limites superior e inferior.",
+      "Range e span são sinônimos rigorosos na metrologia.",
+      "Span é o conjunto de valores medidos; range é a menor diferença perceptível.",
+      "Range e resolução são equivalentes; span é a exatidão."
+    ],
+    "correta": "Range são os valores extremos; span é a diferença algébrica entre eles.",
+    "obs": [
+      "Range descreve o intervalo coberto (limite inferior até limite superior) na unidade de processo.",
+      "Span é o tamanho do intervalo (LS - LI) e tem a mesma unidade da grandeza medida.",
+      "Em transmissões 4–20 mA, o span elétrico é fixo (16 mA), enquanto o range de processo pode variar por configuração."
+    ]
+  },
+  {
+    "id": 5,
+    "dificuldade": "baixa",
+    "enunciado": "O que é a sensibilidade de um instrumento de medição?",
+    "imagens": [],
+    "alternativas": [
+      "Menor diferença perceptível no mostrador.",
+      "Maior erro estático ao longo da faixa.",
+      "Diferença entre limites superior e inferior da faixa.",
+      "Probabilidade de desempenho aceitável em condições especificadas."
+    ],
+    "correta": "Quociente entre variação de saída e variação de entrada.",
+    "obs": [
+      "Sensibilidade é a inclinação da curva de transferência: S = Δsaída/Δentrada.",
+      "Em instrumentos lineares, S é constante; em não lineares, varia com o ponto de operação.",
+      "Não confundir sensibilidade com resolução (menor incremento detectável)."
+    ]
+  },
+  {
+    "id": 6,
+    "dificuldade": "baixa",
+    "enunciado": "Se um instrumento tiver um range maior, mantendo a mesma faixa de saída, sua sensibilidade aumentará?",
+    "imagens": [],
+    "alternativas": [
+      "Sim, porque a saída varia mais para a mesma entrada.",
+      "Sim, desde que a resolução seja constante.",
+      "A sensibilidade é independente do range por definição.",
+      "A resposta depende exclusivamente da histerese."
+    ],
+    "correta": "Não, em geral a sensibilidade diminui ao aumentar o range",
+    "obs": [
+      "S = ΔSaida/ΔEntrada = Δ(Sinal normalizado)/Δ(Grandeza física)",
+      "=> Aumentar o range é aumentar a variaçao da grandeza física",
+      "=> Sem alterar a faixa do sinal normalizado (ex.: 4–20 mA)",
+      "Então a sensibilidade é inversamente proporcional à variação da grandeza física"
+    ]
+  },
+  {
+    "id": 7,
+    "dificuldade": "média",
+    "enunciado": "Considere um sensor analógico de nível com saída <Vmin> a <Vmax> V e range de <Hmin> a <Hmax> m. Calcule a sensibilidade (V/m).",
+    "imagens": [],
+    "variaveis": {
+      "Vmin": "10.0:10.0:50.0",
+      "Vmax": "60.0:10.0:100.0",
+      "Hmin": "0.5:0.1:1.5",
+      "Hmax": "2.5:0.1:3.5"
+    },
+    "resolucoes": {
+      "SENS": "(<Vmax> - <Vmin>) / (<Hmax> - <Hmin>)"
+    },
+    "alternativas": [
+      "A sensibilidade é <SENS * 1.25> V/m.",
+      "A sensibilidade é <SENS * 0.75> V/m.",
+      "A sensibilidade é <SENS * 1.5> V/m.",
+      "A sensibilidade é <SENS * 0.85> V/m."
+    ],
+    "correta": "A sensibilidade é <SENS> V/m.",
+    "obs": [
+      "A inclinação da reta de calibração é obtida pelos extremos da faixa: ΔV/ΔH.",
+      "Mantenha unidades consistentes: volts por metro (V/m).",
+      "Se a saída for linear, o resultado independe de pontos intermediários."
+    ]
+  },
+  {
+    "id": 8,
+    "dificuldade": "baixa",
+    "enunciado": "Defina set-point (valor de referência) em malhas de controle.",
+    "imagens": [],
+    "alternativas": [
+      "Valor medido após perturbação.",
+      "Valor máximo admissível do range.",
+      "Erro entre PV e MV.",
+      "Valor de saída do atuador."
+    ],
+    "correta": "Valor fixo desejado para a variável de processo controlada.",
+    "obs": [
+      "Set-point (SP) é a referência do controlador para a variável do processo (PV).",
+      "A ação de controle busca reduzir o erro (SP − PV) a zero com estabilidade e desempenho desejados.",
+      "Em controle avançado, SP pode ser perfilado no tempo (rampa, patamar)."
+    ]
+  },
+  {
+    "id": 9,
+    "dificuldade": "baixa",
+    "enunciado": "O que é zona morta (dead zone) nos instrumentos de medição?",
+    "imagens": [],
+    "alternativas": [
+      "Menor diferença significativa entre indicações.",
+      "Probabilidade de falha ao longo do tempo.",
+      "Maior erro estático ao longo da faixa.",
+      "Faixa de transmissão iniciando em valor não nulo."
+    ],
+    "correta": "Faixa de entrada sem variação perceptível na saída.",
+    "obs": [
+      "Na zona morta, pequenas mudanças de entrada não provocam resposta mensurável.",
+      "Não confunda com resolução; resolução é o menor incremento detectável, não um intervalo ‘insensível’.",
+      "Pode ser intencional (histerese de chave) ou efeito de atrito/folga."
+    ]
+  },
+  {
+    "id": 10,
+    "dificuldade": "baixa",
+    "enunciado": "O que é 'zero vivo' nos instrumentos de medição?",
+    "imagens": [],
+    "alternativas": [
+      "Início da faixa de saída igual a zero.",
+      "Menor diferença significativa percebida entre indicações.",
+      "Desvio médio quadrático do erro.",
+      "Probabilidade de desempenho aceitável."
+    ],
+    "correta": "Início da faixa de saída diferente de zero.",
+    "obs": [
+      "Ex.: 4–20 mA é ‘zero vivo’; 0 mA indica falha de loop ou quebra de fio.",
+      "Zero vivo facilita diagnóstico e pode permitir codificação de alarme ou valores negativos.",
+      "Diferencie de ‘live zero’ vs ‘dead zero’ em especificações de instrumentos."
+    ]
+  },
+  {
+    "id": 11,
+    "dificuldade": "baixa",
+    "enunciado": "Explique histerese em instrumentos de medição/transmissão.",
+    "imagens": [],
+    "alternativas": [
+      "Soma de erros aleatórios e sistemáticos.",
+      "Maior diferença entre diversas medidas com mesmo sentido.",
+      "Menor diferença perceptível na indicação.",
+      "Diferença entre limites do range."
+    ],
+    "correta": "Diferença de saída para o mesmo valor de entrada conforme o sentido de variação.",
+    "obs": [
+      "A curva de subida difere da de descida; a maior diferença no mesmo ponto define a histerese.",
+      "Origina-se de atrito, folgas, magnetização, saturação ou memória de materiais e circuitos.",
+      "É especificada como % do span e impacta a exatidão sob reversões de sentido."
+    ]
+  },
+  {
+    "id": 12,
+    "dificuldade": "baixa",
+    "enunciado": "A histerese indicada em catálogos refere-se a qual ponto da faixa e por quê?",
+    "imagens": [],
+    "alternativas": [
+      "Ao início do range, pois é onde é máxima.",
+      "Ao final do range, por ser onde há saturação.",
+      "Ao valor de set-point.",
+      "Em pontos aleatórios determinados pelo fabricante."
+    ],
+    "correta": "Ao meio do range, pois a histerese costuma ser máxima na metade da faixa.",
+    "obs": [
+      "A especificação em % do span normalmente é avaliada no ponto médio da faixa.",
+      "Esse ponto tende a evidenciar a diferença entre as curvas ascendente e descendente.",
+      "Consulte a metodologia do fabricante para a posição exata de avaliação."
+    ]
+  },
+  {
+    "id": 13,
+    "dificuldade": "baixa",
+    "enunciado": "Um instrumento com faixa <Imin> a <Imax> mA possui histerese absoluta <HABS> mA. Calcule a histerese percentual (%).",
+    "imagens": [],
+    "variaveis": {
+      "Imin": "0.0:1.0:4.0",
+      "Imax": "20.0:5.0:40.0",
+      "HABS": "1.0:1.0:5.0"
+    },
+    "resolucoes": {
+      "SPAN": "<Imax> - <Imin>",
+      "HPERC": "100 * <HABS> / <SPAN>"
+    },
+    "alternativas": [
+      "Histerese = <HPERC / 2> %",
+      "Histerese = <HPERC * 1.25> %",
+      "Histerese = <HPERC * 1.5> %",
+      "Histerese = <HPERC * 2> %"
+    ],
+    "correta": "Histerese = <HPERC> %",
+    "obs": [
+      "Para <Imax> - <Imin> mA, o span é <SPAN> mA",
+      "Se Histerese Abs = <HABS> mA",
+      "Histerese % = 100 x (<HABS> mA / <SPAN> mA) = <HPERC> %"
+    ]
+  },
+  {
+    "id": 14,
+    "dificuldade": "baixa",
+    "enunciado": "Um instrumento <Imin> a <Imax> mA tem histerese percentual <HPERC>%. Calcule a histerese absoluta (mA).",
+    "imagens": [],
+    "variaveis": {
+      "Imin": "0.0:1.0:4.0",
+      "Imax": "20.0:5.0:40.0",
+      "HPERC": "1.0:1.0:5.0"
+    },
+    "resolucoes": {
+      "SPAN": "<Imax> - <Imin>",
+      "HABS": "(<HPERC>/100) * <SPAN>"
+    },
+    "alternativas": [
+      "Histerese = <HABS / 2> mA",
+      "Histerese = <HABS * 1.25> mA",
+      "Histerese = <HABS * 1.5> mA",
+      "Histerese = <HABS * 2> mA"
+    ],
+    "correta": "Histerese = <HABS> mA",
+    "obs": [
+      "Para <Imax> - <Imin> mA, o span é <SPAN> mA",
+      "Se Histerese % = <HPERC> %",
+      "Histerese Abs = (<HPERC> / 100) * <SPAN> = <HABS> mA"
+    ]
+  },
+  {
+    "id": 15,
+    "dificuldade": "média",
+    "enunciado": "Linearidade nos instrumentos de medição: relação com erro quando a não-linearidade é baixa.",
+    "imagens": [],
+    "alternativas": [
+      "Baixa não-linearidade implica erro grande.",
+      "Não-linearidade não se relaciona ao erro.",
+      "Quanto maior a não-linearidade, menor o erro.",
+      "Linearidade é independente de projeto."
+    ],
+    "correta": "Baixa não-linearidade implica erro pequeno.",
+    "obs": [
+      "A linearidade exprime o quanto a verdadeira relação de entrada e saída se aproxima de uma reta ideal.",
+      "Se um instrumento possui uma pequena não-linearidade então ele possui uma grande linearidade",
+      "Uma grandre lineraridade indica uma melhor medição, com menor erro",
+      "A especificação de linearidade costuma ser dada em % do span."
+    ]
+  },
+  {
+    "id": 16,
+    "dificuldade": "média",
+    "enunciado": "Considere as afirmações:",
+    "imagens": [],
+    "afirmacoes": {
+      "I": "O processo de medição envolve métodos e meios, com participação do operador e procedimentos, considerando as condições de medição.",
+      "II": "Usando métodos e instrumentos adequados, o valor medido é sempre igual ao valor exato da grandeza.",
+      "III": "Precisão avalia o grau de dispersão entre diversas medidas realizadas.",
+      "IV": "Confiabilidade metrológica: probabilidade de um sistema obter desempenho aceitável sob condições especificadas por um período de tempo."
+    },
+    "subenunciado": "Qual(is) da(s) alternativa(s) esta(ão) correta(s).",
+    "correta": "Apenas I, III e IV.",
+    "obs": [
+      "Toda medição possui incerteza; ‘valor exato’ é ideal e não observável na prática.",
+      "Precisão refere-se à dispersão (proximidade entre repetições), não à exatidão.",
+      "Confiabilidade associa desempenho aceitável no tempo sob condições especificadas."
+    ],
+    "alternativas": [
+      "Apenas II.",
+      "Apenas I e II.",
+      "Apenas III.",
+      "I, II, III e IV."
+    ],
+    "alternativas_firstrow": 3
+  },
+  {
+    "id": 17,
+    "dificuldade": "média",
+    "enunciado": "Classifique as variáveis (independente, dependente, controle, moderadora, interveniente, antecedente) e assinale a alternativa correta.",
+    "imagens": [
+      "assets/figclassevar.png;60x35"
+    ],
+    "alternativas": [
+      "independente, dependente, controle, moderadora, interveniente, antecedente.",
+      "dependente, independente, moderadora, controle, antecedente, interveniente.",
+      "controle, moderadora, interveniente, independente, dependente, antecedente.",
+      "antecedente, controle, dependente, moderadora, independente, interveniente."
+    ],
+    "correta": "controle, moderadora, independente, interveniente, antecedente, dependente.",
+    "obs": [
+      "Variável Independente - IV => Matéria prima do processo",
+      "Variável Dependente - DV => produto final",
+      "Controle => Estabiliza condições, também conhecido com variavel espúria.",
+      "Moderadora => Altera a relação entre IV e DV mas não é controlada por este processo.",
+      "Interveniente => Mecanismos internos (Ex.: operador, hardware, mobiliário)",
+      "Antecedente => Ocorre antes e pode influenciar IV e DV."
+    ]
+  },
+  {
+    "id": 18,
+    "dificuldade": "média",
+    "enunciado": "Leia as definições abaixo e associe cada uma ao termo de instrumentação correspondente.",
+    "imagens": [],
+    "afirmacoes": {
+      "I": "Diferença entre os limites superior e inferior da faixa de medição.",
+      "II": "Maior diferença indicada para o mesmo valor ao subir e descer a escala.",
+      "III": "Maior erro estático ao longo da faixa de medição.",
+      "IV": "Maior diferença entre medições repetidas do mesmo valor, no mesmo sentido.",
+      "V": "Menor variação perceptível entre duas leituras.",
+      "VI": "Intervalo de valores que o instrumento pode medir ou transmitir (mínimo a máximo).",
+      "VII": "Diferença entre a indicação/transmissão e o valor real; pode ser estática ou dinâmica."
+    },
+    "subenunciado": "Assinale a alternativa que traz, em ordem, o termo correto para cada definição.",
+    "correta": "span, histerese, exatidão, repetibilidade, resolução, range, erro",
+    "obs": [
+      "A sequência proposta alinha termos clássicos de instrumentação a definições usuais.",
+      "Span é a diferença entre limites; exatidão é maior erro estático; repetibilidade fixa o mesmo sentido.",
+      "Histerese envolve sentidos opostos; resolução é o menor incremento; range é o intervalo; erro é o desvio."
+    ],
+    "alternativas": [
+      "span,  exatidão, repetibilidade, resolução, histerese, range, erro",
+      "padrão, resolução, ajuste, repetibilidade, histerese, zona morta, exatidão",
+      "span, histerese, repetibilidade, exatidão, zona morta, resolução, erro",
+      "span, exatidão, repetibilidade, histerese, resolução, range, erro"
+    ],
+    "alternativas_firstrow": 3
+  },
+  {
+    "id": 19,
+    "dificuldade": "média",
+    "enunciado": "Terminologia (Ajuste, Zona Morta, Padrão, Calibração): associe I–IV aos termos corretos e assinale a alternativa.",
+    "imagens": [],
+    "alternativas": [
+      "padrão, ajuste, calibração, zona morta",
+      "ajuste, padrão, zona morta, calibração",
+      "calibração, ajuste, padrão, zona morta",
+      "zona morta, ajuste, padrão, calibração",
+      "ajuste, zona morta, padrão, calibração"
+    ],
+    "correta": "ajuste, zona morta, padrão, calibração",
+    "obs": [
+      "Ajuste busca justeza de funcionamento; zona morta define faixa sem resposta; padrão é a referência; calibração relaciona indicação a padrões.",
+      "Não confunda ajuste (intervenção no instrumento) com calibração (comparação com padrão).",
+      "Reportar condições ambientais na calibração melhora a rastreabilidade."
+    ]
+  },
+  {
+    "id": 20,
+    "dificuldade": "média",
+    "enunciado": "Complete as frases com os termos corretos da terminologia em Instrumentação.",
+    "imagens": [],
+    "afirmacoes": {
+      "I": "Operação destinada a fazer com que um instrumento de medir tenha funcionamento e justeza adequados (ajuste).",
+      "II": "Faixa em que um sinal de entrada pode variar sem provocar variação sensível na saída (zona morta).",
+      "III": "Medida materializada / instrumento / material de referência que realiza/conserva valores de grandeza para servir como referência (padrão).",
+      "IV": "Conjunto de operações que estabelece, sob condições específicas, a relação entre valores indicados e valores de referência definidos por padrões (calibração)."
+    },
+    "subenunciado": "Qual(is) da(s) alternativa(s) esta(ão) correta(s).",
+    "correta": "Todas",
+    "obs": [
+      "As definições seguem o VIM e reforçam a distinção entre ajuste e calibração.",
+      "Zona morta descreve um intervalo de insensibilidade; padrão fornece rastreabilidade.",
+      "Condições específicas de calibração devem ser registradas no certificado."
+    ],
+    "alternativas": [
+      "Apenas I, II e II.",
+      "Apenas I e II.",
+      "Apenas III.",
+      "Apenas II."
+    ],
+    "alternativas_firstrow": 3
+  },
+  {
+    "id": 21,
+    "dificuldade": "baixa",
+    "enunciado": "Identifique corretamente a relação entre grandeza de entrada, elemento de detecção, condicionamento, indicação e saída.",
+    "imagens": [],
+    "alternativas": [
+      "Um sistema de medição não inclui o operador nem procedimentos.",
+      "Todo sistema de medição é isento de erros sistemáticos.",
+      "Sistemas de medição não dependem de condições ambientais.",
+      "O resultado independe da incerteza instrumental."
+    ],
+    "correta": "Elementos de detecção e condicionamento compõem a cadeia de medição da grandeza até a indicação.",
+    "obs": [
+      "Um sistema de medição envolve sensor, condicionamento, indicação/aquisição e procedimentos.",
+      "Condições ambientais e operador influenciam o resultado e a incerteza.",
+      "Sempre existem incertezas e potenciais vieses; mitigação é parte do planejamento."
+    ]
+  },
+  {
+    "id": 22,
+    "dificuldade": "baixa",
+    "enunciado": "Selecione a alternativa que melhor descreve as etapas de resolução metrológica.",
+    "imagens": [],
+    "alternativas": [
+      "Medir primeiro e escolher o instrumento depois.",
+      "Ignorar condições ambientais e focar no valor médio.",
+      "Selecionar sempre o instrumento de maior range.",
+      "Validar apenas quando houver erro grande."
+    ],
+    "correta": "Definir grandezas, selecionar instrumentos, considerar condições e incertezas, medir e validar.",
+    "obs": [
+      "Planeje as medições: grandezas, ranges e critérios de desempenho.",
+      "Selecione e calibre instrumentos, registre condições e estime incertezas.",
+      "Meça, verifique coerência e valide resultados antes de concluir."
+    ]
+  }
+]

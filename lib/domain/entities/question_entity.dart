@@ -1,7 +1,12 @@
 import 'package:equatable/equatable.dart';
 
 import '../../core/utils/moodle_html_parser.dart'
-    show MatchData, GapInputData, MoodleAnswerControl, ParsedChoice;
+    show
+        MatchData,
+        GapInputData,
+        DdMarkerData,
+        MoodleAnswerControl,
+        ParsedChoice;
 
 /// Representa uma questão do Moodle já parseada e pronta para exibição.
 class QuestionEntity extends Equatable {
@@ -24,6 +29,7 @@ class QuestionEntity extends Equatable {
   final String? answerInputName; // campo de texto para numerical/shortanswer
   final MatchData? matchData; // estrutura de associação (match)
   final GapInputData? gapInputData; // estrutura de lacunas (gapselect/ddwtos)
+  final DdMarkerData? ddMarkerData; // estrutura de marcadores sobre imagem
 
   const QuestionEntity({
     required this.slot,
@@ -42,6 +48,7 @@ class QuestionEntity extends Equatable {
     this.answerInputName,
     this.matchData,
     this.gapInputData,
+    this.ddMarkerData,
   });
 
   // ── Classificação por tipo ─────────────────────────────────────────────────
@@ -92,6 +99,7 @@ class QuestionEntity extends Equatable {
       isCloze ||
       isOrdering ||
       isEssay ||
+      (isDdImage && ddMarkerData != null) ||
       answerControls.any((c) => c.isAnswerable);
 
   @override
