@@ -136,6 +136,22 @@ class ParsedQuestion {
 // ── Parser ────────────────────────────────────────────────────────────────────
 
 class MoodleHtmlParser {
+  static final RegExp _malformedTexSpanStartRe = RegExp(
+    r'<span\s+class\s*=\s*"?\s*(?=Em\s+branco\b)',
+    caseSensitive: false,
+  );
+  static final RegExp _malformedTexAltRe =
+      RegExp(r'"\s+(?:alt|title)\s*=', caseSensitive: false);
+  static final RegExp _moodleTexSrcRe = RegExp(
+    r'\bsrc\s*=\s*"[^"]*(?:/filter/tex/|tex/pix\.php)[^"]*"',
+    caseSensitive: false,
+  );
+  static final RegExp _blankLabelBeforeControlRe = RegExp(
+    r'\bEm\s+branco\s+\d+\s+Quest\S*\s+\d+\s*(?=\s*<(?:select|input|textarea|span)\b)',
+    caseSensitive: false,
+    dotAll: true,
+  );
+
   /// Analisa o HTML de `mod_quiz_get_attempt_data.questions[].html`.
   static ParsedQuestion parse({
     required String html,
@@ -144,12 +160,15 @@ class MoodleHtmlParser {
     required String token,
     required String baseUrl,
   }) {
+    final normalizedHtml = _normalizeQuestionHtml(html);
+
     // Extrai o tipo diretamente da classe CSS do elemento raiz da questão.
     // Moodle renderiza: class="que {type} {behaviour} {state}"
-    final htmlType = _extractTypeFromHtml(html);
+    final htmlType = _extractTypeFromHtml(normalizedHtml);
 
-    final choices = _extractChoices(html, token, baseUrl);
-    final answerControls = _extractAnswerControls(html, token, baseUrl);
+    final choices = _extractChoices(normalizedHtml, token, baseUrl);
+    final answerControls =
+        _extractAnswerControls(normalizedHtml, token, baseUrl);
 
     // Resolve o tipo final: prefere o tipo inferido do HTML; fallback para contagem de radios
     String type;
@@ -169,13 +188,13 @@ class MoodleHtmlParser {
           : (choices.isEmpty ? 'other' : 'multichoice');
     }
 
-    final text = _extractText(html);
-    final htmlText = _extractHtmlText(html, token, baseUrl);
-    final displayHtml = extractDisplayHtml(html, token, baseUrl);
-    final images = _extractImages(html, token, baseUrl);
-    final seqCheck = _extractSeqCheck(html);
+    final text = _extractText(normalizedHtml);
+    final htmlText = _extractHtmlText(normalizedHtml, token, baseUrl);
+    final displayHtml = extractDisplayHtml(normalizedHtml, token, baseUrl);
+    final images = _extractImages(normalizedHtml, token, baseUrl);
+    final seqCheck = _extractSeqCheck(normalizedHtml);
 
-    final extractedBase = _extractInputBaseName(html);
+    final extractedBase = _extractInputBaseName(normalizedHtml);
     final hardcoded = 'q$attemptId:${slot}_answer';
     final inputBase = extractedBase ?? hardcoded;
 
@@ -185,14 +204,14 @@ class MoodleHtmlParser {
     GapInputData? gapInputData;
 
     if (type == 'match') {
-      matchData = _extractMatchData(html, token, baseUrl);
+      matchData = _extractMatchData(normalizedHtml, token, baseUrl);
     } else if (type == 'numerical' ||
         type == 'calculated' ||
         type == 'calculatedsimple' ||
         type == 'shortanswer') {
-      answerInputName = _extractAnswerInputName(html) ?? inputBase;
+      answerInputName = _extractAnswerInputName(normalizedHtml) ?? inputBase;
     } else if (type == 'gapselect' || type == 'ddwtos') {
-      gapInputData = _extractGapInputData(html, slot, attemptId);
+      gapInputData = _extractGapInputData(normalizedHtml, slot, attemptId);
     }
 
     return ParsedQuestion(
@@ -210,6 +229,112 @@ class MoodleHtmlParser {
       matchData: matchData,
       gapInputData: gapInputData,
     );
+  }
+
+  static String _repairMalformedTexGapHtml(String source) {
+    if (!source.contains('<span') ||
+        !RegExp(r'(?:/filter/tex/|tex/pix\.php)', caseSensitive: false)
+            .hasMatch(source)) {
+      return source;
+    }
+
+    final buffer = StringBuffer();
+    var index = 0;
+
+    while (index < source.length) {
+      final startMatch = _firstMatchAfter(
+        _malformedTexSpanStartRe,
+        source,
+        index,
+      );
+      if (startMatch == null) break;
+
+      final start = startMatch.start;
+      final valueStart = startMatch.end;
+      final altMatch = _firstMatchAfter(_malformedTexAltRe, source, valueStart);
+      if (altMatch == null) {
+        buffer.write(source.substring(index, valueStart));
+        index = valueStart;
+        continue;
+      }
+
+      final classValue = source.substring(valueStart, altMatch.start);
+      if (!RegExp(r'^\s*"?\s*Em\s+branco\b', caseSensitive: false)
+          .hasMatch(classValue)) {
+        buffer.write(source.substring(index, valueStart));
+        index = valueStart;
+        continue;
+      }
+
+      final srcMatch = _firstMatchAfter(_moodleTexSrcRe, source, altMatch.end);
+      if (srcMatch == null) {
+        buffer.write(source.substring(index, valueStart));
+        index = valueStart;
+        continue;
+      }
+
+      final close = source.indexOf('/>', srcMatch.end);
+      final fallbackClose = source.indexOf('>', srcMatch.end);
+      final end = close >= 0
+          ? close + 2
+          : (fallbackClose >= 0 ? fallbackClose + 1 : -1);
+      if (end < 0) {
+        buffer.write(source.substring(index, valueStart));
+        index = valueStart;
+        continue;
+      }
+
+      buffer.write(source.substring(index, start));
+      buffer.write(source.substring(valueStart, altMatch.start));
+      index = end;
+    }
+
+    buffer.write(source.substring(index));
+    return buffer.toString();
+  }
+
+  static String _normalizeQuestionHtml(String source) {
+    return _stripResidualMalformedTexShell(
+      _cleanBlankLabelsBeforeControls(
+        _repairMalformedTexGapHtml(source),
+      ),
+    );
+  }
+
+  static String _cleanBlankLabelsBeforeControls(String source) {
+    return source.replaceAll(_blankLabelBeforeControlRe, '');
+  }
+
+  static String _stripResidualMalformedTexShell(String source) {
+    return source.replaceAllMapped(
+      RegExp(
+        r'<span\s+class\s*=\s*(.*?)"\s+(?:alt|title)\s*=\s*".*?"\s+src\s*=\s*"[^"]*(?:/filter/tex/|tex/pix\.php)[^"]*"\s*(?:/?>|/&gt;)',
+        caseSensitive: false,
+        dotAll: true,
+      ),
+      (match) {
+        final visiblePart = match.group(1) ?? '';
+        final markers = RegExp(r'\[\d+\]')
+            .allMatches(visiblePart)
+            .map((m) => m.group(0) ?? '')
+            .where((marker) => marker.isNotEmpty)
+            .toSet()
+            .toList(growable: false);
+        if (markers.isEmpty) return visiblePart;
+        return markers.join(' ${String.fromCharCode(183)} ');
+      },
+    );
+  }
+
+  static RegExpMatch? _firstMatchAfter(
+    RegExp pattern,
+    String source,
+    int start,
+  ) {
+    for (final match in pattern.allMatches(source, start)) {
+      return match;
+    }
+    return null;
   }
 
   /// Extrai os values dos inputs de rádio cuja resposta é correta.
@@ -342,7 +467,8 @@ class MoodleHtmlParser {
   // ── HTML completo para exibição somente leitura ──────────────────────────
 
   static String extractDisplayHtml(String html, String token, String baseUrl) {
-    final fragment = html_parser.parseFragment(html);
+    final normalizedHtml = _normalizeQuestionHtml(html);
+    final fragment = html_parser.parseFragment(normalizedHtml);
 
     for (final el in fragment.querySelectorAll(
         'script, style, noscript, button, .submitbtns, .qn_buttontoggle, '
@@ -454,6 +580,36 @@ class MoodleHtmlParser {
   // ── Extração do tipo pelo HTML ─────────────────────────────────────────────
 
   /// Extrai o tipo da questão da classe CSS Moodle: `class="que {type} …"`.
+  static void _removeQuestionChrome(dom.DocumentFragment fragment) {
+    for (final el in fragment.querySelectorAll(
+        'script, style, noscript, button, .submitbtns, .qn_buttontoggle, '
+        '.questionflag, .questionflagsavebutton, .info, .history, '
+        '.qheader, .grade, .state, .no, .qno, .accesshide, .sr-only, '
+        '.visually-hidden, .visuallyhidden, .answer, .ablock, '
+        '.que-finish-attempt, .editquestion-toolbar')) {
+      el.remove();
+    }
+
+    for (final input in fragment.querySelectorAll('input[type="hidden"], '
+        'input[type="submit"], input[type="button"]')) {
+      input.remove();
+    }
+  }
+
+  static bool _hasVisibleQuestionContent(String html) {
+    final text = _stripHtml(html)
+        .replaceAll(RegExp(r'&(?:nbsp|#160);'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (text.isEmpty) return false;
+
+    final signal = text
+        .replaceAll(RegExp(r'\[\d+\]'), '')
+        .replaceAll(RegExp(r'[.,;:()\[\]\s]+'), '')
+        .trim();
+    return signal.isNotEmpty || RegExp(r'\[\d+\]').hasMatch(text);
+  }
+
   static String _extractTypeFromHtml(String html) {
     final re = RegExp(r'class="que\s+([\w-]+)', caseSensitive: false);
     return re.firstMatch(html)?.group(1)?.toLowerCase() ?? '';
@@ -521,7 +677,8 @@ class MoodleHtmlParser {
   /// 2. HTML JS com `.drop` (lacunas) e `.drag` (banco de palavras).
   static GapInputData? _extractGapInputData(
       String html, int slot, int attemptId) {
-    final fragment = html_parser.parseFragment(html);
+    final normalizedHtml = _normalizeQuestionHtml(html);
+    final fragment = html_parser.parseFragment(normalizedHtml);
 
     // ── Estratégia 1: selects inline (gapselect / ddwtos acessível) ──────────
     final selects = fragment.querySelectorAll('select');
@@ -600,7 +757,8 @@ class MoodleHtmlParser {
   /// para exibição acima dos dropdowns interativos.
   static String extractTextWithGapMarkers(
       String html, String token, String baseUrl) {
-    final fragment = html_parser.parseFragment(html);
+    final normalizedHtml = _normalizeQuestionHtml(html);
+    final fragment = html_parser.parseFragment(normalizedHtml);
 
     var gapNum = 0;
 
@@ -641,12 +799,46 @@ class MoodleHtmlParser {
       el.remove();
     }
 
+    for (final el in fragment.querySelectorAll(
+        '.info, .state, .grade, .no, .qno, .submitbtns, .questionflag, '
+        '.questionflagsavebutton, button')) {
+      el.remove();
+    }
+
     final formulation = fragment.querySelector('.formulation') ??
         fragment.querySelector('.qtext');
     if (formulation != null) {
-      return _rewriteResourceUrls(formulation.outerHtml, token, baseUrl);
+      return _rewriteResourceUrls(
+        _cleanGapMarkerLabels(formulation.outerHtml),
+        token,
+        baseUrl,
+      );
     }
-    return _rewriteResourceUrls(fragment.outerHtml, token, baseUrl);
+    return _rewriteResourceUrls(
+      _cleanGapMarkerLabels(fragment.outerHtml),
+      token,
+      baseUrl,
+    );
+  }
+
+  static String _cleanGapMarkerLabels(String html) {
+    var cleaned = html.replaceAllMapped(
+      RegExp(
+        r'\bEm\s+branco\s+\d+\s+Quest\S*\s+\d+\s*(<span\b[^>]*>\s*\[\d+\]\s*</span>)',
+        caseSensitive: false,
+        dotAll: true,
+      ),
+      (match) => match.group(1) ?? '',
+    );
+    cleaned = cleaned.replaceAllMapped(
+      RegExp(
+        r'\bEm\s+branco\s+\d+\s+Quest\S*\s+\d+\s*(?=(?:\s|&nbsp;|<[^>]+>)*<span\b[^>]*>\s*\[\d+\]\s*</span>)',
+        caseSensitive: false,
+        dotAll: true,
+      ),
+      (_) => '',
+    );
+    return _stripResidualMalformedTexShell(cleaned);
   }
 
   // ── Extração do nome do campo de texto ────────────────────────────────────
@@ -884,22 +1076,41 @@ class MoodleHtmlParser {
   }
 
   static String _extractHtmlText(String html, String token, String baseUrl) {
-    String content =
-        _extractTag(html, 'qtext') ?? _extractTag(html, 'formulation') ?? '';
-    if (content.isEmpty) content = html;
+    final normalizedHtml = _normalizeQuestionHtml(html);
+    final fragment = html_parser.parseFragment(normalizedHtml);
+
+    dom.Element? contentElement = fragment.querySelector('.qtext') ??
+        fragment.querySelector('.formulation');
+
+    if (contentElement != null) {
+      final clone = html_parser.parseFragment(contentElement.outerHtml);
+      _removeQuestionChrome(clone);
+      final content = _stripResidualMalformedTexShell(clone.outerHtml).trim();
+      if (_hasVisibleQuestionContent(content)) {
+        return _rewriteResourceUrls(content, token, baseUrl);
+      }
+    }
+
+    String content = _extractTag(normalizedHtml, 'qtext') ??
+        _extractTag(normalizedHtml, 'formulation') ??
+        '';
+    if (content.isEmpty) content = normalizedHtml;
     content = _removeBlock(content, r'class="(?:ablock|answer)');
-    content = _rewriteResourceUrls(content, token, baseUrl);
-    return content;
+    content = _stripResidualMalformedTexShell(content).trim();
+    return _rewriteResourceUrls(content, token, baseUrl);
   }
 
   // ── Extração do texto da questão ──────────────────────────────────────────
 
   static String _extractText(String html) {
-    String text =
+    final text = _stripHtml(_extractHtmlText(html, '', '')).trim();
+    if (text.isNotEmpty) return text;
+
+    String fallback =
         _extractTag(html, 'qtext') ?? _extractTag(html, 'formulation') ?? '';
-    if (text.isEmpty) text = html;
-    text = _removeBlock(text, r'class="(?:ablock|answer)');
-    return _stripHtml(text).trim();
+    if (fallback.isEmpty) fallback = html;
+    fallback = _removeBlock(fallback, r'class="(?:ablock|answer)');
+    return _stripHtml(fallback).trim();
   }
 
   // ── Extração de alternativas ──────────────────────────────────────────────

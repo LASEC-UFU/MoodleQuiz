@@ -12,6 +12,8 @@ import 'timer_widget.dart';
 
 enum QuestionEngineMode { answer, preview, reveal }
 
+enum _PromptQuality { empty, markersOnly, visibleText }
+
 class QuestionEngineWidget extends StatelessWidget {
   final QuestionEntity question;
   final QuestionEngineMode mode;
@@ -119,15 +121,58 @@ class QuestionEngineWidget extends StatelessWidget {
     }
     if ((question.isGapSelect || question.isDdwtos) &&
         question.gapInputData != null) {
-      return MoodleHtmlParser.extractTextWithGapMarkers(
-        question.htmlText.isNotEmpty ? question.htmlText : question.displayHtml,
-        '',
-        '',
-      );
+      return _gapPromptHtml;
     }
     return question.displayHtml.isNotEmpty
         ? question.displayHtml
         : question.htmlText;
+  }
+
+  String get _gapPromptHtml {
+    String? markerOnlyPrompt;
+    final sources = <String>[
+      question.htmlText,
+      question.displayHtml,
+    ].where((source) => source.trim().isNotEmpty);
+
+    for (final source in sources) {
+      final prompt = MoodleHtmlParser.extractTextWithGapMarkers(source, '', '');
+      final quality = _promptQuality(prompt);
+      if (quality == _PromptQuality.visibleText) return prompt;
+      if (quality == _PromptQuality.markersOnly && markerOnlyPrompt == null) {
+        markerOnlyPrompt = prompt;
+      }
+    }
+
+    if (question.text.trim().isNotEmpty) return question.text;
+    return markerOnlyPrompt ?? '';
+  }
+
+  static _PromptQuality _promptQuality(String html) {
+    final text = html
+        .replaceAll(
+            RegExp(r'<script\b[^>]*>.*?</script>',
+                caseSensitive: false, dotAll: true),
+            ' ')
+        .replaceAll(
+            RegExp(r'<style\b[^>]*>.*?</style>',
+                caseSensitive: false, dotAll: true),
+            ' ')
+        .replaceAll(RegExp(r'<[^>]+>'), ' ')
+        .replaceAll(RegExp(r'&(?:nbsp|#160);'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    if (text.isEmpty) return _PromptQuality.empty;
+
+    final signal = text
+        .replaceAll(RegExp(r'\[\d+\]'), '')
+        .replaceAll(RegExp(r'[.,;:()\[\]\s]+'), '')
+        .trim();
+    if (signal.isNotEmpty) return _PromptQuality.visibleText;
+    return RegExp(r'\[\d+\]').hasMatch(text)
+        ? _PromptQuality.markersOnly
+        : _PromptQuality.empty;
   }
 
   List<Widget> _buildAnswerSurface(TextStyle textStyle) {

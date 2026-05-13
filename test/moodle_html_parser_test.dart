@@ -87,5 +87,150 @@ void main() {
       expect(controls.containsKey('q42:2_:sequencecheck'), isFalse);
       expect(controls.containsKey('q42:2_:flagged'), isFalse);
     });
+
+    test('repairs malformed TeX gaps before counting and rendering markers',
+        () {
+      const optionHtml = '''
+        <option value="0">Escolha...</option>
+        <option value="1">fluido incompressivel</option>
+        <option value="2">rho</option>
+      ''';
+      const html = '''
+<div class="que gapselect deferredfeedback notyetanswered">
+  <div class="formulation">
+    <div class="qtext">
+      \\Delta P = <span class=Em branco 1 Questao 3
+        <select name="q42:3_p1">$optionHtml</select>
+        · Em branco 2 Questao 3 <select name="q42:3_p2">$optionHtml</select>
+        · Em branco 3 Questao 3 <select name="q42:3_p3">$optionHtml</select>
+        " alt="\\Delta P = Em branco 1 Questao 3
+        <select name="q42:3_dup1">$optionHtml</select>
+        · Em branco 2 Questao 3 <select name="q42:3_dup2">$optionHtml</select>
+        · Em branco 3 Questao 3 <select name="q42:3_dup3">$optionHtml</select>"
+        src="https://moodle.ufu.br/filter/tex/pix.php/hash.gif" />
+      A relacao pressupoe fluido em Em branco 4 Questao 3
+      <select name="q42:3_p4">$optionHtml</select>
+      e comparacao entre pontos pertencentes ao Em branco 5 Questao 3
+      <select name="q42:3_p5">$optionHtml</select>.
+    </div>
+  </div>
+</div>
+''';
+
+      final parsed = MoodleHtmlParser.parse(
+        html: html,
+        attemptId: 42,
+        slot: 3,
+        token: 'abc123',
+        baseUrl: 'https://moodle.example.edu',
+      );
+      final prompt = MoodleHtmlParser.extractTextWithGapMarkers(
+        html,
+        'abc123',
+        'https://moodle.example.edu',
+      );
+
+      expect(parsed.gapInputData?.gapCount, 5);
+      expect(prompt, isNot(contains('src=')));
+      expect(prompt, isNot(contains('alt=')));
+      expect(prompt, isNot(contains('<span class=Em')));
+      expect(prompt, isNot(contains('Em branco 1 Questao 3')));
+      expect(prompt, isNot(contains('Em branco 4 Questao 3')));
+      expect(prompt, contains('[1]'));
+      expect(prompt, contains('[5]'));
+      expect(prompt, isNot(contains('[6]')));
+    });
+
+    test('does not let quiz header metadata leak into gap prompt', () {
+      const optionHtml = '''
+        <option value="0">Escolha...</option>
+        <option value="1">fluido incompressivel</option>
+        <option value="2">rho</option>
+      ''';
+      const html = '''
+<div class="que gapselect deferredfeedback notyetanswered">
+  <div class="info">
+    <h3 class="no">Questão <span class="qno">3</span></h3>
+    <div class="state">Incompleto</div>
+    <div class="grade">Vale 1,00 ponto(s).</div>
+  </div>
+  <div class="formulation">
+    <div class="qtext">
+      Complete a análise técnica.
+      \\Delta P = <span class=Em branco 1 Questão 3
+        <select name="q42:3_p1">$optionHtml</select>
+        · Em branco 2 Questão 3 <select name="q42:3_p2">$optionHtml</select>
+        · Em branco 3 Questão 3 <select name="q42:3_p3">$optionHtml</select>
+        " alt="\\Delta P = Em branco 1 Questão 3
+        <select name="q42:3_dup1">$optionHtml</select>
+        · Em branco 2 Questão 3 <select name="q42:3_dup2">$optionHtml</select>
+        · Em branco 3 Questão 3 <select name="q42:3_dup3">$optionHtml</select>"
+        src="https://moodle.ufu.br/filter/tex/pix.php/hash.gif" />
+      A relação pressupõe fluido em Em branco 4 Questão 3
+      <select name="q42:3_p4">$optionHtml</select>.
+      <button>Verificar Questão 3</button>
+    </div>
+  </div>
+</div>
+''';
+
+      final parsed = MoodleHtmlParser.parse(
+        html: html,
+        attemptId: 42,
+        slot: 3,
+        token: 'abc123',
+        baseUrl: 'https://moodle.example.edu',
+      );
+      final prompt = MoodleHtmlParser.extractTextWithGapMarkers(
+        html,
+        'abc123',
+        'https://moodle.example.edu',
+      );
+
+      expect(parsed.gapInputData?.gapCount, 4);
+      expect(prompt, contains('Complete a análise técnica'));
+      expect(prompt, isNot(contains('"qno">3')));
+      expect(prompt, isNot(contains('Incompleto')));
+      expect(prompt, isNot(contains('Vale 1,00')));
+      expect(prompt, isNot(contains('Verificar Questão 3')));
+      expect(prompt, isNot(contains('Em branco 1 Questão 3')));
+      expect(prompt, isNot(contains('Em branco 4 Questão 3')));
+      expect(prompt, contains('[1]'));
+      expect(prompt, contains('[4]'));
+      expect(prompt, isNot(contains('[5]')));
+    });
+
+    test('strips malformed TeX shell that remains after gap markers', () {
+      const html = '''
+<div class="qtext">
+  \\Delta P = <span class=
+    <span style="color:red">[1]</span> ·
+    <span style="color:red">[2]</span> ·
+    <span style="color:red">[3]</span>
+    " alt="\\AP =
+    <span style="color:red">[4]</span> ·
+    <span style="color:red">[5]</span> ·
+    <span style="color:red">[6]</span>"
+    src="https://moodle.ufu.br/filter/tex/pix.php/hash.gif" />
+  A relação pressupõe fluido em <span>[7]</span>.
+</div>
+''';
+
+      final prompt = MoodleHtmlParser.extractTextWithGapMarkers(
+        html,
+        'abc123',
+        'https://moodle.example.edu',
+      );
+
+      expect(prompt, isNot(contains('<span class=')));
+      expect(prompt, isNot(contains('alt=')));
+      expect(prompt, isNot(contains('src=')));
+      expect(prompt, contains('[1]'));
+      expect(prompt, contains('[2]'));
+      expect(prompt, contains('[3]'));
+      expect(prompt, isNot(contains('[4]')));
+      expect(prompt, isNot(contains('[6]')));
+      expect(prompt, contains('[7]'));
+    });
   });
 }
