@@ -326,6 +326,8 @@ class QuizRepositoryImpl implements IQuizRepository {
           log('     parsed slot=$slot textLen=${parsed.text.length} '
               'htmlLen=${parsed.htmlText.length} displayLen=${parsed.displayHtml.length} '
               'gap=${parsed.gapInputData?.gapCount ?? 0} '
+              'gapOptions=${parsed.gapInputData?.options.length ?? 0} '
+              'gapGroups=${parsed.gapInputData?.optionsByGap.length ?? 0} '
               'flagsText=${_diagnosticFlags(parsed.text)} '
               'flagsHtml=${_diagnosticFlags(parsed.htmlText)} '
               'flagsDisplay=${_diagnosticFlags(parsed.displayHtml)}');

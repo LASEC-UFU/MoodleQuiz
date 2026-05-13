@@ -432,7 +432,7 @@ class QuestionEngineWidget extends StatelessWidget {
                 Expanded(
                   child: _dropdown(
                     value: selectedAnswers[inputName],
-                    options: gap.options,
+                    options: gap.optionsForGap(gapNum),
                     hint: 'Escolha uma palavra...',
                     onChanged: (value) => onSelectAnswer?.call(
                       inputName,

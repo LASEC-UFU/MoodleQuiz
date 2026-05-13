@@ -81,6 +81,10 @@ class GapInputData {
   /// Opções disponíveis (mesmas para todas as lacunas em ddwtos/gapselect).
   final List<ParsedChoice> options;
 
+  /// Opcoes por lacuna. Em gapselect o Moodle pode renderizar um grupo de
+  /// opcoes diferente para cada `<select>`.
+  final List<List<ParsedChoice>> optionsByGap;
+
   /// Prefixo do nome do campo Moodle — ex: "q123:1_p".
   /// Nome completo da lacuna N: "${inputNamePrefix}N" (N = 1, 2, 3…).
   final String inputNamePrefix;
@@ -88,10 +92,21 @@ class GapInputData {
   const GapInputData({
     required this.gapCount,
     required this.options,
+    this.optionsByGap = const [],
     required this.inputNamePrefix,
   });
 
   String inputName(int gapNum) => '$inputNamePrefix$gapNum';
+
+  List<ParsedChoice> optionsForGap(int gapNum) {
+    final index = gapNum - 1;
+    if (index >= 0 &&
+        index < optionsByGap.length &&
+        optionsByGap[index].isNotEmpty) {
+      return optionsByGap[index];
+    }
+    return options;
+  }
 }
 
 class ParsedQuestion {
@@ -188,9 +203,9 @@ class MoodleHtmlParser {
           : (choices.isEmpty ? 'other' : 'multichoice');
     }
 
-    final text = _extractText(normalizedHtml);
-    final htmlText = _extractHtmlText(normalizedHtml, token, baseUrl);
-    final displayHtml = extractDisplayHtml(normalizedHtml, token, baseUrl);
+    var text = _extractText(normalizedHtml);
+    var htmlText = _extractHtmlText(normalizedHtml, token, baseUrl);
+    var displayHtml = extractDisplayHtml(normalizedHtml, token, baseUrl);
     final images = _extractImages(normalizedHtml, token, baseUrl);
     final seqCheck = _extractSeqCheck(normalizedHtml);
 
@@ -212,6 +227,22 @@ class MoodleHtmlParser {
       answerInputName = _extractAnswerInputName(normalizedHtml) ?? inputBase;
     } else if (type == 'gapselect' || type == 'ddwtos') {
       gapInputData = _extractGapInputData(normalizedHtml, slot, attemptId);
+    }
+
+    if ((type == 'gapselect' || type == 'ddwtos') && gapInputData != null) {
+      final recoveredPrompt = _recoverGapPromptFromAccessibleText(
+        html,
+        normalizedHtml,
+        slot,
+      );
+      if (recoveredPrompt != null &&
+          _shouldUseRecoveredGapPrompt(htmlText, displayHtml)) {
+        htmlText = recoveredPrompt;
+        if (!_hasVisibleQuestionContent(displayHtml)) {
+          displayHtml = recoveredPrompt;
+        }
+        text = _stripHtml(recoveredPrompt).trim();
+      }
     }
 
     return ParsedQuestion(
@@ -313,7 +344,7 @@ class MoodleHtmlParser {
   static String _stripResidualMalformedTexShell(String source) {
     return source.replaceAllMapped(
       RegExp(
-        r'<span\s+class\s*=\s*(.*?)"\s+(?:alt|title)\s*=\s*".*?"\s+src\s*=\s*"[^"]*(?:/filter/tex/|tex/pix\.php)[^"]*"\s*(?:/?>|/&gt;)',
+        r'''<span\s+class\s*=\s*(?!\s*["'])(.*?)"\s+(?:alt|title)\s*=\s*".*?"\s+src\s*=\s*"[^"]*(?:/filter/tex/|tex/pix\.php)[^"]*"\s*(?:/?>|/&gt;)''',
         caseSensitive: false,
         dotAll: true,
       ),
@@ -329,6 +360,267 @@ class MoodleHtmlParser {
         return markers.join(' ${String.fromCharCode(183)} ');
       },
     );
+  }
+
+  static bool _shouldUseRecoveredGapPrompt(
+    String htmlText,
+    String displayHtml,
+  ) {
+    final source = htmlText.trim().isNotEmpty ? htmlText : displayHtml;
+    if (source.trim().isEmpty) return true;
+
+    String prompt;
+    try {
+      prompt = extractTextWithGapMarkers(source, '', '');
+    } catch (_) {
+      prompt = source;
+    }
+
+    final plain = _plainText(prompt);
+    if (plain.isEmpty) return true;
+    if (prompt.contains('src=') || prompt.contains('/filter/tex/')) return true;
+    if (RegExp(r'\b(?:qno|Incompleto|Vale\s+\d|Verificar\s+Quest)',
+            caseSensitive: false)
+        .hasMatch(plain)) {
+      return true;
+    }
+    return RegExp(r'\bEm\s+branco\s+\d+\s+Quest\S*\s+\d+', caseSensitive: false)
+        .hasMatch(plain);
+  }
+
+  static String? _recoverGapPromptFromAccessibleText(
+    String rawHtml,
+    String normalizedHtml,
+    int slot,
+  ) {
+    final optionGroups = _extractSelectOptionGroups(normalizedHtml);
+    if (optionGroups.isEmpty) return null;
+
+    final textCandidates = <String>[
+      _plainTextWithoutFormControls(rawHtml),
+      _plainTextWithoutFormControls(normalizedHtml),
+      _plainTextLoose(rawHtml),
+      _plainText(rawHtml),
+      _plainTextLoose(normalizedHtml),
+      _plainText(normalizedHtml),
+    ].where((text) => text.trim().isNotEmpty);
+
+    for (final candidate in textCandidates) {
+      final recovered = _recoverGapPromptFromPlainText(
+        candidate,
+        optionGroups,
+      );
+      if (recovered != null) return recovered;
+    }
+
+    return null;
+  }
+
+  static String? _recoverGapPromptFromPlainText(
+    String sourceText,
+    List<List<String>> optionGroups,
+  ) {
+    var text = sourceText;
+    final questionTextMatch = RegExp(
+      r'Texto\s+da\s+quest\S*o',
+      caseSensitive: false,
+    ).firstMatch(text);
+    if (questionTextMatch != null) {
+      text = text.substring(questionTextMatch.end).trim();
+    }
+
+    text = text
+        .replaceFirst(
+          RegExp(
+            r'^Quest\S*o\s*(?:"?qno"?>)?\s*\d+\s*Incompleto\s+Vale\s+.*?ponto\(s\)\.\s*',
+            caseSensitive: false,
+          ),
+          '',
+        )
+        .replaceAll(
+          RegExp(r'Marcar\s+quest\S*o(?:\s+v\d+[^.]*\.)?',
+              caseSensitive: false),
+          ' ',
+        )
+        .replaceAll(
+          RegExp(r'Verificar\s+Quest\S*o\s+\d+.*$',
+              caseSensitive: false, dotAll: true),
+          ' ',
+        )
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    final labelPattern = RegExp(
+      r'\bEm\s+branco\s+(\d+)\s+Quest\S*o\s+\d+\s*',
+      caseSensitive: false,
+    );
+    final labels = labelPattern.allMatches(text).toList(growable: false);
+    if (labels.isEmpty) return null;
+
+    final buffer = StringBuffer('<div class="qtext">');
+    var cursor = 0;
+    for (var i = 0; i < labels.length; i++) {
+      final label = labels[i];
+      final gapNum = int.tryParse(label.group(1) ?? '') ?? (i + 1);
+      final nextStart =
+          i + 1 < labels.length ? labels[i + 1].start : text.length;
+      final before = text.substring(cursor, label.start);
+      final afterLabel = text.substring(label.end, nextStart);
+      final options = gapNum > 0 && gapNum <= optionGroups.length
+          ? optionGroups[gapNum - 1]
+          : const <String>[];
+
+      buffer.write(_escapeHtmlText(_humanizePromptText(before)));
+      buffer.write(_gapMarkerHtml(gapNum));
+      buffer.write(_escapeHtmlText(_humanizePromptText(
+        _stripLeadingOptionTexts(afterLabel, options),
+      )));
+      cursor = nextStart;
+    }
+    buffer.write(_escapeHtmlText(_humanizePromptText(text.substring(cursor))));
+    buffer.write('</div>');
+
+    final recovered = buffer.toString();
+    return _hasVisibleQuestionContent(recovered) ? recovered : null;
+  }
+
+  static List<List<String>> _extractSelectOptionGroups(String html) {
+    final fragment = html_parser.parseFragment(html);
+    final groups = <List<String>>[];
+
+    for (final select in fragment.querySelectorAll('select')) {
+      final options = <String>[];
+      for (final option in select.querySelectorAll('option')) {
+        final value = option.attributes['value'] ?? '';
+        final text = _normalizePlainText(option.text);
+        if (text.isEmpty) continue;
+        if (value == '-1') continue;
+        options.add(text);
+      }
+      if (options.isNotEmpty) groups.add(options);
+    }
+
+    return groups;
+  }
+
+  static String _stripLeadingOptionTexts(String value, List<String> options) {
+    var result = _normalizePlainText(value);
+    if (result.isEmpty || options.isEmpty) return result;
+
+    final sorted = [...options]..sort((a, b) => b.length.compareTo(a.length));
+    var changed = true;
+    while (changed) {
+      changed = false;
+      for (final option in sorted) {
+        final end = _matchingOptionPrefixEnd(result, option);
+        if (end != null) {
+          result = result.substring(end).trimLeft();
+          changed = true;
+        }
+      }
+    }
+
+    return result;
+  }
+
+  static int? _matchingOptionPrefixEnd(String value, String option) {
+    final target = _comparisonPromptText(option);
+    if (target.isEmpty) return null;
+
+    final maxEnd =
+        value.length < option.length + 40 ? value.length : option.length + 40;
+    for (var end = 1; end <= maxEnd; end++) {
+      final prefix = _comparisonPromptText(value.substring(0, end));
+      if (prefix == target) return end;
+      if (prefix.length > target.length + 4) return null;
+    }
+    return null;
+  }
+
+  static String _comparisonPromptText(String value) {
+    return _humanizePromptText(value)
+        .replaceAll(RegExp(r'[^\p{L}\p{N}%]+', unicode: true), '')
+        .toLowerCase();
+  }
+
+  static String _humanizePromptText(String value) {
+    return _normalizePlainText(value)
+        .replaceAll(r'\(', '')
+        .replaceAll(r'\)', '')
+        .replaceAll(r'\Delta', String.fromCharCode(916))
+        .replaceAll(r'\rho', String.fromCharCode(961))
+        .replaceAll(r'\cdot', String.fromCharCode(183))
+        .replaceAll(r'\times', String.fromCharCode(215))
+        .replaceAllMapped(RegExp(r'\s+([.,;:])'), (match) => match.group(1)!)
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  static String _gapMarkerHtml(int gapNum) {
+    return '<span style="display:inline-block;border:2px dashed #6c7ae0;'
+        'border-radius:4px;background:rgba(108,122,224,0.12);'
+        'padding:1px 10px;margin:0 4px;color:#a0a8f8;'
+        'font-weight:700;font-size:0.9em;">[$gapNum]</span>';
+  }
+
+  static String _plainText(String html) {
+    final fragment = html_parser.parseFragment(html);
+    return _normalizePlainText(fragment.text ?? '');
+  }
+
+  static String _plainTextLoose(String html) {
+    return _normalizePlainText(
+      html
+          .replaceAll(
+              RegExp(r'<script\b[^>]*>.*?</script>',
+                  caseSensitive: false, dotAll: true),
+              ' ')
+          .replaceAll(
+              RegExp(r'<style\b[^>]*>.*?</style>',
+                  caseSensitive: false, dotAll: true),
+              ' ')
+          .replaceAll(RegExp(r'<[^>]+>'), ' '),
+    );
+  }
+
+  static String _plainTextWithoutFormControls(String html) {
+    return _plainTextLoose(
+      html
+          .replaceAll(
+              RegExp(r'<select\b[^>]*>.*?</select>',
+                  caseSensitive: false, dotAll: true),
+              ' ')
+          .replaceAll(
+              RegExp(r'<textarea\b[^>]*>.*?</textarea>',
+                  caseSensitive: false, dotAll: true),
+              ' ')
+          .replaceAll(
+              RegExp(r'<input\b[^>]*>', caseSensitive: false, dotAll: true),
+              ' '),
+    );
+  }
+
+  static String _normalizePlainText(String value) {
+    return value
+        .replaceAll(String.fromCharCode(160), ' ')
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&#160;', ' ')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'")
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  static String _escapeHtmlText(String value) {
+    return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
   }
 
   static RegExpMatch? _firstMatchAfter(
@@ -688,7 +980,8 @@ class MoodleHtmlParser {
     // ── Estratégia 1: selects inline (gapselect / ddwtos acessível) ──────────
     final selects = fragment.querySelectorAll('select');
     if (selects.isNotEmpty) {
-      final options = <ParsedChoice>[];
+      final optionsByGap = <List<ParsedChoice>>[];
+      final mergedByKey = <String, ParsedChoice>{};
       var gapCount = 0;
       var prefix = '';
 
@@ -703,22 +996,26 @@ class MoodleHtmlParser {
         gapCount++;
 
         // Extrai opções do primeiro select (todas as lacunas têm as mesmas)
-        if (options.isEmpty) {
-          for (final opt in select.querySelectorAll('option')) {
-            final value = opt.attributes['value'] ?? '';
-            if (value.isEmpty || value == '0') continue;
-            final text = _stripHtml(opt.innerHtml).trim();
-            if (text.isNotEmpty) {
-              options.add(ParsedChoice(value: value, text: text));
-            }
+        final gapOptions = <ParsedChoice>[];
+        for (final opt in select.querySelectorAll('option')) {
+          final value = opt.attributes['value'] ?? '';
+          if (value.isEmpty || value == '0') continue;
+          final text = _stripHtml(opt.innerHtml).trim();
+          if (text.isNotEmpty) {
+            final choice = ParsedChoice(value: value, text: text);
+            gapOptions.add(choice);
+            mergedByKey.putIfAbsent('$value\x00$text', () => choice);
           }
         }
+        optionsByGap.add(gapOptions);
       }
 
+      final options = mergedByKey.values.toList(growable: false);
       if (gapCount > 0 && options.isNotEmpty && prefix.isNotEmpty) {
         return GapInputData(
           gapCount: gapCount,
           options: options,
+          optionsByGap: optionsByGap,
           inputNamePrefix: prefix,
         );
       }
@@ -750,6 +1047,11 @@ class MoodleHtmlParser {
         return GapInputData(
           gapCount: drops.length,
           options: options,
+          optionsByGap: List<List<ParsedChoice>>.generate(
+            drops.length,
+            (_) => options,
+            growable: false,
+          ),
           inputNamePrefix: prefix,
         );
       }
@@ -790,6 +1092,8 @@ class MoodleHtmlParser {
       replaceWithMarker(el);
     }
 
+    _normalizeTexImagesInGapPrompt(fragment);
+
     // Remove elementos do banco de palavras (mostrados como opções nos dropdowns)
     for (final el in fragment.querySelectorAll(
         '.drag, .dragitem, .dragcontainer, .dragwordscontainer, '
@@ -800,7 +1104,8 @@ class MoodleHtmlParser {
     // Remove elementos de controle
     for (final el in fragment
         .querySelectorAll('.accesshide, .sr-only, input[type="hidden"], '
-            'input[type="submit"], input[type="button"]')) {
+            '.visually-hidden, .visuallyhidden, input[type="submit"], '
+            'input[type="button"]')) {
       el.remove();
     }
 
@@ -844,6 +1149,36 @@ class MoodleHtmlParser {
       (_) => '',
     );
     return _stripResidualMalformedTexShell(cleaned);
+  }
+
+  static void _normalizeTexImagesInGapPrompt(dom.DocumentFragment fragment) {
+    for (final img in fragment.querySelectorAll('img').toList()) {
+      final src = img.attributes['src'] ?? '';
+      if (!_isMoodleTexSource(src)) continue;
+
+      final alt = _normalizePlainText(
+        img.attributes['alt'] ?? img.attributes['title'] ?? '',
+      );
+      if (alt.isEmpty || _containsGapSignal(alt)) {
+        img.remove();
+        continue;
+      }
+
+      final replacement = dom.Element.tag('span');
+      replacement.text = _humanizePromptText(alt);
+      img.replaceWith(replacement);
+    }
+  }
+
+  static bool _isMoodleTexSource(String src) {
+    return RegExp(r'(?:/filter/tex/|tex/pix\.php)', caseSensitive: false)
+        .hasMatch(src);
+  }
+
+  static bool _containsGapSignal(String value) {
+    return RegExp(r'(?:\[\d+\]|\bEm\s+branco\s+\d+|\bResposta\s+\d+)',
+            caseSensitive: false)
+        .hasMatch(value);
   }
 
   // ── Extração do nome do campo de texto ────────────────────────────────────

@@ -88,6 +88,84 @@ void main() {
       expect(controls.containsKey('q42:2_:flagged'), isFalse);
     });
 
+    test('keeps distinct option groups for each gapselect blank', () {
+      const html = '''
+<div class="que gapselect deferredfeedback notyetanswered">
+  <div class="qtext">
+    Complete: Em branco 1 Questao 3
+    <select name="q42:3_p1">
+      <option value=""> </option>
+      <option value="1">massa especifica rho</option>
+      <option value="2">temperatura T</option>
+    </select>
+    e Em branco 2 Questao 3
+    <select name="q42:3_p2">
+      <option value=""> </option>
+      <option value="1">gravidade g</option>
+      <option value="2">vazao Q</option>
+    </select>.
+  </div>
+</div>
+''';
+
+      final parsed = MoodleHtmlParser.parse(
+        html: html,
+        attemptId: 42,
+        slot: 3,
+        token: 'abc123',
+        baseUrl: 'https://moodle.example.edu',
+      );
+
+      final gap = parsed.gapInputData!;
+      expect(gap.gapCount, 2);
+      expect(gap.optionsByGap, hasLength(2));
+      expect(gap.optionsForGap(1).map((o) => o.text),
+          ['massa especifica rho', 'temperatura T']);
+      expect(
+          gap.optionsForGap(2).map((o) => o.text), ['gravidade g', 'vazao Q']);
+      expect(gap.options.map((o) => o.text), contains('gravidade g'));
+    });
+
+    test('removes duplicate TeX gap images from marker prompt', () {
+      const html = '''
+<div class="que gapselect deferredfeedback notyetanswered">
+  <div class="qtext">
+    Complete a relacao:
+    <img class="texrender" alt="Delta P = [1] cdot [2]" src="https://moodle.ufu.br/filter/tex/pix.php/hash.gif" />
+    Delta P =
+    <label class="visually-hidden" for="q42_3_p1">Em branco 1 Questao 3</label>
+    <select id="q42_3_p1" name="q42:3_p1">
+      <option value=""> </option>
+      <option value="1">rho</option>
+      <option value="2">T</option>
+    </select>
+    cdot
+    <label class="visually-hidden" for="q42_3_p2">Em branco 2 Questao 3</label>
+    <select id="q42_3_p2" name="q42:3_p2">
+      <option value=""> </option>
+      <option value="1">g</option>
+      <option value="2">Q</option>
+    </select>
+  </div>
+</div>
+''';
+
+      final prompt = MoodleHtmlParser.extractTextWithGapMarkers(
+        html,
+        'abc123',
+        'https://moodle.example.edu',
+      );
+
+      expect(prompt, contains('Complete a relacao'));
+      expect(prompt, contains('Delta P ='));
+      expect(prompt, contains('[1]'));
+      expect(prompt, contains('[2]'));
+      expect(prompt, isNot(contains('tex/pix.php')));
+      expect(prompt, isNot(contains('alt=')));
+      expect(prompt, isNot(contains('visually-hidden')));
+      expect(prompt, isNot(contains('Em branco 1 Questao 3')));
+    });
+
     test('repairs malformed TeX gaps before counting and rendering markers',
         () {
       const optionHtml = '''
@@ -231,6 +309,126 @@ void main() {
       expect(prompt, isNot(contains('[4]')));
       expect(prompt, isNot(contains('[6]')));
       expect(prompt, contains('[7]'));
+    });
+
+    test('recovers gapselect prompt from accessible text when TeX breaks qtext',
+        () {
+      const html = '''
+<div class="que gapselect deferredfeedback notyetanswered">
+  <div class="qtext">
+    Questão <span class="qno">3</span>Incompleto Vale 1,00 ponto(s).
+    Complete a análise técnica do Teorema de Stevin. Para dois pontos de um mesmo fluido em condição hidrostática, a diferença de pressão vertical é dada por:
+    \\Delta P =
+    Em branco 1 Questão 3
+    <select name="q1180673:3_p1">
+      <option value="0">Escolha...</option>
+      <option value="1">massa específica \\(\\rho\\)</option>
+      <option value="2">temperatura absoluta \\(T\\)</option>
+    </select>
+    \\cdot Em branco 2 Questão 3
+    <select name="q1180673:3_p2">
+      <option value="0">Escolha...</option>
+      <option value="1">vazão volumétrica \\(Q\\)</option>
+      <option value="2">aceleração da gravidade \\(g\\)</option>
+    </select>
+    \\cdot Em branco 3 Questão 3
+    <select name="q1180673:3_p3">
+      <option value="0">Escolha...</option>
+      <option value="1">diferença vertical de altura \\(\\Delta h\\)</option>
+      <option value="2">área da seção transversal \\(A\\)</option>
+    </select>
+    A relação pressupõe fluido em Em branco 4 Questão 3
+    <select name="q1180673:3_p4">
+      <option value="0">Escolha...</option>
+      <option value="1">repouso</option>
+      <option value="2">escoamento turbulento</option>
+    </select>
+    e comparação entre pontos pertencentes ao Em branco 5 Questão 3
+    <select name="q1180673:3_p5">
+      <option value="0">Escolha...</option>
+      <option value="1">mesmo fluido homogêneo</option>
+      <option value="2">instrumento eletrônico</option>
+    </select>,
+    sem aceleração macroscópica do escoamento.
+    Verificar Questão 3
+  </div>
+</div>
+''';
+
+      final parsed = MoodleHtmlParser.parse(
+        html: html,
+        attemptId: 940951,
+        slot: 3,
+        token: 'abc123',
+        baseUrl: 'https://moodle.example.edu',
+      );
+      final prompt = MoodleHtmlParser.extractTextWithGapMarkers(
+        parsed.htmlText,
+        'abc123',
+        'https://moodle.example.edu',
+      );
+
+      expect(parsed.gapInputData?.gapCount, 5);
+      expect(parsed.gapInputData?.inputNamePrefix, 'q1180673:3_p');
+      expect(
+          prompt, contains('Complete a análise técnica do Teorema de Stevin'));
+      expect(prompt, contains('Δ P ='));
+      expect(prompt, contains('[1]'));
+      expect(prompt, contains('[5]'));
+      expect(prompt, contains('A relação pressupõe fluido em'));
+      expect(prompt, isNot(contains('qno')));
+      expect(prompt, isNot(contains('Incompleto')));
+      expect(prompt, isNot(contains('Vale 1,00')));
+      expect(prompt, isNot(contains('Em branco 1 Questão 3')));
+      expect(prompt, isNot(contains('massa específica')));
+      expect(prompt, isNot(contains('Verificar Questão 3')));
+    });
+
+    test('removes option text when raw text has latex and option has unicode',
+        () {
+      const html = '''
+<div class="que gapselect deferredfeedback notyetanswered">
+  <div class="qtext">
+    Questão <span class="qno">3</span>Incompleto Vale 1,00 ponto(s).
+    Texto da questão Complete:
+    \\Delta P = Em branco 1 Questão 3 massa específica \\(\\rho\\) temperatura absoluta \\(T\\)
+    \\cdot Em branco 2 Questão 3 aceleração da gravidade \\(g\\) vazão volumétrica \\(Q\\).
+    <select name="q1180678:3_p1">
+      <option value=""></option>
+      <option value="1">massa específica ρ</option>
+      <option value="2">temperatura absoluta T</option>
+    </select>
+    <select name="q1180678:3_p2">
+      <option value=""></option>
+      <option value="1">aceleração da gravidade g</option>
+      <option value="2">vazão volumétrica Q</option>
+    </select>
+    Verificar Questão 3
+  </div>
+</div>
+''';
+
+      final parsed = MoodleHtmlParser.parse(
+        html: html,
+        attemptId: 940956,
+        slot: 3,
+        token: 'abc123',
+        baseUrl: 'https://moodle.example.edu',
+      );
+      final prompt = MoodleHtmlParser.extractTextWithGapMarkers(
+        parsed.htmlText,
+        'abc123',
+        'https://moodle.example.edu',
+      );
+
+      expect(prompt, contains('Complete:'));
+      expect(prompt, contains('[1]'));
+      expect(prompt, contains('[2]'));
+      expect(prompt, isNot(contains('massa específica')));
+      expect(prompt, isNot(contains('temperatura absoluta')));
+      expect(prompt, isNot(contains('aceleração da gravidade')));
+      expect(prompt, isNot(contains('vazão volumétrica')));
+      expect(prompt, isNot(contains('Incompleto')));
     });
   });
 }
