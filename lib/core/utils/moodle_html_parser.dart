@@ -342,7 +342,7 @@ class MoodleHtmlParser {
   }
 
   static String _stripResidualMalformedTexShell(String source) {
-    return source.replaceAllMapped(
+    final cleaned = source.replaceAllMapped(
       RegExp(
         r'''<span\s+class\s*=\s*(?!\s*["'])(.*?)"\s+(?:alt|title)\s*=\s*".*?"\s+src\s*=\s*"[^"]*(?:/filter/tex/|tex/pix\.php)[^"]*"\s*(?:/?>|/&gt;)''',
         caseSensitive: false,
@@ -358,6 +358,26 @@ class MoodleHtmlParser {
             .toList(growable: false);
         if (markers.isEmpty) return visiblePart;
         return markers.join(' ${String.fromCharCode(183)} ');
+      },
+    );
+    return _stripLiteralTexAttributeResidue(cleaned);
+  }
+
+  static String _stripLiteralTexAttributeResidue(String source) {
+    return source.replaceAllMapped(
+      RegExp(
+        r'''\s*(?:"|&quot;)\s+(?:alt|title)\s*=\s*(?:"|&quot;).*?\s+src\s*=\s*(?:"|&quot;)[^"']*(?:/filter/tex/|tex/pix\.php)[^"']*(?:"|&quot;)\s*(?:/?>|/&gt;|&gt;)''',
+        caseSensitive: false,
+        dotAll: true,
+      ),
+      (match) {
+        if (match.start > 0) {
+          final previous = source.substring(match.start - 1, match.start);
+          if (RegExp(r'[\p{L}\p{N}_-]', unicode: true).hasMatch(previous)) {
+            return match.group(0) ?? '';
+          }
+        }
+        return ' ';
       },
     );
   }
@@ -982,12 +1002,14 @@ class MoodleHtmlParser {
     if (selects.isNotEmpty) {
       final optionsByGap = <List<ParsedChoice>>[];
       final mergedByKey = <String, ParsedChoice>{};
+      final seenNames = <String>{};
       var gapCount = 0;
       var prefix = '';
 
       for (final select in selects) {
         final name = select.attributes['name'] ?? '';
         if (name.isEmpty) continue;
+        if (!seenNames.add(name)) continue;
 
         // Deriva prefixo: "q123:1_p1" → "q123:1_p"
         if (prefix.isEmpty) {
@@ -1280,9 +1302,11 @@ class MoodleHtmlParser {
       ));
     }
 
+    final seenSelectNames = <String>{};
     for (final select in fragment.querySelectorAll('select')) {
       final name = select.attributes['name'] ?? '';
       if (!_isAnswerFieldName(name)) continue;
+      if (!seenSelectNames.add(name)) continue;
       if (_isMoodleUiControl(select)) continue;
       final label =
           _controlLabel(select, labelByFor, labelById, token, baseUrl);

@@ -219,6 +219,59 @@ void main() {
       expect(prompt, isNot(contains('[6]')));
     });
 
+    test('strips literal TeX attribute residue and duplicate named selects',
+        () {
+      const optionHtml = '''
+        <option value=""> </option>
+        <option value="1">correta</option>
+        <option value="2">distrator</option>
+      ''';
+      const html = '''
+<div class="que gapselect deferredfeedback notyetanswered">
+  <div class="formulation">
+    <div class="qtext">
+      Complete a análise técnica do Teorema de Stevin. Para dois pontos de um mesmo fluido em condição hidrostática, a diferença de pressão vertical é dada por:
+      <select name="q1180693:3_p1">$optionHtml</select> ·
+      <select name="q1180693:3_p2">$optionHtml</select> ·
+      <select name="q1180693:3_p3">$optionHtml</select>
+      " alt="Δ P =
+      <select name="q1180693:3_p1">$optionHtml</select> ·
+      <select name="q1180693:3_p2">$optionHtml</select> ·
+      <select name="q1180693:3_p3">$optionHtml</select>"
+      src="https://moodle.ufu.br/filter/tex/pix.php/hash.gif" />
+      A relação pressupõe fluido em <select name="q1180693:3_p4">$optionHtml</select>
+      e comparação entre pontos pertencentes ao <select name="q1180693:3_p5">$optionHtml</select>.
+    </div>
+  </div>
+</div>
+''';
+
+      final parsed = MoodleHtmlParser.parse(
+        html: html,
+        attemptId: 940970,
+        slot: 3,
+        token: 'abc123',
+        baseUrl: 'https://moodle.example.edu',
+      );
+      final prompt = MoodleHtmlParser.extractTextWithGapMarkers(
+        parsed.htmlText,
+        'abc123',
+        'https://moodle.example.edu',
+      );
+
+      expect(parsed.answerControls, hasLength(5));
+      expect(parsed.gapInputData?.gapCount, 5);
+      expect(parsed.text, isNot(contains('alt=')));
+      expect(parsed.text, isNot(contains('src=')));
+      expect(parsed.text, isNot(contains('tex/pix.php')));
+      expect(prompt, contains('[1]'));
+      expect(prompt, contains('[5]'));
+      expect(prompt, isNot(contains('[6]')));
+      expect(prompt, isNot(contains('alt=')));
+      expect(prompt, isNot(contains('src=')));
+      expect(prompt, isNot(contains('tex/pix.php')));
+    });
+
     test('does not let quiz header metadata leak into gap prompt', () {
       const optionHtml = '''
         <option value="0">Escolha...</option>
