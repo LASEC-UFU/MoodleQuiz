@@ -9,6 +9,8 @@ class OptionButton extends StatelessWidget {
   final String text;
   final String htmlText;
   final bool isSelected;
+  final bool isCorrectState;
+  final bool isIncorrectState;
   final bool isDisabled;
   final VoidCallback onTap;
 
@@ -18,6 +20,8 @@ class OptionButton extends StatelessWidget {
     required this.text,
     this.htmlText = '',
     required this.isSelected,
+    this.isCorrectState = false,
+    this.isIncorrectState = false,
     required this.isDisabled,
     required this.onTap,
   });
@@ -33,9 +37,19 @@ class OptionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final labelColor = _labelColors[label] ?? AppTheme.primary;
-    final borderColor = isSelected ? labelColor : Colors.transparent;
-    final bgColor =
-        isSelected ? labelColor.withValues(alpha: 0.18) : AppTheme.bgCard;
+    final stateColor = isCorrectState
+        ? AppTheme.success
+        : (isIncorrectState ? Colors.redAccent : labelColor);
+    final borderColor = isSelected || isCorrectState || isIncorrectState
+        ? stateColor
+        : Colors.transparent;
+    final bgColor = isCorrectState
+        ? AppTheme.success.withValues(alpha: 0.18)
+        : (isIncorrectState
+            ? Colors.redAccent.withValues(alpha: 0.14)
+            : (isSelected
+                ? labelColor.withValues(alpha: 0.18)
+                : AppTheme.bgCard));
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -76,7 +90,10 @@ class OptionButton extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
-                        color: isSelected ? Colors.white : labelColor,
+                        color:
+                            (isSelected || isCorrectState || isIncorrectState)
+                                ? Colors.white
+                                : labelColor,
                       ),
                     ),
                   ),
@@ -109,7 +126,13 @@ class OptionButton extends StatelessWidget {
                           ),
                         ),
                 ),
-                if (isSelected)
+                if (isCorrectState)
+                  const Icon(Icons.check_circle_rounded,
+                      color: AppTheme.success, size: 22),
+                if (!isCorrectState && isIncorrectState)
+                  const Icon(Icons.cancel_rounded,
+                      color: Colors.redAccent, size: 22),
+                if (!isCorrectState && !isIncorrectState && isSelected)
                   Icon(Icons.check_circle_rounded, color: labelColor, size: 22),
               ],
             ),

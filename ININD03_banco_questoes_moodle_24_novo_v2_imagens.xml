@@ -1,0 +1,739 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<quiz>
+
+  <question type="multichoice">
+    <name><text>Q01 - SI e grafia tecnica em especificacoes</text></name>
+    <questiontext format="html">
+      <text>
+&lt;p&gt;Um relatorio de instrumentacao contem as seguintes anotacoes para um teste em bancada:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Temperatura de processo: 250&amp;#176;K&lt;/li&gt;
+&lt;li&gt;Tempo de resposta: 2 hs&lt;/li&gt;
+&lt;li&gt;Velocidade linear: 34,7 m/s por segundos&lt;/li&gt;
+&lt;li&gt;Forca aplicada: dois Newton&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Qual alternativa identifica a correcao tecnicamente mais coerente com regras do SI e escrita metrologica?&lt;/p&gt;
+</text>
+    </questiontext>
+    <generalfeedback format="html">
+      <text>
+&lt;p&gt;&lt;strong&gt;Analise tecnica:&lt;/strong&gt;&lt;/p&gt;
+&lt;table border="1" cellpadding="4" cellspacing="0"&gt;
+&lt;tr&gt;&lt;th&gt;Item&lt;/th&gt;&lt;th&gt;Forma recomendada&lt;/th&gt;&lt;th&gt;Justificativa&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;250&amp;#176;K&lt;/td&gt;&lt;td&gt;250 K&lt;/td&gt;&lt;td&gt;Kelvin nao usa grau.&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;2 hs&lt;/td&gt;&lt;td&gt;2 h&lt;/td&gt;&lt;td&gt;Simbolo de unidade nao recebe plural.&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;m/s por segundos&lt;/td&gt;&lt;td&gt;m/s ou m.s&lt;sup&gt;-1&lt;/sup&gt;&lt;/td&gt;&lt;td&gt;Evitar redundancia e inconsistencias.&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;dois Newton&lt;/td&gt;&lt;td&gt;dois newton ou 2 N&lt;/td&gt;&lt;td&gt;Nome por extenso em minusculas.&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+&lt;p&gt;Em documentos tecnicos, diferenciar nome da unidade e simbolo e essencial para rastreabilidade e comparabilidade.&lt;/p&gt;
+</text>
+    </generalfeedback>
+    <defaultgrade>1.0000000</defaultgrade>
+    <penalty>0.3333333</penalty>
+    <hidden>0</hidden>
+    <single>true</single>
+    <shuffleanswers>true</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="100" format="html">
+      <text>250 K; 2 h; 34,7 m/s; dois newton.</text>
+      <feedback format="html"><text>Correta. Mantem consistencia de simbolos, nomes e unidades SI.</text></feedback>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>250 Kelvin; 2 horas; 34,7 m/s/s; dois Newtons.</text>
+      <feedback format="html"><text>Incorreta. Mistura formas por extenso e simbolos sem criterio tecnico.</text></feedback>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>250°K; 2 hs; 34,7 m/s por segundos; dois Newton.</text>
+      <feedback format="html"><text>Incorreta. Mantem erros de unidade e escrita.</text></feedback>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>250 K; 2 hs; 34,7 m/s por s; 2 Newton.</text>
+      <feedback format="html"><text>Incorreta. Ainda ha pluralizacao e uso inadequado de nome de unidade.</text></feedback>
+    </answer>
+  </question>
+
+  <question type="numerical">
+    <name><text>Q02 - Span e percentual da faixa de medicao</text></name>
+    <questiontext format="html">
+      <text>
+&lt;p&gt;Um transmissor foi configurado com LRV = 40 kPa e URV = 220 kPa. Para uma leitura de 148 kPa, calcule o percentual do span.&lt;/p&gt;
+</text>
+    </questiontext>
+    <generalfeedback format="html">
+      <text>
+&lt;p&gt;&lt;strong&gt;Passo a passo:&lt;/strong&gt;&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;Span = URV - LRV = 220 - 40 = 180 kPa.&lt;/li&gt;
+&lt;li&gt;Deslocamento em relacao ao LRV = 148 - 40 = 108 kPa.&lt;/li&gt;
+&lt;li&gt;Percentual = (108/180).100 = 60%.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;Erro comum: dividir a leitura pelo URV diretamente, o que e incorreto quando LRV diferente de zero.&lt;/p&gt;
+</text>
+    </generalfeedback>
+    <defaultgrade>1</defaultgrade>
+    <penalty>0.3333333</penalty>
+    <hidden>0</hidden>
+    <answer fraction="100" format="html">
+      <text>60</text>
+      <feedback format="html"><text>Correta.</text></feedback>
+      <tolerance>0.2</tolerance>
+    </answer>
+    <unitgradingtype>0</unitgradingtype>
+    <unitpenalty>0.1</unitpenalty>
+    <showunits>0</showunits>
+  </question>
+
+  <question type="matching">
+    <name><text>Q03 - Associacao de conceitos VIM em instrumentacao</text></name>
+    <questiontext format="html"><text>
+&lt;p&gt;Associe cada definicao ao termo metrologico correspondente.&lt;/p&gt;
+</text></questiontext>
+    <generalfeedback format="html"><text>
+&lt;p&gt;As definicoes seguem uso tecnico classico em metrologia industrial:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Range&lt;/strong&gt;: intervalo entre limites.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Span&lt;/strong&gt;: diferenca algebrica entre limites.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Histerese&lt;/strong&gt;: dependencia do sentido de variacao.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Resolucao&lt;/strong&gt;: menor incremento perceptivel.&lt;/li&gt;
+&lt;/ul&gt;
+</text></generalfeedback>
+    <defaultgrade>1</defaultgrade>
+    <penalty>0.3333333</penalty>
+    <hidden>0</hidden>
+    <subquestion format="html"><text>Intervalo total de valores que o instrumento pode medir</text><answer><text>Range</text></answer></subquestion>
+    <subquestion format="html"><text>Diferenca entre limite superior e inferior da faixa</text><answer><text>Span</text></answer></subquestion>
+    <subquestion format="html"><text>Diferenca para o mesmo ponto ao subir e descer a escala</text><answer><text>Histerese</text></answer></subquestion>
+    <subquestion format="html"><text>Menor variacao observavel na indicacao</text><answer><text>Resolucao</text></answer></subquestion>
+  </question>
+
+  <question type="gapselect">
+    <name><text>Q04 - Completar termos sobre zero vivo e zona morta</text></name>
+    <questiontext format="html"><text>
+&lt;p&gt;Complete as lacunas com os termos tecnicos adequados:&lt;/p&gt;
+&lt;p&gt;No padrao 4-20 mA, o inicio em 4 mA e chamado [[1]], pois permite diferenciar valor minimo da variavel e [[2]] de sinal. Ja a faixa de entrada em que nao ha resposta perceptivel na saida e chamada [[3]]. Em uma malha, o valor alvo da variavel de processo e o [[4]].&lt;/p&gt;
+</text></questiontext>
+    <generalfeedback format="html"><text>
+&lt;p&gt;&lt;strong&gt;Relacao entre conceitos:&lt;/strong&gt;&lt;/p&gt;
+&lt;table border="1" cellpadding="4" cellspacing="0"&gt;
+&lt;tr&gt;&lt;th&gt;Termo&lt;/th&gt;&lt;th&gt;Aplicacao&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;zero vivo&lt;/td&gt;&lt;td&gt;Instrumentacao analogica industrial (4-20 mA).&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;falha&lt;/td&gt;&lt;td&gt;Diagnostico de circuito aberto/defeito.&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;zona morta&lt;/td&gt;&lt;td&gt;Insensibilidade dentro de um intervalo de entrada.&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;set-point&lt;/td&gt;&lt;td&gt;Referencia para controle.&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+</text></generalfeedback>
+    <defaultgrade>1</defaultgrade>
+    <penalty>0.3333333</penalty>
+    <hidden>0</hidden>
+    <shuffleanswers>1</shuffleanswers>
+    <selectoption><text>zero vivo</text><group>1</group></selectoption>
+    <selectoption><text>falha</text><group>2</group></selectoption>
+    <selectoption><text>zona morta</text><group>3</group></selectoption>
+    <selectoption><text>set-point</text><group>4</group></selectoption>
+    <selectoption><text>range expandido</text><group>1</group></selectoption>
+    <selectoption><text>calibracao</text><group>2</group></selectoption>
+    <selectoption><text>histerese</text><group>3</group></selectoption>
+    <selectoption><text>offset eletrico</text><group>4</group></selectoption>
+  </question>
+
+  <question type="ordering">
+    <name><text>Q05 - Ordenacao do procedimento de calibracao em bancada</text></name>
+    <questiontext format="html"><text>
+&lt;p&gt;Ordene as etapas para uma calibracao metrologicamente consistente de transmissor de pressao.&lt;/p&gt;
+</text></questiontext>
+    <generalfeedback format="html"><text>
+&lt;p&gt;A ordem correta evita erros sistematicos de montagem, referencia e registro:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;Definir condicoes de ensaio e padrao.&lt;/li&gt;
+&lt;li&gt;Montar circuito e estabilizar.&lt;/li&gt;
+&lt;li&gt;Aplicar pontos crescentes e decrescentes.&lt;/li&gt;
+&lt;li&gt;Registrar indicacoes e calcular erros.&lt;/li&gt;
+&lt;li&gt;Emitir conclusao de conformidade.&lt;/li&gt;
+&lt;/ol&gt;
+</text></generalfeedback>
+    <defaultgrade>1.0000000</defaultgrade>
+    <penalty>0.3333333</penalty>
+    <hidden>0</hidden>
+    <layouttype>VERTICAL</layouttype>
+    <selecttype>ALL</selecttype>
+    <selectcount>5</selectcount>
+    <gradingtype>RELATIVE_NEXT_EXCLUDE_LAST</gradingtype>
+    <showgrading>SHOW</showgrading>
+    <numberingstyle>none</numberingstyle>
+    <correctfeedback format="html"><text>Sequencia correta.</text></correctfeedback>
+    <partiallycorrectfeedback format="html"><text>Ha passos corretos, mas a ordem completa ainda nao esta adequada.</text></partiallycorrectfeedback>
+    <incorrectfeedback format="html"><text>Revise a logica tecnica de calibracao.</text></incorrectfeedback>
+    <shownumcorrect>1</shownumcorrect>
+    <answer fraction="1" format="html"><text>Definir faixa, criterios e instrumento padrao rastreavel</text><feedback format="html"><text /></feedback></answer>
+    <answer fraction="1" format="html"><text>Montar o arranjo de teste e estabilizar variaveis de ambiente</text><feedback format="html"><text /></feedback></answer>
+    <answer fraction="1" format="html"><text>Aplicar pontos de pressao em subida e descida</text><feedback format="html"><text /></feedback></answer>
+    <answer fraction="1" format="html"><text>Calcular erro, repetibilidade e histerese por ponto</text><feedback format="html"><text /></feedback></answer>
+    <answer fraction="1" format="html"><text>Concluir conformidade e documentar certificado</text><feedback format="html"><text /></feedback></answer>
+  </question>
+
+  <question type="ddwtos">
+    <name><text>Q06 - Arrastar cadeia funcional de medicao</text></name>
+    <questiontext format="html"><text>
+&lt;p&gt;Complete a cadeia funcional mais coerente para medicao de pressao em processo industrial:&lt;/p&gt;
+&lt;p&gt;Variavel de processo -&gt; [[1]] -&gt; [[2]] -&gt; [[3]] -&gt; [[4]] -&gt; sistema de supervisao.&lt;/p&gt;
+</text></questiontext>
+    <generalfeedback format="html"><text>
+&lt;p&gt;A cadeia deve respeitar fluxo fisico e informacional:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;elemento primario recebe a grandeza;&lt;/li&gt;
+&lt;li&gt;transdutor converte efeito fisico em sinal;&lt;/li&gt;
+&lt;li&gt;condicionador/transmissor adequa para padrao industrial;&lt;/li&gt;
+&lt;li&gt;malha recebe e interpreta o sinal.&lt;/li&gt;
+&lt;/ul&gt;
+</text></generalfeedback>
+    <defaultgrade>1</defaultgrade>
+    <penalty>0.3333333</penalty>
+    <hidden>0</hidden>
+    <dragbox><text>elemento primario sensor</text><group>1</group><infinite>0</infinite></dragbox>
+    <dragbox><text>transdutor</text><group>1</group><infinite>0</infinite></dragbox>
+    <dragbox><text>transmissor/condicionador 4-20 mA</text><group>1</group><infinite>0</infinite></dragbox>
+    <dragbox><text>entrada analogica do CLP</text><group>1</group><infinite>0</infinite></dragbox>
+    <dragbox><text>correcao ortografica</text><group>1</group><infinite>0</infinite></dragbox>
+    <dragbox><text>filtro de cafe</text><group>1</group><infinite>0</infinite></dragbox>
+  </question>
+
+  <question type="calculated">
+    <name><text>Q07 - Calculada sensibilidade de sensor de nivel</text></name>
+    <questiontext format="html"><text>
+&lt;p&gt;Um sensor de nivel opera com saida de &lt;strong&gt;{Vmin}&lt;/strong&gt; V a &lt;strong&gt;{Vmax}&lt;/strong&gt; V para entrada de &lt;strong&gt;{Hmin}&lt;/strong&gt; m a &lt;strong&gt;{Hmax}&lt;/strong&gt; m. Calcule a sensibilidade em V/m.&lt;/p&gt;
+</text></questiontext>
+    <generalfeedback format="html"><text>
+&lt;p&gt;Formula de sensibilidade linear:&lt;/p&gt;
+&lt;p&gt;\(S = \Delta saida / \Delta entrada = (Vmax-Vmin)/(Hmax-Hmin)\)&lt;/p&gt;
+&lt;p&gt;Interpretacao: quanto maior o range de entrada para mesma excursao de saida, menor a sensibilidade.&lt;/p&gt;
+</text></generalfeedback>
+    <defaultgrade>1</defaultgrade>
+    <penalty>0.3333333</penalty>
+    <hidden>0</hidden>
+    <answer fraction="100" format="moodle_auto_format">
+      <text>({Vmax}-{Vmin})/({Hmax}-{Hmin})</text>
+      <feedback format="html"><text>Correta.</text></feedback>
+      <tolerance>0.02</tolerance>
+      <tolerancetype>1</tolerancetype>
+      <correctanswerformat>1</correctanswerformat>
+      <correctanswerlength>3</correctanswerlength>
+    </answer>
+    <unitgradingtype>0</unitgradingtype>
+    <unitpenalty>0.1</unitpenalty>
+    <showunits>0</showunits>
+    <dataset_definitions>
+      <dataset_definition>
+        <status><text>private</text></status>
+        <name><text>Vmin</text></name>
+        <type>calculated</type>
+        <distribution><text>uniform</text></distribution>
+        <minimum><text>0.8</text></minimum>
+        <maximum><text>1.5</text></maximum>
+        <decimals><text>1</text></decimals>
+        <itemcount>5</itemcount>
+        <dataset_items>
+          <dataset_item><number>1</number><value>1.0</value></dataset_item>
+          <dataset_item><number>2</number><value>0.8</value></dataset_item>
+          <dataset_item><number>3</number><value>1.2</value></dataset_item>
+          <dataset_item><number>4</number><value>1.1</value></dataset_item>
+          <dataset_item><number>5</number><value>0.9</value></dataset_item>
+        </dataset_items>
+        <number_of_items>5</number_of_items>
+      </dataset_definition>
+      <dataset_definition>
+        <status><text>private</text></status>
+        <name><text>Vmax</text></name>
+        <type>calculated</type>
+        <distribution><text>uniform</text></distribution>
+        <minimum><text>4.8</text></minimum>
+        <maximum><text>6.0</text></maximum>
+        <decimals><text>1</text></decimals>
+        <itemcount>5</itemcount>
+        <dataset_items>
+          <dataset_item><number>1</number><value>5.0</value></dataset_item>
+          <dataset_item><number>2</number><value>4.8</value></dataset_item>
+          <dataset_item><number>3</number><value>5.4</value></dataset_item>
+          <dataset_item><number>4</number><value>5.2</value></dataset_item>
+          <dataset_item><number>5</number><value>5.6</value></dataset_item>
+        </dataset_items>
+        <number_of_items>5</number_of_items>
+      </dataset_definition>
+      <dataset_definition>
+        <status><text>private</text></status>
+        <name><text>Hmin</text></name>
+        <type>calculated</type>
+        <distribution><text>uniform</text></distribution>
+        <minimum><text>0.2</text></minimum>
+        <maximum><text>0.8</text></maximum>
+        <decimals><text>1</text></decimals>
+        <itemcount>5</itemcount>
+        <dataset_items>
+          <dataset_item><number>1</number><value>0.5</value></dataset_item>
+          <dataset_item><number>2</number><value>0.4</value></dataset_item>
+          <dataset_item><number>3</number><value>0.6</value></dataset_item>
+          <dataset_item><number>4</number><value>0.3</value></dataset_item>
+          <dataset_item><number>5</number><value>0.7</value></dataset_item>
+        </dataset_items>
+        <number_of_items>5</number_of_items>
+      </dataset_definition>
+      <dataset_definition>
+        <status><text>private</text></status>
+        <name><text>Hmax</text></name>
+        <type>calculated</type>
+        <distribution><text>uniform</text></distribution>
+        <minimum><text>2.0</text></minimum>
+        <maximum><text>3.2</text></maximum>
+        <decimals><text>1</text></decimals>
+        <itemcount>5</itemcount>
+        <dataset_items>
+          <dataset_item><number>1</number><value>2.5</value></dataset_item>
+          <dataset_item><number>2</number><value>2.2</value></dataset_item>
+          <dataset_item><number>3</number><value>2.8</value></dataset_item>
+          <dataset_item><number>4</number><value>2.1</value></dataset_item>
+          <dataset_item><number>5</number><value>3.0</value></dataset_item>
+        </dataset_items>
+        <number_of_items>5</number_of_items>
+      </dataset_definition>
+    </dataset_definitions>
+  </question>
+
+  <question type="multichoice">
+    <name><text>Q08 - Linearidade e erro de medicao</text></name>
+    <questiontext format="html"><text>
+&lt;p&gt;Em avaliacao de instrumentos, qual afirmacao melhor representa a relacao entre linearidade e erro?&lt;/p&gt;
+</text></questiontext>
+    <generalfeedback format="html"><text>
+&lt;p&gt;A linearidade mede o desvio da curva real em relacao a referencia linear especificada.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Baixa nao linearidade tende a reduzir erro de modelagem.&lt;/li&gt;
+&lt;li&gt;Ainda podem existir outras fontes de erro (histerese, deriva, resolucao).&lt;/li&gt;
+&lt;/ul&gt;
+</text></generalfeedback>
+    <defaultgrade>1.0000000</defaultgrade>
+    <penalty>0.3333333</penalty>
+    <hidden>0</hidden>
+    <single>true</single>
+    <shuffleanswers>true</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="100" format="html"><text>Quanto menor a nao linearidade, menor tende a ser o erro associado ao modelo linear.</text><feedback format="html"><text>Correta.</text></feedback></answer>
+    <answer fraction="0" format="html"><text>A linearidade nao influencia resultados metrologicos.</text><feedback format="html"><text>Incorreta.</text></feedback></answer>
+    <answer fraction="0" format="html"><text>Maior nao linearidade implica maior sensibilidade e menor erro.</text><feedback format="html"><text>Incorreta.</text></feedback></answer>
+    <answer fraction="0" format="html"><text>Linearidade e span sao sinonimos estritos.</text><feedback format="html"><text>Incorreta.</text></feedback></answer>
+  </question>
+
+  <question type="calculatedmulti">
+    <name><text>Q09 - Multipla escolha calculada para corrente 4-20 mA</text></name>
+    <questiontext format="html"><text>
+&lt;p&gt;Um transmissor 4-20 mA esta configurado para range de {Pmin} a {Pmax} kPa. Para pressao de processo {P} kPa, qual corrente esperada (mA)?&lt;/p&gt;
+&lt;p&gt;Considere comportamento linear.&lt;/p&gt;
+</text></questiontext>
+    <generalfeedback format="html"><text>
+&lt;p&gt;Modelo linear da transmissao:&lt;/p&gt;
+&lt;p&gt;\(I = 4 + 16\times\frac{P-Pmin}{Pmax-Pmin}\)&lt;/p&gt;
+&lt;p&gt;Essa forma explicita o deslocamento relativo ao LRV e evita erros comuns de normalizacao.&lt;/p&gt;
+</text></generalfeedback>
+    <defaultgrade>1.0000000</defaultgrade>
+    <penalty>0.3333333</penalty>
+    <hidden>0</hidden>
+    <synchronize>0</synchronize>
+    <single>true</single>
+    <shuffleanswers>true</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <answer fraction="100" format="moodle_auto_format">
+      <text>4+16*(({P}-{Pmin})/({Pmax}-{Pmin}))</text>
+      <feedback format="html"><text>Correta.</text></feedback>
+      <tolerance>0.02</tolerance><tolerancetype>1</tolerancetype><correctanswerformat>1</correctanswerformat><correctanswerlength>3</correctanswerlength>
+    </answer>
+    <answer fraction="0" format="moodle_auto_format">
+      <text>4+16*({P}/{Pmax})</text>
+      <feedback format="html"><text>Incorreta. Ignora deslocamento relativo ao LRV.</text></feedback>
+      <tolerance>0.02</tolerance><tolerancetype>1</tolerancetype><correctanswerformat>1</correctanswerformat><correctanswerlength>3</correctanswerlength>
+    </answer>
+    <answer fraction="0" format="moodle_auto_format">
+      <text>16*(({P}-{Pmin})/({Pmax}-{Pmin}))</text>
+      <feedback format="html"><text>Incorreta. Faltou somar o zero vivo de 4 mA.</text></feedback>
+      <tolerance>0.02</tolerance><tolerancetype>1</tolerancetype><correctanswerformat>1</correctanswerformat><correctanswerlength>3</correctanswerlength>
+    </answer>
+    <answer fraction="0" format="moodle_auto_format">
+      <text>20*(({P}-{Pmin})/({Pmax}-{Pmin}))</text>
+      <feedback format="html"><text>Incorreta. Escala de excursao inadequada.</text></feedback>
+      <tolerance>0.02</tolerance><tolerancetype>1</tolerancetype><correctanswerformat>1</correctanswerformat><correctanswerlength>3</correctanswerlength>
+    </answer>
+    <dataset_definitions>
+      <dataset_definition>
+        <status><text>private</text></status><name><text>Pmin</text></name><type>calculated</type>
+        <distribution><text>uniform</text></distribution><minimum><text>0</text></minimum><maximum><text>80</text></maximum><decimals><text>0</text></decimals>
+        <itemcount>5</itemcount>
+        <dataset_items>
+          <dataset_item><number>1</number><value>0</value></dataset_item>
+          <dataset_item><number>2</number><value>20</value></dataset_item>
+          <dataset_item><number>3</number><value>40</value></dataset_item>
+          <dataset_item><number>4</number><value>10</value></dataset_item>
+          <dataset_item><number>5</number><value>50</value></dataset_item>
+        </dataset_items>
+        <number_of_items>5</number_of_items>
+      </dataset_definition>
+      <dataset_definition>
+        <status><text>private</text></status><name><text>Pmax</text></name><type>calculated</type>
+        <distribution><text>uniform</text></distribution><minimum><text>200</text></minimum><maximum><text>500</text></maximum><decimals><text>0</text></decimals>
+        <itemcount>5</itemcount>
+        <dataset_items>
+          <dataset_item><number>1</number><value>300</value></dataset_item>
+          <dataset_item><number>2</number><value>260</value></dataset_item>
+          <dataset_item><number>3</number><value>400</value></dataset_item>
+          <dataset_item><number>4</number><value>250</value></dataset_item>
+          <dataset_item><number>5</number><value>450</value></dataset_item>
+        </dataset_items>
+        <number_of_items>5</number_of_items>
+      </dataset_definition>
+      <dataset_definition>
+        <status><text>private</text></status><name><text>P</text></name><type>calculated</type>
+        <distribution><text>uniform</text></distribution><minimum><text>60</text></minimum><maximum><text>350</text></maximum><decimals><text>0</text></decimals>
+        <itemcount>5</itemcount>
+        <dataset_items>
+          <dataset_item><number>1</number><value>150</value></dataset_item>
+          <dataset_item><number>2</number><value>140</value></dataset_item>
+          <dataset_item><number>3</number><value>220</value></dataset_item>
+          <dataset_item><number>4</number><value>130</value></dataset_item>
+          <dataset_item><number>5</number><value>250</value></dataset_item>
+        </dataset_items>
+        <number_of_items>5</number_of_items>
+      </dataset_definition>
+    </dataset_definitions>
+  </question>
+
+  <question type="numerical">
+    <name><text>Q10 - Histerese percentual a partir de dados de subida e descida</text></name>
+    <questiontext format="html"><text>&lt;p&gt;&lt;img src="@@PLUGINFILE@@/q10_histerese_curva.png" alt="q10_histerese_curva.png"/&gt;&lt;/p&gt;
+&lt;p&gt;Em um instrumento com span de 16 mA, no ponto de 60% da faixa, leitura na subida = 13,2 mA e na descida = 12,4 mA. Calcule a histerese percentual do span.&lt;/p&gt;
+</text><file name="q10_histerese_curva.png" path="/" encoding="base64">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</file></questiontext>
+    <generalfeedback format="html"><text>
+&lt;p&gt;&lt;strong&gt;Calculo:&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;Diferenca absoluta = |13,2 - 12,4| = 0,8 mA.&lt;/p&gt;
+&lt;p&gt;Histerese % = (0,8/16).100 = 5%.&lt;/p&gt;
+&lt;p&gt;Histerese compara respostas para mesma entrada em sentidos opostos.&lt;/p&gt;
+</text></generalfeedback>
+    <defaultgrade>1</defaultgrade>
+    <penalty>0.3333333</penalty>
+    <hidden>0</hidden>
+    <answer fraction="100" format="html"><text>5</text><feedback format="html"><text>Correta.</text></feedback><tolerance>0.2</tolerance></answer>
+    <unitgradingtype>0</unitgradingtype>
+    <unitpenalty>0.1</unitpenalty>
+    <showunits>0</showunits>
+  </question>
+
+  <question type="matching">
+    <name><text>Q11 - Associacao de acessorios para manometro Bourdon</text></name>
+    <questiontext format="html"><text>
+&lt;p&gt;Associe cada acessorio do conjunto de medicao de pressao com sua funcao predominante.&lt;/p&gt;
+</text></questiontext>
+    <generalfeedback format="html"><text>
+&lt;p&gt;Acessorios ampliam vida util e robustez metrologica do sistema:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;sifao protege de alta temperatura;&lt;/li&gt;
+&lt;li&gt;amortecedor reduz oscilacao de ponteiro;&lt;/li&gt;
+&lt;li&gt;selo de diafragma isola fluido agressivo;&lt;/li&gt;
+&lt;li&gt;supressor reduz impacto de picos de pressao.&lt;/li&gt;
+&lt;/ul&gt;
+</text></generalfeedback>
+    <defaultgrade>1</defaultgrade><penalty>0.3333333</penalty><hidden>0</hidden>
+    <subquestion format="html"><text>Sifao</text><answer><text>Reduz transferencia de calor para o instrumento</text></answer></subquestion>
+    <subquestion format="html"><text>Amortecedor de pulsacao</text><answer><text>Diminui oscilacao rapida da indicacao</text></answer></subquestion>
+    <subquestion format="html"><text>Selo de diafragma</text><answer><text>Isola fluido corrosivo/viscoso do elemento elastico</text></answer></subquestion>
+    <subquestion format="html"><text>Supressor de pressao</text><answer><text>Atenua picos e sobrepressao transiente</text></answer></subquestion>
+  </question>
+
+  <question type="ordering">
+    <name><text>Q12 - Ordenacao para diagnostico de malha SP-PV-MV</text></name>
+    <questiontext format="html"><text>&lt;p&gt;&lt;img src="@@PLUGINFILE@@/q12_malha_sp_pv_mv.png" alt="q12_malha_sp_pv_mv.png"/&gt;&lt;/p&gt;
+&lt;p&gt;Ordene um roteiro tecnico para diagnosticar desvio persistente entre SP e PV em malha de controle.&lt;/p&gt;
+</text><file name="q12_malha_sp_pv_mv.png" path="/" encoding="base64">iVBORw0KGgoAAAANSUhEUgAAAZAAAADICAYAAADGFbfiAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90bGliIHZlcnNpb24zLjEwLjEsIGh0dHBzOi8vbWF0cGxvdGxpYi5vcmcvc2/+5QAAAAlwSFlzAAAPYQAAD2EBqD+naQAAF0ZJREFUeJzt3Qm0zOXjx/HHkn3PmkKIrCVKkrKWKJV9JyVLWZOl9FNIkShrUdYoWbNmOZaUNcoaLfbsZYvs8z+f55zv/OfeO3Pv3Mflxn2/zpmDme9815nn82zfkcjn8/kMAACxlDi2bwAAQAgQ/KfkyZPHNG/e3P/vcePGmUSJEpkff/wxXvcLQFQECMLmFeZ6fP/991FeV2/oXXfdZV9/+umnzc1my5Ytpnbt2iZ37twmRYoUJmfOnKZKlSpm6NChUULOOw96ZM2a1ZQrV87MnDkzxm0sX748wntvu+02kzdvXtO0aVOza9cuu8ygQYPsa0uWLAm5ntGjR9tlZs+eHXIZbz8rV64c7ToCA7p48eImV65c9lqGUrZsWZMtWzZz+fLlGI8XtzYCBLGmwnXy5MlRnl+xYoU5cOCASZ48ubnZrFq1ypQqVcps2rTJtGzZ0gwbNsy89NJLJnHixObjjz+Osvz9999vJk6caB9dunQxBw8eNDVr1jSffPJJWNtr3769fe+oUaNM9erVzZQpU8yDDz5o11O/fn273WDn2KPXbr/9dvPUU0/FeK2WLVtmDh8+HOW1SZMm2dcDNWrUyOzfv9+sXLky6Pr27NljVq9eberVq2eSJk0a1rHiFqZBdCAcY8eOVbXUV7NmTV/mzJl9ly5divB6y5YtfSVLlvTlzp3bV716dadt6L3NmjWLss3169f7rqdq1ar5smTJ4jtx4kSU144cORJlHyMf36FDh3ypU6f2FShQINrtLFu2zB7P1KlTIzw/ZMgQ+3y/fv3svytVquRLnz697/z581HWceDAAV/ixIl9rVu3jnZb2k+tJ126dL6PPvoowmv79++366hVq1aE87tv3z5fokSJfK1atQq6Tu2fll+zZk2020bCQAsEsdagQQPz119/mcWLF/ufu3jxopk2bZpp2LBh0PcMHDjQPPLII7bWnDJlSlOyZEm7fLguXLhgOnfubLJkyWJSp05tnn/+eXPs2LEIy3zzzTe2Nn/HHXfYVlC+fPlMnz59zJUrV2Jc/x9//GGKFCliMmTIEOU1dVHFJHv27KZQoUJm9+7dxkXFihXtn977GzdubE6dOmXmzZsXZdmvvvrKXL161bYWYqIWhlpGkVszX375pcmYMaN58sknIzyvLsjHHnvMXptLly5FWZ/Wo/NaunTpWB8jbj0ECGJNfetlypSxhZBnwYIFtsBT90sw6gYqUaKE6d27t+nXr5/t/qhTp07QAjKYdu3a2e6lXr16mTZt2pg5c+aYV199NcoYTZo0aWzQaHsKqf/973+me/fuMa5f4x4bNmwwW7duNS5U2KrrRwHpQgEm3vtV6IfqKtRz2l+NRYRDob5u3Tr/Nrx1aLxHYzCRKZhUQVi4cGGUMSKdn3CCCwlEfDeBcPMI7E4aNmyYL23atL5z587Z1+rUqeOrUKFCyC4ebznPxYsXfUWLFvVVrFgxrC6sypUr+65evep/vlOnTr4kSZL4Tp48GXIboq6YVKlSBe0KCrRo0SK7Pj3KlCnj69q1q2/hwoV2PyPTPj7xxBO+Y8eO2cemTZt89evXt/vZrl27sLqwxowZY9978OBB37x583x58uSxXUeBXXU6pylSpPCdOnXK/9yOHTvs+3v06BHtdgKvw+XLl33Zs2f39enTxz6/fft2u44VK1YE7SL8+++/fcmTJ/c1aNAgwvq6d+9ul925c2eM20bCQAsETurWrWv+/fdfM3fuXHPmzBn7Z6juK1G3lefEiRO2taKZSxs3bgxrey+//LKdLeTRe9U1tXfv3qDb0D4dP37cLnfu3DmzY8eOaNev2VYaHK5Ro4Zt6QwYMMB272gmVrCZTosWLbLdaXrcd999ZurUqaZJkyamf//+YR1PixYt7HvV3aZut7Nnz5rx48fbgXyPurHOnz9vZsyY4X/Oa5HEphWQJEkSe728FqMGz9VVpXMTjLq2qlWrZo9b+yWalaWuM+1fgQIFwt42bm1Mo4ATFX6aHqoCTQW0CnN1iYSigOnbt6/5+eef7XiGJzAUoqOppZELOS+MPNu2bTM9e/Y0S5cuNadPn46wvAIrJpoFpcJa4zkKEU3LHTx4sD0u7XfhwoX9y2oMQMej/U+VKpUd/wgcP4k86yl9+vQRAk5dayrAVbhnzpzZvj/yrCbNsMqUKZM9x969MQoBBZbGa7zjUpB7kiVLZt8TmcJ9yJAh9ri0PnU1RnfuFVA6fo0r6b2apaYZWB06dIjxPCLhIEDgTAWLpryqsFRhF2wAWjQlVDV7Dc6OGDHC5MiRw/a9jx07NtqpqoFU0Abj3a9w8uRJ8/jjj5t06dLZcRYN9GoMQS2cbt262UHncKkQVpjoodr2Cy+8YFsYGn/xqNAPdX+F6BgD6VgDb5AsVqxYtO8XnSO1HHS/xpEjR8y+ffvMb7/9ZltHHhXoarl4dA50r0lkCjydk44dO9qB+uhai6L7eBR6uj5aVn/qGoQa40LCRIDAmWZCtWrVyqxZs8bexxDK9OnTbWGuQdnAe0RUqMYVFZoa+FULQkHlcZ0V5fG6lA4dOhSr9wXOUBOvxRBbagno3hKdXx2LWg2aBefp2rWr7eqK3DILRu9Tq0mtHd3HEh1dJ7W8JkyYYMNLAaqZYpptBngIEDjTjKeRI0faro1nnnkm5HKquargC5xOq/fMmjUrzvbFa6EE3kGtrii1eMKhm+3Kly8fpVtn/vz59s+CBQvGan9ial2ESzOtNOvtiy++sDdpqoVx5513+l9Xt1pg11p0dGOkzlO4U3AVXp9//rmtJGjKNLOvEBkBgmvSrFmzGJfRILF+nqNq1aq2O+To0aNm+PDhJn/+/Gbz5s1xsh+6x0S1b+2P7vJWEOhO73B/bFrThDWWo1bVvffea8NH/f6q+asAVzdWfNBx6Jxp6rOoe86Vpv6+/fbbYS/vhZXGQTR+o6nFQCBmYeG6U9eHarIaK1EfvAaCNVtJhXVc0f0TGqjX2IMG0nXjomZWBY4XREfLV6hQwbY4dB+JHrp3om3btmbt2rUhx3duBK/m73Ur3Sj6ORWvu0wtzLRp096wbePmkEhzeeN7JwAANx9aIAAAJwQIAMAJAQIAcEKAAACcECAAACcECADACQECAHBCgAAAnBAgAAAnBAgAwAkBAgBwQoAAAJwQIAAAJwQIAMAJAQIAcEKAAACcECAAACcECADACQECAHBCgAAAnBAgAAAnBAgAwAkBAgBwQoAAAJwQIAAAJwQIAMAJAQIAcEKAAACcECAAACcECADACQECAHBCgAAAnBAgAAAnBAgAwAkBAgBwQoAAAJwQIAAAJwQIAMAJAQIAcEKAAACcECAAACcECADACQECAHBCgAAAnBAgAAAnBAgAwAkBAgBwQoAAAJwQIAAAJwQIAMAJAQIAcEKAAACcECAAACcECADACQECAHBCgAAAnBAgAAAnBAgAwAkBAgBwQoAAAJwQIAAAJwQIAMAJAQIAcEKAAACcECAAACcECADASVK3twHh27dvnzl+/Hh870aCcuHCBZM8efL43o3/rMyZM5tcuXLF927c9AgQXPfwKFSokDl37lx870qCkjhxYnP16tX43o3/rFSpUplffvmFELlGBAiuK7U8FB7vvfeeyZs3b3zvToKwcuVKM2zYMM55CLt27TI9evSwn00C5NoQILghVJAVLlw4vncjwRSQwjnH9cYgOgDACQECAHBCgAAAnBAgQCytX7/eFCtWzJw+ffqa1vPCCy+Y/v37x9l+ATcaARKHjh07Ztq0aWNndmgOfvbs2c2TTz5pfvjhB/t6njx5TKJEiewjderU5oEHHjBTp041CZ1mw/Tr189UrVrVnpPKlSubV1991axZsybOtkFh/f/efPNNG4B6lChRwlSrVs2MHDnSXL582SSE465Xr57997PPPmt69+5tpkyZYpIkSWL+/PPPoO+75557TOfOnW/w3t4cCJA4VKtWLfPTTz+Z8ePHm19//dXMnj3blC9f3vz111/+ZfSBPXTokF3uwQcftB/mVatWmYRKX1qdg3Xr1pnXXnvNzJgxw3zyySf23Lz77rs3dF98Pt9NVYheuXLF+V6PsmXLmmXLlpl58+aZZs2a2QAZN25clOUuXbpkbiU67k8//dT+vXHjxubtt9+239Xbb7/dfm8j++6778zvv/9uXnzxxXjY2/8+AiSOnDx50s6/Vy23QoUKJnfu3Oahhx6y881r1KjhXy5t2rS2ZVKgQAEzfPhwkzJlSjNnzhyTUPXt29f+OXnyZFOlShXbSsufP78t1CZNmmRfU+C2a9fOns+HH37YBk3gne0jRowwtWvXtudRLb4yZcqY119/3Zw9e9Zf8/zxxx/NF1984a95K7i8rihdt7p169rWj4L94sWL9h6Kxx9/3JQsWdI0bdrUbN26Ndpr37VrV1OpUiUbfM8//7yZP39+hGV0L8wbb7xhj0Gfj2CF1alTp+wyjzzyiF1P69atzd69e/2vz5o1y76mgl+1Z+2bzo2LZMmS2bux77jjDhvgOq9ar85V+/btzahRo0zFihXNM888Y5dXIatCtFSpUubRRx+1BW/km0NnzpxpnnvuOXsedYyBFQB19/Xq1cs89thjdlta186dO/2v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TVeFYeB4RHxQrV0FqvZN3T86RrUQ1GXnUSVJYxqaBKDrqGuoblzRNdRx6DrqmmqgXsGj49P9F2qZeFOYFbx6r7quNLlB1HJUwCgo9D3T9fe2rVaGZr8pnHXedY0U9C+//LLTsWqcRq1I3fuhEEL0EvnC7SgGHKg2rYJCs2X4afEbY+7cuTZgOefBqRWjlsuGDRvsbEm4owsLAOCEAAEAOCFAAABOCBAAgBMCBADghAABADghQAAATriREDdEqB8iRNzz/mc9znlwnJe4w42EuO4/2a7fQgr2W1e4fnTHvuv/VpgQ6NcA9P+xBP6fJYg9AgQ3JEQC/wdBXH/6WRH9fhWC00+pEB7XjgABADhhEB0A4IQAAQA4IUAAAE4IEACAEwIEAOCEAAEAOCFAAABOCBAAgBMCBADghAABADghQAAATggQAIATAgQA4IQAAQA4IUAAAE4IEACAEwIEAOCEAAEAOCFAAABOCBAAgBMCBADghAABADghQAAATggQAIATAgQA4IQAAQA4IUAAAE4IEACAEwIEAOCEAAEAOCFAAABOCBAAgBMCBADghAABADghQAAATggQAIATAgQA4IQAAQA4IUAAAE4IEACAEwIEAOCEAAEAOCFAAABOCBAAgBMCBADghAABADghQAAATggQAIATAgQA4IQAAQA4IUAAAE4IEACAEwIEAOCEAAEAOCFAAABOCBAAgBMCBADghAABADghQAAATggQAIATAgQA4IQAAQA4IUAAAE4IEACAEwIEAOCEAAEAOCFAAABOCBAAgBMCBADghAABADghQAAATggQAIATAgQA4IQAAQA4IUAAAE4IEACAEwIEAOCEAAEAOCFAAABOCBAAgBMCBADghAABADghQAAATggQAIATAgQA4IQAAQA4IUAAAMbF/wGvvwaxJPqOEQAAAABJRU5ErkJggg==</file></questiontext>
+    <generalfeedback format="html"><text>
+&lt;p&gt;Diagnostico estruturado reduz tentativa-e-erro:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;verificar coerencia de medicao (PV);&lt;/li&gt;
+&lt;li&gt;confirmar SP e unidade;&lt;/li&gt;
+&lt;li&gt;avaliar saturacao/limite de MV;&lt;/li&gt;
+&lt;li&gt;inspecionar elemento final e processo;&lt;/li&gt;
+&lt;li&gt;revisar sintonia e estrategia de controle.&lt;/li&gt;
+&lt;/ol&gt;
+</text></generalfeedback>
+    <defaultgrade>1.0000000</defaultgrade><penalty>0.3333333</penalty><hidden>0</hidden>
+    <layouttype>VERTICAL</layouttype><selecttype>ALL</selecttype><selectcount>5</selectcount><gradingtype>RELATIVE_NEXT_EXCLUDE_LAST</gradingtype><showgrading>SHOW</showgrading><numberingstyle>none</numberingstyle>
+    <correctfeedback format="html"><text>Sequencia correta.</text></correctfeedback>
+    <partiallycorrectfeedback format="html"><text>Parcialmente correta.</text></partiallycorrectfeedback>
+    <incorrectfeedback format="html"><text>Ordem incorreta.</text></incorrectfeedback>
+    <shownumcorrect>1</shownumcorrect>
+    <answer fraction="1" format="html"><text>Validar medicao da PV e confiabilidade do transmissor</text><feedback format="html"><text /></feedback></answer>
+    <answer fraction="1" format="html"><text>Conferir SP, unidade e faixa configurada no controlador</text><feedback format="html"><text /></feedback></answer>
+    <answer fraction="1" format="html"><text>Checar limites e saturacao da variavel manipulada (MV)</text><feedback format="html"><text /></feedback></answer>
+    <answer fraction="1" format="html"><text>Inspecionar valvula/atuador e restricoes de processo</text><feedback format="html"><text /></feedback></answer>
+    <answer fraction="1" format="html"><text>Revisar sintonia e acao de controle apos eliminar falhas fisicas</text><feedback format="html"><text /></feedback></answer>
+  </question>
+
+  <question type="ddwtos">
+    <name><text>Q13 - Arrastar para interpretar manometro em U</text></name>
+    <questiontext format="html"><text>&lt;p&gt;&lt;img src="@@PLUGINFILE@@/q13_manometro_u.png" alt="q13_manometro_u.png"/&gt;&lt;/p&gt;
+&lt;p&gt;Complete a interpretacao fisica:&lt;/p&gt;
+&lt;p&gt;Se P1 maior que P2, no ramo de P1 o liquido tende a [[1]]; no ramo oposto tende a [[2]]. A grandeza lida no instrumento e [[3]], e a relacao ideal para mesmo fluido manometrico e [[4]].&lt;/p&gt;
+</text><file name="q13_manometro_u.png" path="/" encoding="base64">iVBORw0KGgoAAAANSUhEUgAAAZAAAAGQCAYAAACAvzbMAAAAOnRFWHRTb2Z0d2FyZQBNYXRwbG90bGliIHZlcnNpb24zLjEwLjEsIGh0dHBzOi8vbWF0cGxvdGxpYi5vcmcvc2/+5QAAAAlwSFlzAAAPYQAAD2EBqD+naQAADs9JREFUeJzt3WeIHWUfxuFZu7Er9hIbiCb6RcUSe4nGhmIhUVFU7AX9IhawY0fUxAqWD/aGil0xSlREwYaCYq/YK1mxnpf/wFl2N5uY3OobzF4XLImz55ydMxue38zzzMGeTqfTaQBgFs01q08AgCIgAEQEBICIgAAQERAAIgICQERAAIgICAARAQEgIiAARAQEgIiAABAREAAiAgJAREAAiAgIABEBASAiIABEBASAiIAAEBEQACICAkBEQACICAgAEQEBICIgAEQEhCHdeOONTU9PT/v1zDPPTPP9TqfTrLzyyu33d9lll2a4ufLKK9tjNFxstdVWzejRo4f83tdff93+OzjjjDP+7/vF7CUgzNACCyzQ3HLLLdNsf/rpp5tPPvmkmX/++ZvhaLgFBIYiIMzQTjvt1Nx5553N77//PmB7RWX99ddvlltuudm2b/8VU6dOnd27AP8KAWGGJkyY0HzzzTfN448/3rft119/be66665m3333HfI5F198cbPppps2Sy21VLPgggu2oanHD1bTHsccc0xz7733ttMjdTUzatSo5pFHHpnmsS+//HIzbty4ZtFFF20WXnjhZtttt22ef/75IafdasrtuOOOa5Zeeulm8cUXbw4//PB2n7///vvmgAMOaJZYYon268QTT2yn4vr7888/m0svvbTdj7r6WnbZZdvnf/fdd32PWXXVVZs33nijvQrrTvPVFE//fajvHXXUUc0yyyzTrLTSSgOuXOq1672usMIKzdFHH93u18z49NNPm4MPPrjdp+6xuv766wc85qmnnmp//h133NGceeaZzYorrtgsssgizV577dX88MMPzS+//NIcf/zx7X7VcTzooIPabZCYJ3oWw0YNlptssklz6623tgN4efjhh9vBaPz48c3ll18+zXMuu+yyZrfddmv222+/duC+7bbbmr333rt54IEHmp133nnAY2uwv+eee9rBtga6er0999yz+eijj9oAlRqsN9988zYeNejPO++8zTXXXNMO2jVQb7TRRgNe89hjj22vjGoArchce+21bUiee+65ZpVVVmnOPffc5qGHHmouuuiiNlwVla6KRUWgBtaK0Pvvv99MmjSpDdizzz7b/uwKTP2MGoBPPfXU9nk1qPdX76cCdtppp/VdgdQaQe3Tdttt1xx55JHNW2+91Vx11VXNiy++2Pfa0/PFF180G2+8cV9067Xr93DIIYc0P/74YxuF/s4777w23ieddFLzzjvvNBMnTmxff6655mpjWPtSx6be62qrrdbuJ8yyDgzhhhtuqFPzzosvvtiZNGlSZ5FFFun09va239t77707W2+9dfv3kSNHdnbeeecBz+0+ruvXX3/tjB49urPNNtsM2F6vP99883Xeeeedvm2vvvpqu33ixIl923bffff2ce+++27fts8++6zdpy222GKafd5hhx06f/75Z9/2TTbZpNPT09M54ogj+rb9/vvvnZVWWqmz5ZZb9m2bMmVK+/ybb755wH4+8sgj02wfNWrUgOcO3ofNNtus/RldX375Zfsexo4d2/njjz/6ttexrcdff/31nRk55JBDOssvv3zn66+/HrB9/PjxncUWW6zvmE+ePLl9vTreddy7JkyY0B6DcePGDXh+HZv6Hf6Veq/1nofy1VdftT/z9NNP/8vXYc5iCou/tM8++zQ///xzewXx008/tX9Ob/qq1JlvV53t1tVKXUG89NJL0zy2zsbXWGONvv9eb7312iuN9957r/3vP/74o3nsscea3XffvVl99dX7Hrf88su3+1BXMHUG3l+dldeZelddoVSvanvX3HPP3WywwQZ9P6fUWs9iiy3WbL/99u2dRd2vmoKrq43JkyfP9DE79NBD25/R9cQTT7RXY3WlUFcB/R9X7/fBBx+c7mvVvt99993Nrrvu2v69/77tsMMO7fEdfGzrqqr/FU33GNQUWH+1/eOPP55mjQtmhiks/lJNl9RAXwvnvb297aBec+rTU4E555xzmldeeWXA/Hr/Qb2rppQGq/WJ7prDV1991f7MtdZaa5rHrb322u2aRQ2AtR4wvdesKJS67Xjw9v5rG2+//XY7GNf6wFC+/PLLZmbVtFB/H374Yfvn4Pcx33zztWHsfn8odQxqnaSm4uprZvZtVo5BHcN6390pw9RQv1/mbALCTKmz/Tpb/vzzz9u1kFpTGMqUKVPa9Y8tttiiXTCuK4U6E77hhhuGvB24/1l6f4MXt2fF9F5zqO39f04NpBWPm2++ebohnVn9r8L+rtqvsv/++zcHHnjgkI+pK7f0GMzM8a4bCuoqdCgV+O5jGF4EhJmyxx57tAvMtfB6++23T/dxNdVSA8mjjz464DMiFZBEDdojRoxoF5wHe/PNN9vpoMFn1amaSquppjFjxvxlAGb1bHvkyJHtn/U++k/F1bRWLdTXFd6MjkHdYFBXfjN63L+p9v/JJ59sIzL42HR/N933yPBhDYSZUmsAdcdQ3b1Tc/HTU2e4NbjWYNf1wQcftLfqJur1xo4d29x3333t6/S/K6muaDbbbLN2DeGfWuup/T777LOn+V6tEfS/3XahhRaa6dtvSw38NV1Vd5n1P9u/7rrr2umjwXenDT4GdWdaxfn1118fcorr//F5oN9++629+23w1VH9u6j3VrdWM7y4AmGmTW/6pL8aCC+55JJmxx13bKe9am7+iiuuaNZcc83mtddei35urafU51AqFnV77DzzzNMOZLW+cuGFFzb/lC233LK9yqpbYGv9psJV02+1NlIL7HV7cnftpxbWa+Csfav3VlNf22yzzQyvIk4++eT2Nt46NjXNV2fuNc234YYbttNTM3L++ee3i/i16F1Tieuss07z7bfftovnddVUf/831UlDHY8TTjiheeGFF9rP+dTU1f3339/eglzHYVam+JgzCAj/qBpE66y6Bry646gWky+44IL26iENSC2Q19pKDcA1uNdZbw2kN9100zSfAfm7rr766jYOFahTTjmljVV9FqYG+Jra6qrPTdTCdwWs7kyr+MwoIKWu3mqQrc+V1EC85JJLNocddlj7uZQZfQak+zmTGrjPOuus9nMzFZ5a9K5jU8f331ZThRWL+r3W53pqH+rYrLvuuu3voT7zw/DTU/fyzu6dAOC/xxoIABEBASAiIABEBASAiIAAEBEQACICAkBEQACICAgAEQEBICIgAEQEBICIgAAQERAAIgICQERAAIgICAARAQEgIiAAROZphqn6X8H39va2fx8xYkTT09Mzu3cJmMN05vBxZthegdQvdeGFF26/ur9ggH9S7xw+zgzbgADw9wgIABEBASAiIABEBASAiIAAEBEQACICAkBEQACICAgAEQEBICIgAEQEBICIgAAQERAAIgICQERAAIgICAARAQEgIiAARAQEgIiAABAREAAiAgJAREAAiAgIABEBASAiIABEBASAiIAAEBEQACICAkBEQACICAgAEQEBICIgAEQEBICIgAAQERAAIgICQERAAIgICAARAQEgIiAARAQEgIiAABAREAAiAgJAREAAiAgIABEBASAiIABEBASAiIAAEBEQACICAkBEQACICAgAEQEBICIgAEQEBICIgAAQERAAIgICQERAAIgICAARAQEgIiAARAQEgIiAABAREAAiAgJAREAAiAgIABEBASAiIABEBASAiIAAEBEQACICAkBEQACICAgAEQEBICIgAEQEBICIgAAQERAAIgICQERAAIgICAARAQEgIiAARAQEgIiAABAREAAiAgJAREAAiAgIABEBASAiIABEBASAiIAAEBEQACICAkBEQACICAgAEQEBICIgAEQEBICIgAAQERAAIgICQERAAIgICAARAQEgIiAARAQEgIiAABAREAAiAgJAREAAiAgIABEBASAiIABEBASAiIAAEBEQACICAkBEQACICAgAEQEBICIgAEQEBICIgAAQERAAIgICQERAAIgICAARAQEgIiAARAQEgIiAABAREAAiAgJAREAAiAgIABEBASAiIABEBASAiIAAEBEQACICAkBEQACICAgAEQEBICIgAEQEBICIgAAQERAAIgICQERAAIgICAARAQEgIiAARAQEgIiAABAREAAiAgJAREAAiAgIABEBASAiIABEBASAiIAAEBEQACICAkBEQACICAgAEQEBICIgAEQEBICIgAAQERAAIgICQERAAIgICAARAQEgIiAARAQEgIiAABAREAAiAgJAREAAiAgIABEBASAiIABEBASAiIAAEBEQACICAkBEQACICAgAEQEBICIgAEQEBICIgAAQERAAIgICQERAAIgICAARAQEgIiAARAQEgIiAABAREAAiAgJAREAAiAgIABEBASAiIABEBASAiIAAEBEQACICAkBEQACICAgAEQEBICIgAEQEBICIgAAQERAAIgICQERAAIgICAARAQEgIiAARAQEgIiAABAREAAiAgJAREAAiAgIABEBASAiIABEBASAiIAAEBEQACICAkBEQACICAgAEQEBICIgAEQEBICIgAAQERAAIgICQERAAIgICAARAQEgIiAARAQEgIiAABAREAAiAgJAREAAiAgIABEBASAiIABEBASAiIAAEBEQACICAkBEQACICAgAEQEBICIgAEQEBICIgAAQmSd72pxl6tSps3sXgDnQ1Dl8bBGQpmmWXXbZ2b0LAP85w3YKa8SIEc2YMWNm924Aw8CYMWPaMWdO09PpdDrNMFVvvbe3d3bvBjCHGzFiRNPT09PMaYZ1QADIDdspLAD+HgEBICIgAEQEBICIgAAQERAAIgICQERAAIgICAARAQEgIiAARAQEgIiAABAREAAiAgJAREAAiAgIABEBASAiIABEBASAiIAAEBEQACICAkBEQACICAgAEQEBICIgAEQEBICIgAAQERAAIgICQERAAIgICAARAQEgIiAARAQEgIiAABAREAAiAgJAREAAiAgIABEBASAiIABEBASAiIAAEBEQACICAkBEQACICAgAEQEBICIgAEQEBICIgAAQERAAIgICQJP4H7bt8Gr4M4JWAAAAAElFTkSuQmCC</file></questiontext>
+    <generalfeedback format="html"><text>
+&lt;p&gt;Manometro em U converte diferenca de pressao em diferenca de coluna.&lt;/p&gt;
+&lt;p&gt;Quando o lado de maior pressao empurra o fluido, o nivel desce nesse ramo e sobe no oposto.&lt;/p&gt;
+&lt;p&gt;Modelo simplificado: \(\Delta P = \rho g \Delta h\).&lt;/p&gt;
+</text></generalfeedback>
+    <defaultgrade>1</defaultgrade><penalty>0.3333333</penalty><hidden>0</hidden>
+    <dragbox><text>descer</text><group>1</group><infinite>0</infinite></dragbox>
+    <dragbox><text>subir</text><group>1</group><infinite>0</infinite></dragbox>
+    <dragbox><text>diferenca vertical de nivel</text><group>1</group><infinite>0</infinite></dragbox>
+    <dragbox><text>Delta P = rho.g.Delta h</text><group>1</group><infinite>0</infinite></dragbox>
+    <dragbox><text>ficar inalterado</text><group>1</group><infinite>0</infinite></dragbox>
+    <dragbox><text>mudar de cor</text><group>1</group><infinite>0</infinite></dragbox>
+  </question>
+
+  <question type="calculated">
+    <name><text>Q14 - Calculada histerese absoluta a partir de percentual</text></name>
+    <questiontext format="html"><text>
+&lt;p&gt;Um instrumento de corrente opera entre {Imin} mA e {Imax} mA e apresenta histerese de {Hperc}% do span. Calcule a histerese absoluta em mA.&lt;/p&gt;
+</text></questiontext>
+    <generalfeedback format="html"><text>
+&lt;p&gt;Span eletrico = \(Imax-Imin\).&lt;/p&gt;
+&lt;p&gt;Histerese absoluta = \((Hperc/100)\times(Imax-Imin)\).&lt;/p&gt;
+&lt;p&gt;Observe que histerese e especificada como percentual do span, nao do valor instantaneo de corrente.&lt;/p&gt;
+</text></generalfeedback>
+    <defaultgrade>1</defaultgrade><penalty>0.3333333</penalty><hidden>0</hidden>
+    <answer fraction="100" format="moodle_auto_format">
+      <text>({Hperc}/100)*({Imax}-{Imin})</text>
+      <feedback format="html"><text>Correta.</text></feedback>
+      <tolerance>0.02</tolerance><tolerancetype>1</tolerancetype><correctanswerformat>1</correctanswerformat><correctanswerlength>3</correctanswerlength>
+    </answer>
+    <unitgradingtype>0</unitgradingtype><unitpenalty>0.1</unitpenalty><showunits>0</showunits>
+    <dataset_definitions>
+      <dataset_definition><status><text>private</text></status><name><text>Imin</text></name><type>calculated</type><distribution><text>uniform</text></distribution><minimum><text>0</text></minimum><maximum><text>4</text></maximum><decimals><text>0</text></decimals><itemcount>5</itemcount><dataset_items><dataset_item><number>1</number><value>4</value></dataset_item><dataset_item><number>2</number><value>0</value></dataset_item><dataset_item><number>3</number><value>4</value></dataset_item><dataset_item><number>4</number><value>1</value></dataset_item><dataset_item><number>5</number><value>2</value></dataset_item></dataset_items><number_of_items>5</number_of_items></dataset_definition>
+      <dataset_definition><status><text>private</text></status><name><text>Imax</text></name><type>calculated</type><distribution><text>uniform</text></distribution><minimum><text>20</text></minimum><maximum><text>40</text></maximum><decimals><text>0</text></decimals><itemcount>5</itemcount><dataset_items><dataset_item><number>1</number><value>20</value></dataset_item><dataset_item><number>2</number><value>25</value></dataset_item><dataset_item><number>3</number><value>32</value></dataset_item><dataset_item><number>4</number><value>21</value></dataset_item><dataset_item><number>5</number><value>28</value></dataset_item></dataset_items><number_of_items>5</number_of_items></dataset_definition>
+      <dataset_definition><status><text>private</text></status><name><text>Hperc</text></name><type>calculated</type><distribution><text>uniform</text></distribution><minimum><text>0.5</text></minimum><maximum><text>3.0</text></maximum><decimals><text>1</text></decimals><itemcount>5</itemcount><dataset_items><dataset_item><number>1</number><value>1.5</value></dataset_item><dataset_item><number>2</number><value>2.0</value></dataset_item><dataset_item><number>3</number><value>1.2</value></dataset_item><dataset_item><number>4</number><value>2.5</value></dataset_item><dataset_item><number>5</number><value>1.8</value></dataset_item></dataset_items><number_of_items>5</number_of_items></dataset_definition>
+    </dataset_definitions>
+  </question>
+
+  <question type="multichoice">
+    <name><text>Q15 - Set-point e zona morta em cenario de processo</text></name>
+    <questiontext format="html"><text>
+&lt;p&gt;Em uma malha de nivel, SP = 1,80 m. A PV oscila lentamente em torno de 1,80 m e pequenas variacoes de 0,01 m nao alteram a saida do controlador por causa de uma faixa de insensibilidade configurada.&lt;/p&gt;
+&lt;p&gt;Qual interpretacao e mais adequada?&lt;/p&gt;
+</text></questiontext>
+    <generalfeedback format="html"><text>
+&lt;p&gt;&lt;strong&gt;Leitura tecnica:&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;SP e referencia de controle.&lt;/li&gt;
+&lt;li&gt;A faixa de insensibilidade descrita representa zona morta configurada/efetiva.&lt;/li&gt;
+&lt;li&gt;Se mal aplicada, a zona morta pode degradar desempenho em regime permanente.&lt;/li&gt;
+&lt;/ul&gt;
+</text></generalfeedback>
+    <defaultgrade>1.0000000</defaultgrade><penalty>0.3333333</penalty><hidden>0</hidden>
+    <single>true</single><shuffleanswers>true</shuffleanswers><answernumbering>abc</answernumbering>
+    <answer fraction="100" format="html"><text>SP e o alvo da variavel, e a faixa sem resposta para pequenas variacoes caracteriza zona morta.</text><feedback format="html"><text>Correta.</text></feedback></answer>
+    <answer fraction="0" format="html"><text>SP e o limite superior do range, e a faixa sem resposta e histerese.</text><feedback format="html"><text>Incorreta. Conceitos diferentes.</text></feedback></answer>
+    <answer fraction="0" format="html"><text>SP e a corrente de saida do transmissor, e zona morta equivale a erro aleatorio.</text><feedback format="html"><text>Incorreta.</text></feedback></answer>
+    <answer fraction="0" format="html"><text>SP nao influencia controle; somente MV define estabilidade.</text><feedback format="html"><text>Incorreta.</text></feedback></answer>
+  </question>
+
+  <question type="gapselect">
+    <name><text>Q16 - Selecionar lacunas sobre notacao SI</text></name>
+    <questiontext format="html"><text>
+&lt;p&gt;Complete com a forma tecnicamente correta:&lt;/p&gt;
+&lt;p&gt;a) Temperatura termodinamica: 210 [[1]]&lt;/p&gt;
+&lt;p&gt;b) Unidade de forca por extenso: um [[2]]&lt;/p&gt;
+&lt;p&gt;c) Tempo de resposta: 15 [[3]]&lt;/p&gt;
+&lt;p&gt;d) Prefixo micro aplicado a metro: [[4]]&lt;/p&gt;
+</text></questiontext>
+    <generalfeedback format="html"><text>
+&lt;p&gt;Padroes de escrita evitam ambiguidade em relatorios e certificados:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;simbolos sem plural;&lt;/li&gt;
+&lt;li&gt;nomes de unidade por extenso em minusculas;&lt;/li&gt;
+&lt;li&gt;prefixos SI sensiveis a maiuscula/minuscula.&lt;/li&gt;
+&lt;/ul&gt;
+</text></generalfeedback>
+    <defaultgrade>1</defaultgrade><penalty>0.3333333</penalty><hidden>0</hidden><shuffleanswers>1</shuffleanswers>
+    <selectoption><text>K</text><group>1</group></selectoption>
+    <selectoption><text>newton</text><group>2</group></selectoption>
+    <selectoption><text>s</text><group>3</group></selectoption>
+    <selectoption><text>um</text><group>4</group></selectoption>
+    <selectoption><text>μm</text><group>4</group></selectoption>
+    <selectoption><text>°K</text><group>1</group></selectoption>
+    <selectoption><text>Newton</text><group>2</group></selectoption>
+    <selectoption><text>seg</text><group>3</group></selectoption>
+  </question>
+
+  <question type="calculatedmulti">
+    <name><text>Q17 - Multipla escolha calculada para percentual de span</text></name>
+    <questiontext format="html"><text>
+&lt;p&gt;Para um instrumento com LRV = {LRV} e URV = {URV}, qual percentual do span corresponde a leitura x = {X}?&lt;/p&gt;
+</text></questiontext>
+    <generalfeedback format="html"><text>
+&lt;p&gt;Percentual do span = \((X-LRV)/(URV-LRV)\times100\).&lt;/p&gt;
+&lt;p&gt;A formula normaliza pela excursao util e corrige offset de LRV.&lt;/p&gt;
+</text></generalfeedback>
+    <defaultgrade>1.0000000</defaultgrade><penalty>0.3333333</penalty><hidden>0</hidden>
+    <synchronize>0</synchronize><single>true</single><shuffleanswers>true</shuffleanswers><answernumbering>abc</answernumbering>
+    <answer fraction="100" format="moodle_auto_format"><text>(({X}-{LRV})/({URV}-{LRV}))*100</text><feedback format="html"><text>Correta.</text></feedback><tolerance>0.05</tolerance><tolerancetype>1</tolerancetype><correctanswerformat>1</correctanswerformat><correctanswerlength>2</correctanswerlength></answer>
+    <answer fraction="0" format="moodle_auto_format"><text>({X}/{URV})*100</text><feedback format="html"><text>Incorreta. Ignora LRV.</text></feedback><tolerance>0.05</tolerance><tolerancetype>1</tolerancetype><correctanswerformat>1</correctanswerformat><correctanswerlength>2</correctanswerlength></answer>
+    <answer fraction="0" format="moodle_auto_format"><text>(({URV}-{X})/({URV}-{LRV}))*100</text><feedback format="html"><text>Incorreta. Calcula percentual restante.</text></feedback><tolerance>0.05</tolerance><tolerancetype>1</tolerancetype><correctanswerformat>1</correctanswerformat><correctanswerlength>2</correctanswerlength></answer>
+    <answer fraction="0" format="moodle_auto_format"><text>(({X}-{LRV})/{URV})*100</text><feedback format="html"><text>Incorreta. Denominador incorreto.</text></feedback><tolerance>0.05</tolerance><tolerancetype>1</tolerancetype><correctanswerformat>1</correctanswerformat><correctanswerlength>2</correctanswerlength></answer>
+    <dataset_definitions>
+      <dataset_definition><status><text>private</text></status><name><text>LRV</text></name><type>calculated</type><distribution><text>uniform</text></distribution><minimum><text>0</text></minimum><maximum><text>120</text></maximum><decimals><text>0</text></decimals><itemcount>5</itemcount><dataset_items><dataset_item><number>1</number><value>40</value></dataset_item><dataset_item><number>2</number><value>100</value></dataset_item><dataset_item><number>3</number><value>20</value></dataset_item><dataset_item><number>4</number><value>60</value></dataset_item><dataset_item><number>5</number><value>80</value></dataset_item></dataset_items><number_of_items>5</number_of_items></dataset_definition>
+      <dataset_definition><status><text>private</text></status><name><text>URV</text></name><type>calculated</type><distribution><text>uniform</text></distribution><minimum><text>200</text></minimum><maximum><text>600</text></maximum><decimals><text>0</text></decimals><itemcount>5</itemcount><dataset_items><dataset_item><number>1</number><value>220</value></dataset_item><dataset_item><number>2</number><value>500</value></dataset_item><dataset_item><number>3</number><value>260</value></dataset_item><dataset_item><number>4</number><value>360</value></dataset_item><dataset_item><number>5</number><value>420</value></dataset_item></dataset_items><number_of_items>5</number_of_items></dataset_definition>
+      <dataset_definition><status><text>private</text></status><name><text>X</text></name><type>calculated</type><distribution><text>uniform</text></distribution><minimum><text>60</text></minimum><maximum><text>450</text></maximum><decimals><text>0</text></decimals><itemcount>5</itemcount><dataset_items><dataset_item><number>1</number><value>148</value></dataset_item><dataset_item><number>2</number><value>260</value></dataset_item><dataset_item><number>3</number><value>116</value></dataset_item><dataset_item><number>4</number><value>180</value></dataset_item><dataset_item><number>5</number><value>260</value></dataset_item></dataset_items><number_of_items>5</number_of_items></dataset_definition>
+    </dataset_definitions>
+  </question>
+
+  <question type="numerical">
+    <name><text>Q18 - Pressao hidrostatica em coluna de liquido</text></name>
+    <questiontext format="html"><text>
+&lt;p&gt;Considere \(\rho=1000\,kg/m^3\), \(g=9,81\,m/s^2\) e \(h=2,4\,m\). Calcule a pressao hidrostatica em kPa.&lt;/p&gt;
+</text></questiontext>
+    <generalfeedback format="html"><text>
+&lt;p&gt;\(P = \rho g h = 1000\times 9,81\times 2,4 = 23544\,Pa = 23,544\,kPa\).&lt;/p&gt;
+&lt;p&gt;Interpretacao fisica: a pressao cresce linearmente com profundidade para fluido incompressivel em repouso.&lt;/p&gt;
+</text></generalfeedback>
+    <defaultgrade>1</defaultgrade><penalty>0.3333333</penalty><hidden>0</hidden>
+    <answer fraction="100" format="html"><text>23.54</text><feedback format="html"><text>Correta.</text></feedback><tolerance>0.2</tolerance></answer>
+    <unitgradingtype>0</unitgradingtype><unitpenalty>0.1</unitpenalty><showunits>0</showunits>
+  </question>
+
+  <question type="matching">
+    <name><text>Q19 - Associacao de variaveis em estudo aplicado</text></name>
+    <questiontext format="html"><text>
+&lt;p&gt;Associe o tipo de variavel a descricao em um estudo de desempenho de malha de controle.&lt;/p&gt;
+</text></questiontext>
+    <generalfeedback format="html"><text>
+&lt;p&gt;Classificacao adequada de variaveis melhora validade do experimento e interpretacao causal.&lt;/p&gt;
+</text></generalfeedback>
+    <defaultgrade>1</defaultgrade><penalty>0.3333333</penalty><hidden>0</hidden>
+    <subquestion format="html"><text>Variavel manipulada para observar efeito na qualidade do produto</text><answer><text>Independente</text></answer></subquestion>
+    <subquestion format="html"><text>Resultado medido para avaliar impacto das mudancas</text><answer><text>Dependente</text></answer></subquestion>
+    <subquestion format="html"><text>Variavel mantida em faixa fixa para reduzir vies</text><answer><text>Controle</text></answer></subquestion>
+    <subquestion format="html"><text>Fator que altera intensidade da relacao entre variaveis principais</text><answer><text>Moderadora</text></answer></subquestion>
+  </question>
+
+  <question type="ddwtos">
+    <name><text>Q20 - Arrastar etapas de resolucao metrologica</text></name>
+    <questiontext format="html"><text>
+&lt;p&gt;Preencha a sequencia de resolucao metrologica aplicada a um problema de instrumentacao:&lt;/p&gt;
+&lt;p&gt;[[1]] -&gt; selecionar instrumento adequado -&gt; [[2]] -&gt; executar medicao -&gt; [[3]] -&gt; [[4]].&lt;/p&gt;
+</text></questiontext>
+    <generalfeedback format="html"><text>
+&lt;p&gt;Resolucao robusta exige planejamento, execucao e validacao.&lt;/p&gt;
+&lt;table border="1" cellpadding="4" cellspacing="0"&gt;
+&lt;tr&gt;&lt;th&gt;Etapa&lt;/th&gt;&lt;th&gt;Objetivo&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;definir grandeza e criterio&lt;/td&gt;&lt;td&gt;evitar medicao sem objetivo claro&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;calibrar/verificar&lt;/td&gt;&lt;td&gt;garantir rastreabilidade&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;estimar incerteza&lt;/td&gt;&lt;td&gt;quantificar confianca&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;validar resultado&lt;/td&gt;&lt;td&gt;concluir com base tecnica&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+</text></generalfeedback>
+    <defaultgrade>1</defaultgrade><penalty>0.3333333</penalty><hidden>0</hidden>
+    <dragbox><text>definir grandeza, faixa e criterio de aceitacao</text><group>1</group><infinite>0</infinite></dragbox>
+    <dragbox><text>calibrar/verificar instrumento e condicoes</text><group>1</group><infinite>0</infinite></dragbox>
+    <dragbox><text>estimar incerteza e coerencia metrologica</text><group>1</group><infinite>0</infinite></dragbox>
+    <dragbox><text>validar e documentar conclusao tecnica</text><group>1</group><infinite>0</infinite></dragbox>
+    <dragbox><text>escolher unidade ao acaso</text><group>1</group><infinite>0</infinite></dragbox>
+    <dragbox><text>ignorar condicoes de ambiente</text><group>1</group><infinite>0</infinite></dragbox>
+  </question>
+
+  <question type="ordering">
+    <name><text>Q21 - Ordenacao para separar erro sistematico e aleatorio</text></name>
+    <questiontext format="html"><text>
+&lt;p&gt;Ordene um metodo pratico para analisar erros em um conjunto de leituras repetidas.&lt;/p&gt;
+</text></questiontext>
+    <generalfeedback format="html"><text>
+&lt;p&gt;Sequencia recomendada:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;coletar repeticoes sob condicoes controladas;&lt;/li&gt;
+&lt;li&gt;avaliar tendencia/media em relacao ao padrao;&lt;/li&gt;
+&lt;li&gt;avaliar dispersao (desvio) das leituras;&lt;/li&gt;
+&lt;li&gt;identificar componente sistematica e aleatoria;&lt;/li&gt;
+&lt;li&gt;definir acao de ajuste/correcao.&lt;/li&gt;
+&lt;/ol&gt;
+</text></generalfeedback>
+    <defaultgrade>1.0000000</defaultgrade><penalty>0.3333333</penalty><hidden>0</hidden>
+    <layouttype>VERTICAL</layouttype><selecttype>ALL</selecttype><selectcount>5</selectcount><gradingtype>RELATIVE_NEXT_EXCLUDE_LAST</gradingtype><showgrading>SHOW</showgrading><numberingstyle>none</numberingstyle>
+    <correctfeedback format="html"><text>Sequencia correta.</text></correctfeedback>
+    <partiallycorrectfeedback format="html"><text>Parcialmente correta.</text></partiallycorrectfeedback>
+    <incorrectfeedback format="html"><text>Ordem incorreta.</text></incorrectfeedback>
+    <shownumcorrect>1</shownumcorrect>
+    <answer fraction="1" format="html"><text>Executar serie de leituras repetidas com procedimento fixo</text><feedback format="html"><text /></feedback></answer>
+    <answer fraction="1" format="html"><text>Comparar media com valor de referencia/padrao</text><feedback format="html"><text /></feedback></answer>
+    <answer fraction="1" format="html"><text>Calcular dispersao para avaliar precisao</text><feedback format="html"><text /></feedback></answer>
+    <answer fraction="1" format="html"><text>Distinguir vies sistematico de componente aleatoria</text><feedback format="html"><text /></feedback></answer>
+    <answer fraction="1" format="html"><text>Definir ajuste, recalibracao ou melhoria de metodo</text><feedback format="html"><text /></feedback></answer>
+  </question>
+
+  <question type="calculated">
+    <name><text>Q22 - Calculada para ajuste de transmissor em bancada</text></name>
+    <questiontext format="html"><text>
+&lt;p&gt;Durante ajuste, a saida medida em ponto de teste deveria ser {Iteo} mA, mas foi lida {Imed} mA. Calcule o erro (Imed - Iteo) em mA.&lt;/p&gt;
+</text></questiontext>
+    <generalfeedback format="html"><text>
+&lt;p&gt;Erro assinado no ponto:&lt;/p&gt;
+&lt;p&gt;\(e = I_{med} - I_{teo}\)&lt;/p&gt;
+&lt;p&gt;Sinal do erro e relevante para decidir se ajuste deve aumentar ou reduzir ganho/offset.&lt;/p&gt;
+</text></generalfeedback>
+    <defaultgrade>1</defaultgrade><penalty>0.3333333</penalty><hidden>0</hidden>
+    <answer fraction="100" format="moodle_auto_format"><text>{Imed}-{Iteo}</text><feedback format="html"><text>Correta.</text></feedback><tolerance>0.01</tolerance><tolerancetype>1</tolerancetype><correctanswerformat>1</correctanswerformat><correctanswerlength>3</correctanswerlength></answer>
+    <unitgradingtype>0</unitgradingtype><unitpenalty>0.1</unitpenalty><showunits>0</showunits>
+    <dataset_definitions>
+      <dataset_definition><status><text>private</text></status><name><text>Iteo</text></name><type>calculated</type><distribution><text>uniform</text></distribution><minimum><text>8</text></minimum><maximum><text>18</text></maximum><decimals><text>2</text></decimals><itemcount>5</itemcount><dataset_items><dataset_item><number>1</number><value>12.00</value></dataset_item><dataset_item><number>2</number><value>16.00</value></dataset_item><dataset_item><number>3</number><value>10.40</value></dataset_item><dataset_item><number>4</number><value>14.80</value></dataset_item><dataset_item><number>5</number><value>9.60</value></dataset_item></dataset_items><number_of_items>5</number_of_items></dataset_definition>
+      <dataset_definition><status><text>private</text></status><name><text>Imed</text></name><type>calculated</type><distribution><text>uniform</text></distribution><minimum><text>8</text></minimum><maximum><text>18</text></maximum><decimals><text>2</text></decimals><itemcount>5</itemcount><dataset_items><dataset_item><number>1</number><value>11.72</value></dataset_item><dataset_item><number>2</number><value>16.31</value></dataset_item><dataset_item><number>3</number><value>10.11</value></dataset_item><dataset_item><number>4</number><value>15.05</value></dataset_item><dataset_item><number>5</number><value>9.82</value></dataset_item></dataset_items><number_of_items>5</number_of_items></dataset_definition>
+    </dataset_definitions>
+  </question>
+
+  <question type="calculatedmulti">
+    <name><text>Q23 - Multipla escolha calculada para potencia percentual de faixa</text></name>
+    <questiontext format="html"><text>
+&lt;p&gt;Um sensor de deformacao apresenta saida de {Smin} mV no minimo e {Smax} mV no maximo. No ensaio atual, a saida e {Sx} mV. Qual percentual da faixa eletrica foi atingido?&lt;/p&gt;
+</text></questiontext>
+    <generalfeedback format="html"><text>
+&lt;p&gt;Normalizacao correta:&lt;/p&gt;
+&lt;p&gt;\(Percentual = ((Sx-Smin)/(Smax-Smin))\times 100\)&lt;/p&gt;
+&lt;p&gt;Esse procedimento e equivalente ao usado para span de instrumentos com offset.&lt;/p&gt;
+</text></generalfeedback>
+    <defaultgrade>1.0000000</defaultgrade><penalty>0.3333333</penalty><hidden>0</hidden>
+    <synchronize>0</synchronize><single>true</single><shuffleanswers>true</shuffleanswers><answernumbering>abc</answernumbering>
+    <answer fraction="100" format="moodle_auto_format"><text>(({Sx}-{Smin})/({Smax}-{Smin}))*100</text><feedback format="html"><text>Correta.</text></feedback><tolerance>0.05</tolerance><tolerancetype>1</tolerancetype><correctanswerformat>1</correctanswerformat><correctanswerlength>2</correctanswerlength></answer>
+    <answer fraction="0" format="moodle_auto_format"><text>({Sx}/{Smax})*100</text><feedback format="html"><text>Incorreta. Ignora offset.</text></feedback><tolerance>0.05</tolerance><tolerancetype>1</tolerancetype><correctanswerformat>1</correctanswerformat><correctanswerlength>2</correctanswerlength></answer>
+    <answer fraction="0" format="moodle_auto_format"><text>(({Smax}-{Sx})/({Smax}-{Smin}))*100</text><feedback format="html"><text>Incorreta. Percentual restante, nao atingido.</text></feedback><tolerance>0.05</tolerance><tolerancetype>1</tolerancetype><correctanswerformat>1</correctanswerformat><correctanswerlength>2</correctanswerlength></answer>
+    <answer fraction="0" format="moodle_auto_format"><text>(({Sx}-{Smin})/{Smax})*100</text><feedback format="html"><text>Incorreta. Denominador inadequado.</text></feedback><tolerance>0.05</tolerance><tolerancetype>1</tolerancetype><correctanswerformat>1</correctanswerformat><correctanswerlength>2</correctanswerlength></answer>
+    <dataset_definitions>
+      <dataset_definition><status><text>private</text></status><name><text>Smin</text></name><type>calculated</type><distribution><text>uniform</text></distribution><minimum><text>0</text></minimum><maximum><text>1</text></maximum><decimals><text>2</text></decimals><itemcount>5</itemcount><dataset_items><dataset_item><number>1</number><value>0.80</value></dataset_item><dataset_item><number>2</number><value>1.00</value></dataset_item><dataset_item><number>3</number><value>0.60</value></dataset_item><dataset_item><number>4</number><value>0.50</value></dataset_item><dataset_item><number>5</number><value>0.90</value></dataset_item></dataset_items><number_of_items>5</number_of_items></dataset_definition>
+      <dataset_definition><status><text>private</text></status><name><text>Smax</text></name><type>calculated</type><distribution><text>uniform</text></distribution><minimum><text>4</text></minimum><maximum><text>8</text></maximum><decimals><text>2</text></decimals><itemcount>5</itemcount><dataset_items><dataset_item><number>1</number><value>5.00</value></dataset_item><dataset_item><number>2</number><value>6.00</value></dataset_item><dataset_item><number>3</number><value>4.80</value></dataset_item><dataset_item><number>4</number><value>5.50</value></dataset_item><dataset_item><number>5</number><value>6.40</value></dataset_item></dataset_items><number_of_items>5</number_of_items></dataset_definition>
+      <dataset_definition><status><text>private</text></status><name><text>Sx</text></name><type>calculated</type><distribution><text>uniform</text></distribution><minimum><text>1</text></minimum><maximum><text>6</text></maximum><decimals><text>2</text></decimals><itemcount>5</itemcount><dataset_items><dataset_item><number>1</number><value>2.48</value></dataset_item><dataset_item><number>2</number><value>3.50</value></dataset_item><dataset_item><number>3</number><value>2.70</value></dataset_item><dataset_item><number>4</number><value>2.50</value></dataset_item><dataset_item><number>5</number><value>4.12</value></dataset_item></dataset_items><number_of_items>5</number_of_items></dataset_definition>
+    </dataset_definitions>
+  </question>
+
+  <question type="gapselect">
+    <name><text>Q24 - Completar interpretacao de desempenho metrologico</text></name>
+    <questiontext format="html"><text>
+&lt;p&gt;Complete a analise tecnica:&lt;/p&gt;
+&lt;p&gt;Precisao esta relacionada a [[1]] entre repeticoes, enquanto exatidao se refere a proximidade com [[2]]. Confiabilidade metrologica pode ser entendida como probabilidade de desempenho aceitavel por [[3]] sob condicoes especificadas. Em relatorios, a incerteza deve ser [[4]].&lt;/p&gt;
+</text></questiontext>
+    <generalfeedback format="html"><text>
+&lt;p&gt;Distincao conceitual essencial para evitar conclusoes equivocadas:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;precisao nao e sinonimo de exatidao;&lt;/li&gt;
+&lt;li&gt;desvio sistematico pode coexistir com boa repetibilidade;&lt;/li&gt;
+&lt;li&gt;incerteza declarada permite tomada de decisao tecnicamente defensavel.&lt;/li&gt;
+&lt;/ul&gt;
+</text></generalfeedback>
+    <defaultgrade>1</defaultgrade><penalty>0.3333333</penalty><hidden>0</hidden><shuffleanswers>1</shuffleanswers>
+    <selectoption><text>dispersao</text><group>1</group></selectoption>
+    <selectoption><text>valor de referencia</text><group>2</group></selectoption>
+    <selectoption><text>um periodo de tempo</text><group>3</group></selectoption>
+    <selectoption><text>declarada</text><group>4</group></selectoption>
+    <selectoption><text>span eletrico</text><group>1</group></selectoption>
+    <selectoption><text>set-point operacional</text><group>2</group></selectoption>
+    <selectoption><text>uma unica leitura</text><group>3</group></selectoption>
+    <selectoption><text>omitida</text><group>4</group></selectoption>
+  </question>
+
+</quiz>

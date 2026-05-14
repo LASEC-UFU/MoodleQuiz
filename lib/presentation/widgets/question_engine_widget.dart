@@ -46,14 +46,19 @@ class QuestionEngineWidget extends StatelessWidget {
   });
 
   bool get _isAnswerMode => mode == QuestionEngineMode.answer;
+  // Controles interativos sempre que um callback de seleção foi fornecido,
+  // exceto no modo reveal ou quando já respondido.
   bool get _controlsDisabled =>
-      !_isAnswerMode || hasAnswered || onSelectAnswer == null;
+      mode == QuestionEngineMode.reveal ||
+      hasAnswered ||
+      onSelectAnswer == null;
 
   static const _letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
   @override
   Widget build(BuildContext context) {
     final isMobile = Responsive.isMobile(context);
+    final spec = _uiSpec;
     final textStyle = GoogleFonts.nunito(
       fontSize: compact ? 14 : (isMobile ? 16 : 18),
       fontWeight: FontWeight.w600,
@@ -66,6 +71,8 @@ class QuestionEngineWidget extends StatelessWidget {
         _buildTimer(),
         SizedBox(height: compact ? 10 : 16),
       ],
+      _buildQuestionTypeHeader(spec),
+      SizedBox(height: compact ? 8 : 12),
       _buildQuestionPrompt(textStyle),
       SizedBox(height: compact ? 10 : 16),
       ..._buildAnswerSurface(textStyle),
@@ -78,6 +85,51 @@ class QuestionEngineWidget extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: children,
+    );
+  }
+
+  Widget _buildQuestionTypeHeader(_QuestionUiSpec spec) {
+    final titleStyle = TextStyle(
+      color: AppTheme.textPrimary,
+      fontSize: compact ? 12 : 13,
+      fontWeight: FontWeight.w800,
+      letterSpacing: 0.2,
+    );
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 10 : 12,
+        vertical: compact ? 8 : 10,
+      ),
+      decoration: BoxDecoration(
+        color: spec.color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: spec.color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(spec.icon, color: spec.color, size: compact ? 16 : 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(spec.title, style: titleStyle),
+                const SizedBox(height: 3),
+                Text(
+                  spec.instruction,
+                  style: TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: compact ? 11 : 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -186,7 +238,9 @@ class QuestionEngineWidget extends StatelessWidget {
   List<Widget> _buildAnswerSurface(TextStyle textStyle) {
     final surface = <Widget>[];
 
-    if (question.isMultiChoice && question.choices.isNotEmpty) {
+    if (question.isOrdering && _orderingControls.isNotEmpty) {
+      surface.add(_buildOrderingInputs(textStyle));
+    } else if (question.isMultiChoice && question.choices.isNotEmpty) {
       surface.addAll(_buildChoiceInputs());
     } else {
       if (question.isMatch && question.matchData != null) {
@@ -242,6 +296,10 @@ class QuestionEngineWidget extends StatelessWidget {
   List<MoodleAnswerControl> get _answerableControls =>
       question.answerControls.where((c) => c.isAnswerable).toList();
 
+  List<MoodleAnswerControl> get _orderingControls => _answerableControls
+      .where((c) => c.isSelect && c.options.isNotEmpty)
+      .toList();
+
   List<MoodleAnswerControl> get _genericControls {
     final controls = _answerableControls.where((c) {
       if (c.isMultipleChoice) return false;
@@ -272,6 +330,12 @@ class QuestionEngineWidget extends StatelessWidget {
   }
 
   bool get _hasAnswer {
+    if (question.isOrdering && _orderingControls.isNotEmpty) {
+      return _orderingControls.every(
+        (c) => (selectedAnswers[c.name] ?? '').trim().isNotEmpty,
+      );
+    }
+
     if (question.isMultiChoice && question.choices.isNotEmpty) {
       return (selectedAnswers[question.inputBaseName] ?? '').isNotEmpty;
     }
@@ -317,24 +381,45 @@ class QuestionEngineWidget extends StatelessWidget {
 
   List<Widget> _buildChoiceInputs() {
     final selected = selectedAnswers[question.inputBaseName];
-    return question.choices.asMap().entries.map((entry) {
+    final widgets = question.choices.asMap().entries.map((entry) {
       final index = entry.key;
       final choice = entry.value;
       final letter = index < _letters.length ? _letters[index] : '${index + 1}';
+      final selectedByUser = selected == choice.value;
+      final isCorrectState = showCorrect && choice.isCorrect;
+      final isIncorrectState =
+          showCorrect && selectedByUser && !choice.isCorrect;
       return Padding(
         padding: const EdgeInsets.only(bottom: 10),
         child: OptionButton(
           label: letter,
           text: choice.text,
           htmlText: choice.htmlText,
-          isSelected:
-              selected == choice.value || (showCorrect && choice.isCorrect),
+          isSelected: selectedByUser || isCorrectState,
+          isCorrectState: isCorrectState,
+          isIncorrectState: isIncorrectState,
           isDisabled: _controlsDisabled,
           onTap: () =>
               onSelectAnswer?.call(question.inputBaseName, choice.value),
         ),
       );
     }).toList();
+
+    // No Moodle Mobile, questões de escolha única permitem limpar seleção.
+    if (!_controlsDisabled && selected != null && selected.isNotEmpty) {
+      widgets.add(
+        Align(
+          alignment: Alignment.centerRight,
+          child: OutlinedButton.icon(
+            onPressed: () => onSelectAnswer?.call(question.inputBaseName, ''),
+            icon: const Icon(Icons.clear_rounded, size: 16),
+            label: const Text('Limpar escolha'),
+          ),
+        ),
+      );
+    }
+
+    return widgets;
   }
 
   Widget _badge(String text, bool correct) {
@@ -450,7 +535,7 @@ class QuestionEngineWidget extends StatelessWidget {
                   child: _dropdown(
                     value: selectedAnswers[inputName],
                     options: gap.optionsForGap(gapNum),
-                    hint: 'Escolha uma palavra...',
+                    hint: 'Preencha a lacuna [$gapNum]...',
                     onChanged: (value) => onSelectAnswer?.call(
                       inputName,
                       value ?? '',
@@ -466,11 +551,35 @@ class QuestionEngineWidget extends StatelessWidget {
   }
 
   Widget _buildDdMarkerInputs() {
-    return _DdMarkerInput(
-      data: question.ddMarkerData!,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildInfoBanner(
+          icon: Icons.touch_app_rounded,
+          color: AppTheme.accent,
+          message:
+              'Selecione um marcador e toque na imagem para posicionar. Toque em um marcador existente para remover.',
+        ),
+        const SizedBox(height: 10),
+        _DdMarkerInput(
+          data: question.ddMarkerData!,
+          selectedAnswers: selectedAnswers,
+          disabled: _controlsDisabled,
+          compact: compact,
+          onChanged: (inputName, value) =>
+              onSelectAnswer?.call(inputName, value),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOrderingInputs(TextStyle textStyle) {
+    return _OrderingInput(
+      controls: _orderingControls,
       selectedAnswers: selectedAnswers,
       disabled: _controlsDisabled,
       compact: compact,
+      textStyle: textStyle,
       onChanged: (inputName, value) => onSelectAnswer?.call(inputName, value),
     );
   }
@@ -512,8 +621,10 @@ class QuestionEngineWidget extends StatelessWidget {
                 keyboardType:
                     control.type == 'number' ? TextInputType.number : null,
                 style: const TextStyle(color: AppTheme.textPrimary),
-                decoration: const InputDecoration(
-                  hintText: 'Digite sua resposta...',
+                decoration: InputDecoration(
+                  hintText: control.type == 'number'
+                      ? 'Digite um valor numerico...'
+                      : 'Digite sua resposta...',
                 ),
                 onChanged: (value) => onSelectAnswer?.call(
                   control.name,
@@ -654,6 +765,80 @@ class QuestionEngineWidget extends StatelessWidget {
             : AppTheme.primary.withValues(alpha: 0.5),
         minimumSize: const Size(double.infinity, 52),
       ),
+    );
+  }
+
+  _QuestionUiSpec get _uiSpec {
+    if (question.isDdImage) {
+      return const _QuestionUiSpec(
+        title: 'Marcacao em imagem',
+        instruction: 'Toque para posicionar marcadores visuais na figura.',
+        icon: Icons.add_location_alt_rounded,
+        color: AppTheme.warning,
+      );
+    }
+    if (question.isMatch) {
+      return const _QuestionUiSpec(
+        title: 'Associacao',
+        instruction: 'Selecione uma opcao para cada item da coluna.',
+        icon: Icons.alt_route_rounded,
+        color: AppTheme.accent,
+      );
+    }
+    if (question.isGapSelect || question.isDdwtos) {
+      return const _QuestionUiSpec(
+        title: 'Preencher lacunas',
+        instruction: 'Cada lacuna deve receber uma unica opcao valida.',
+        icon: Icons.segment_rounded,
+        color: AppTheme.primary,
+      );
+    }
+    if (question.isMultiChoice && question.choices.isNotEmpty) {
+      return const _QuestionUiSpec(
+        title: 'Escolha unica',
+        instruction: 'Selecione uma alternativa. Voce pode limpar a escolha.',
+        icon: Icons.radio_button_checked_rounded,
+        color: AppTheme.success,
+      );
+    }
+    if (_answerableControls.any((c) => c.isMultipleChoice)) {
+      return const _QuestionUiSpec(
+        title: 'Multipla selecao',
+        instruction: 'Marque uma ou mais opcoes conforme o enunciado.',
+        icon: Icons.check_box_rounded,
+        color: AppTheme.success,
+      );
+    }
+    if (question.isNumerical) {
+      return const _QuestionUiSpec(
+        title: 'Resposta numerica',
+        instruction: 'Informe um valor numerico no campo de resposta.',
+        icon: Icons.calculate_rounded,
+        color: AppTheme.warning,
+      );
+    }
+    if (question.isOrdering) {
+      return const _QuestionUiSpec(
+        title: 'Ordenacao',
+        instruction: 'Organize os itens na sequencia esperada.',
+        icon: Icons.reorder_rounded,
+        color: AppTheme.accent,
+      );
+    }
+    if (question.isShortAnswer || question.isEssay || question.isCloze) {
+      return const _QuestionUiSpec(
+        title: 'Resposta textual',
+        instruction: 'Digite a resposta no campo indicado.',
+        icon: Icons.short_text_rounded,
+        color: AppTheme.primary,
+      );
+    }
+
+    return const _QuestionUiSpec(
+      title: 'Questao',
+      instruction: 'Interaja com os campos de resposta antes de confirmar.',
+      icon: Icons.quiz_rounded,
+      color: AppTheme.primary,
     );
   }
 
@@ -1028,4 +1213,234 @@ class _MarkerPoint {
   final double y;
 
   const _MarkerPoint(this.x, this.y);
+}
+
+class _QuestionUiSpec {
+  final String title;
+  final String instruction;
+  final IconData icon;
+  final Color color;
+
+  const _QuestionUiSpec({
+    required this.title,
+    required this.instruction,
+    required this.icon,
+    required this.color,
+  });
+}
+
+class _OrderingInput extends StatefulWidget {
+  final List<MoodleAnswerControl> controls;
+  final Map<String, String> selectedAnswers;
+  final bool disabled;
+  final bool compact;
+  final TextStyle textStyle;
+  final void Function(String inputName, String value) onChanged;
+
+  const _OrderingInput({
+    required this.controls,
+    required this.selectedAnswers,
+    required this.disabled,
+    required this.compact,
+    required this.textStyle,
+    required this.onChanged,
+  });
+
+  @override
+  State<_OrderingInput> createState() => _OrderingInputState();
+}
+
+class _OrderingInputState extends State<_OrderingInput> {
+  late List<_OrderingEntry> _ordered;
+
+  @override
+  void initState() {
+    super.initState();
+    _ordered = _buildOrderedEntries();
+  }
+
+  @override
+  void didUpdateWidget(covariant _OrderingInput oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controls != widget.controls ||
+        oldWidget.selectedAnswers != widget.selectedAnswers) {
+      _ordered = _buildOrderedEntries();
+    }
+  }
+
+  List<_OrderingEntry> _buildOrderedEntries() {
+    final entries = widget.controls.asMap().entries.map((entry) {
+      final originalIndex = entry.key;
+      final control = entry.value;
+      final selected = widget.selectedAnswers[control.name] ?? '';
+      final rank =
+          _rankForValue(selected, control.options) ?? (originalIndex + 1);
+      return _OrderingEntry(
+        control: control,
+        originalIndex: originalIndex,
+        rank: rank,
+      );
+    }).toList();
+
+    entries.sort((a, b) {
+      final byRank = a.rank.compareTo(b.rank);
+      if (byRank != 0) return byRank;
+      return a.originalIndex.compareTo(b.originalIndex);
+    });
+
+    return entries;
+  }
+
+  int? _rankForValue(String value, List<ParsedChoice> options) {
+    if (value.trim().isEmpty) return null;
+
+    for (final option in options) {
+      if (option.value == value) {
+        final numericFromText = int.tryParse(option.text.trim());
+        if (numericFromText != null && numericFromText > 0) {
+          return numericFromText;
+        }
+        final numericFromValue = int.tryParse(option.value.trim());
+        if (numericFromValue != null && numericFromValue > 0) {
+          return numericFromValue;
+        }
+      }
+    }
+
+    final numeric = int.tryParse(value.trim());
+    return (numeric != null && numeric > 0) ? numeric : null;
+  }
+
+  String _valueForRank(MoodleAnswerControl control, int rank) {
+    for (final option in control.options) {
+      if (option.value.trim() == '$rank' || option.text.trim() == '$rank') {
+        return option.value;
+      }
+    }
+
+    final index = rank - 1;
+    if (index >= 0 && index < control.options.length) {
+      return control.options[index].value;
+    }
+
+    return control.options.isNotEmpty ? control.options.first.value : '';
+  }
+
+  void _onReorder(int oldIndex, int newIndex) {
+    if (widget.disabled) return;
+
+    setState(() {
+      if (newIndex > oldIndex) newIndex -= 1;
+      final item = _ordered.removeAt(oldIndex);
+      _ordered.insert(newIndex, item);
+    });
+
+    for (var i = 0; i < _ordered.length; i++) {
+      final control = _ordered[i].control;
+      widget.onChanged(control.name, _valueForRank(control, i + 1));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_ordered.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: AppTheme.cardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Arraste os itens para definir a ordem final.',
+            style: TextStyle(
+              color: AppTheme.textSecondary,
+              fontSize: widget.compact ? 11 : 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 10),
+          ReorderableListView.builder(
+            itemCount: _ordered.length,
+            shrinkWrap: true,
+            buildDefaultDragHandles: false,
+            physics: const NeverScrollableScrollPhysics(),
+            onReorder: _onReorder,
+            itemBuilder: (context, index) {
+              final entry = _ordered[index];
+              final control = entry.control;
+              final labelWidget = control.htmlLabel.isNotEmpty
+                  ? MoodleHtmlRenderer(
+                      html: control.htmlLabel,
+                      textStyle: widget.textStyle.copyWith(fontSize: 15),
+                    )
+                  : Text(
+                      control.label.isNotEmpty
+                          ? control.label
+                          : 'Item ${index + 1}',
+                      style: widget.textStyle.copyWith(fontSize: 15),
+                    );
+
+              return Container(
+                key: ValueKey(control.name),
+                margin: const EdgeInsets.only(bottom: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppTheme.bgDark,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppTheme.bgCardAlt),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        '${index + 1}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(child: labelWidget),
+                    const SizedBox(width: 10),
+                    ReorderableDragStartListener(
+                      index: index,
+                      enabled: !widget.disabled,
+                      child: Icon(
+                        Icons.drag_indicator_rounded,
+                        color: widget.disabled
+                            ? AppTheme.textSecondary.withValues(alpha: 0.4)
+                            : AppTheme.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OrderingEntry {
+  final MoodleAnswerControl control;
+  final int originalIndex;
+  final int rank;
+
+  const _OrderingEntry({
+    required this.control,
+    required this.originalIndex,
+    required this.rank,
+  });
 }

@@ -16,6 +16,7 @@ import '../../controllers/auth_controller.dart';
 import '../../controllers/professor_controller.dart';
 import '../../../core/utils/fullscreen_button.dart';
 import '../../widgets/question_body_widget.dart';
+import '../../widgets/question_engine_widget.dart';
 import '../../widgets/timer_widget.dart';
 
 /// Painel do professor – controle de questões + status do quiz.
@@ -831,6 +832,7 @@ class _SelectedQuestionCard extends StatefulWidget {
 
 class _SelectedQuestionCardState extends State<_SelectedQuestionCard> {
   bool _expanded = false;
+  final Map<String, String> _selectedAnswers = {};
 
   @override
   Widget build(BuildContext context) {
@@ -885,10 +887,14 @@ class _SelectedQuestionCardState extends State<_SelectedQuestionCard> {
                   const SizedBox(height: 8),
                 ],
               ),
-              secondChild: QuestionBodyWidget(
+              secondChild: QuestionEngineWidget(
                 question: question,
+                mode: QuestionEngineMode.preview,
                 showCorrect: widget.showCorrect,
                 compact: true,
+                selectedAnswers: _selectedAnswers,
+                onSelectAnswer: (name, value) =>
+                    setState(() => _selectedAnswers[name] = value),
               ),
               crossFadeState: _expanded
                   ? CrossFadeState.showSecond
