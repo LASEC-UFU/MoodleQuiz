@@ -810,6 +810,21 @@ class MoodleHtmlParser {
   /// Extrai o HTML do bloco `.rightanswer` da revisão (se houver).
   static String parseRightAnswerHtml(
       String reviewHtml, String token, String baseUrl) {
+    // Estratégia principal: parse DOM e busca por classes comuns de gabarito.
+    final fragment = html_parser.parseFragment(reviewHtml);
+    final node = fragment.querySelector('.rightanswer') ??
+        fragment.querySelector('[class*="rightanswer"]') ??
+        fragment.querySelector('.correctanswer') ??
+        fragment.querySelector('[class*="correctanswer"]');
+
+    if (node != null) {
+      final html = node.outerHtml.trim();
+      if (html.isNotEmpty) {
+        return _rewriteResourceUrls(html, token, baseUrl);
+      }
+    }
+
+    // Fallback legado para HTMLs antigos.
     final content = _extractTag(reviewHtml, 'rightanswer') ?? '';
     if (content.isEmpty) return '';
     return _rewriteResourceUrls(content.trim(), token, baseUrl);

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -34,8 +35,7 @@ class QuizSelectionPage extends StatelessWidget {
                       if (ctrl.error != null) _ErrorCard(ctrl.error!),
                       if (ctrl.isLoading)
                         const Expanded(
-                            child:
-                                Center(child: CircularProgressIndicator()))
+                            child: Center(child: CircularProgressIndicator()))
                       else
                         Expanded(child: _QuizList(quizzes: ctrl.quizzes)),
                     ],
@@ -83,9 +83,36 @@ class _Header extends StatelessWidget {
             ],
           ),
         ),
+        IconButton(
+          icon: const Icon(Icons.upload_file_rounded,
+              color: AppTheme.textSecondary),
+          tooltip: 'Carregar questionario de XML',
+          onPressed: () => _importXmlQuiz(context),
+        ),
       ],
     );
   }
+}
+
+Future<void> _importXmlQuiz(BuildContext context) async {
+  final user = context.read<AuthController>().user;
+  if (user == null) return;
+  final picked = await FilePicker.platform.pickFiles(
+    type: FileType.custom,
+    allowedExtensions: ['xml'],
+    withData: true,
+  );
+  final file = picked?.files.single;
+  final bytes = file?.bytes;
+  if (file == null || bytes == null) return;
+
+  final router = GoRouter.of(context);
+  await context.read<ProfessorController>().selectQuizFromXml(
+        user,
+        bytes: bytes,
+        fileName: file.name,
+      );
+  if (context.mounted) router.go(AppRouter.professor);
 }
 
 class _QuizList extends StatelessWidget {
@@ -102,8 +129,7 @@ class _QuizList extends StatelessWidget {
             Icon(Icons.quiz_outlined, size: 64, color: AppTheme.textSecondary),
             const SizedBox(height: 16),
             Text('Nenhum questionário nesta disciplina',
-                style:
-                    TextStyle(color: AppTheme.textSecondary, fontSize: 16)),
+                style: TextStyle(color: AppTheme.textSecondary, fontSize: 16)),
           ],
         ),
       );
@@ -127,7 +153,8 @@ class _QuizList extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppTheme.warning.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppTheme.warning.withValues(alpha: 0.3)),
+              border:
+                  Border.all(color: AppTheme.warning.withValues(alpha: 0.3)),
             ),
             child: Row(
               children: [
@@ -259,9 +286,7 @@ class _QuizTile extends StatelessWidget {
                 ),
                 Icon(
                   compatible ? Icons.chevron_right : Icons.info_outline,
-                  color: compatible
-                      ? AppTheme.textSecondary
-                      : AppTheme.warning,
+                  color: compatible ? AppTheme.textSecondary : AppTheme.warning,
                 ),
               ],
             ),
@@ -293,8 +318,8 @@ class _QuizTile extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text('• ',
-                          style: TextStyle(
-                              color: AppTheme.warning, fontSize: 13)),
+                          style:
+                              TextStyle(color: AppTheme.warning, fontSize: 13)),
                       Expanded(
                         child: Text(r,
                             style: const TextStyle(
@@ -333,7 +358,8 @@ class _ErrorCard extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
               child: Text(message,
-                  style: const TextStyle(color: AppTheme.danger, fontSize: 13))),
+                  style:
+                      const TextStyle(color: AppTheme.danger, fontSize: 13))),
         ],
       ),
     );

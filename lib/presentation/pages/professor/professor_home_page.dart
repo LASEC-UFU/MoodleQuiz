@@ -234,7 +234,7 @@ class _ProfessorAppBar extends StatelessWidget {
             child: Text(
               prof.quizState.quizTitle.isNotEmpty
                   ? prof.quizState.quizTitle
-                  : AppConfig.appName,
+                  : (prof.selectedQuiz?.name ?? AppConfig.appName),
               style: const TextStyle(
                   color: AppTheme.textPrimary,
                   fontWeight: FontWeight.w800,

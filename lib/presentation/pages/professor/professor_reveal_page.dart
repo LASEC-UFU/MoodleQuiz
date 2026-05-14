@@ -136,9 +136,9 @@ class _RevealScaffoldState extends State<_RevealScaffold> {
 
               // ── Checkbox mostrar resposta correta ─────────────────
               if (question != null &&
-                  (question.isMultiChoice ||
-                      question.isMatch ||
-                      question.rightAnswerHtml.isNotEmpty))
+                  (question.isInteractive ||
+                      question.rightAnswerHtml.isNotEmpty ||
+                      question.generalFeedback.isNotEmpty))
                 Padding(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 20, vertical: 10),

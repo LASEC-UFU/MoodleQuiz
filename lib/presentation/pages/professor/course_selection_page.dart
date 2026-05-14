@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -37,8 +38,8 @@ class _CourseSelectionPageState extends State<CourseSelectionPage> {
         child: SafeArea(
           child: Center(
             child: ConstrainedBox(
-              constraints: BoxConstraints(
-                  maxWidth: Responsive.contentWidth(context)),
+              constraints:
+                  BoxConstraints(maxWidth: Responsive.contentWidth(context)),
               child: Padding(
                 padding: Responsive.horizontalPadding(context)
                     .add(const EdgeInsets.symmetric(vertical: 24)),
@@ -51,8 +52,7 @@ class _CourseSelectionPageState extends State<CourseSelectionPage> {
                       if (ctrl.error != null) _ErrorCard(ctrl.error!),
                       if (ctrl.isLoading)
                         const Expanded(
-                            child: Center(
-                                child: CircularProgressIndicator()))
+                            child: Center(child: CircularProgressIndicator()))
                       else
                         Expanded(child: _CourseList(courses: ctrl.courses)),
                     ],
@@ -83,13 +83,18 @@ class _Header extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Selecionar Disciplina',
-                  style: AppTheme.headlineMedium),
+              Text('Selecionar Disciplina', style: AppTheme.headlineMedium),
               Text('Escolha a disciplina para o quiz',
-                  style: TextStyle(
-                      color: AppTheme.textSecondary, fontSize: 14)),
+                  style:
+                      TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
             ],
           ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.upload_file_rounded,
+              color: AppTheme.textSecondary),
+          tooltip: 'Carregar questionario de XML',
+          onPressed: () => _importXmlQuiz(context),
         ),
         IconButton(
           icon: const Icon(Icons.logout, color: AppTheme.textSecondary),
@@ -104,6 +109,27 @@ class _Header extends StatelessWidget {
   }
 }
 
+Future<void> _importXmlQuiz(BuildContext context) async {
+  final user = context.read<AuthController>().user;
+  if (user == null) return;
+  final picked = await FilePicker.platform.pickFiles(
+    type: FileType.custom,
+    allowedExtensions: ['xml'],
+    withData: true,
+  );
+  final file = picked?.files.single;
+  final bytes = file?.bytes;
+  if (file == null || bytes == null) return;
+
+  final router = GoRouter.of(context);
+  await context.read<ProfessorController>().selectQuizFromXml(
+        user,
+        bytes: bytes,
+        fileName: file.name,
+      );
+  if (context.mounted) router.go(AppRouter.professor);
+}
+
 class _CourseList extends StatelessWidget {
   final List<MoodleCourse> courses;
   const _CourseList({required this.courses});
@@ -115,12 +141,10 @@ class _CourseList extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.inbox_outlined,
-                size: 64, color: AppTheme.textSecondary),
+            Icon(Icons.inbox_outlined, size: 64, color: AppTheme.textSecondary),
             const SizedBox(height: 16),
             Text('Nenhuma disciplina encontrada',
-                style:
-                    TextStyle(color: AppTheme.textSecondary, fontSize: 16)),
+                style: TextStyle(color: AppTheme.textSecondary, fontSize: 16)),
           ],
         ),
       );
@@ -148,9 +172,7 @@ class _CourseTile extends StatelessWidget {
           final user = context.read<AuthController>().user;
           if (user == null) return;
           final router = GoRouter.of(context);
-          await context
-              .read<ProfessorController>()
-              .selectCourse(user, course);
+          await context.read<ProfessorController>().selectCourse(user, course);
           router.push(AppRouter.professorQuiz);
         },
         child: Container(
@@ -211,15 +233,16 @@ class _ErrorCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(12),
-      decoration: AppTheme.cardDecoration(color: AppTheme.danger.withValues(alpha: 0.2)),
+      decoration: AppTheme.cardDecoration(
+          color: AppTheme.danger.withValues(alpha: 0.2)),
       child: Row(
         children: [
           const Icon(Icons.error_outline, color: AppTheme.danger, size: 20),
           const SizedBox(width: 8),
           Expanded(
               child: Text(message,
-                  style: const TextStyle(
-                      color: AppTheme.danger, fontSize: 13))),
+                  style:
+                      const TextStyle(color: AppTheme.danger, fontSize: 13))),
         ],
       ),
     );

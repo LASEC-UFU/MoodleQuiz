@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 
 import '../../core/utils/debug_logger.dart';
 import '../../core/utils/moodle_html_parser.dart';
+import '../../core/utils/moodle_xml_quiz_parser.dart';
 import '../../domain/entities/moodle_course.dart';
 import '../../domain/entities/moodle_quiz.dart';
 import '../../domain/entities/question_entity.dart';
@@ -39,6 +41,7 @@ class ProfessorController extends ChangeNotifier {
   int _selectedDuration = 30;
   bool _startTimerOnFirstResponse = true;
   bool _isLoading = false;
+  bool _isXmlPreviewMode = false;
   bool _isRefreshing = false; // guard contra chamadas simultâneas ao GSheets
   String? _error;
   List<String> _log = [];
@@ -67,6 +70,7 @@ class ProfessorController extends ChangeNotifier {
   String? get error => _error;
   List<String> get log => List.unmodifiable(_log);
   bool get isSetup => _selectedQuiz != null && _questions.isNotEmpty;
+  bool get isXmlPreviewMode => _isXmlPreviewMode;
 
   Future<void> runConnectionDiagnostics({
     QuestionEntity? question,
@@ -186,6 +190,7 @@ class ProfessorController extends ChangeNotifier {
     _selectedQuiz = null;
     _quizzes = [];
     _questions = [];
+    _isXmlPreviewMode = false;
     _setLoading(true);
     _error = null;
     try {
@@ -201,6 +206,7 @@ class ProfessorController extends ChangeNotifier {
   Future<void> selectQuiz(UserEntity user, MoodleQuiz quiz) async {
     _selectedQuiz = quiz;
     _questions = [];
+    _isXmlPreviewMode = false;
     _setLoading(true);
     _error = null;
     _log = [];
@@ -232,6 +238,49 @@ class ProfessorController extends ChangeNotifier {
 
   // ── Controle do quiz ───────────────────────────────────────────────────────
 
+  Future<void> selectQuizFromXml(
+    UserEntity user, {
+    required Uint8List bytes,
+    required String fileName,
+  }) async {
+    _user = user;
+    _selectedCourse ??= const MoodleCourse(
+      id: -1,
+      shortname: 'XML',
+      fullname: 'Pre-visualizacao local por XML',
+    );
+    _selectedQuiz = MoodleQuiz(
+      id: -DateTime.now().millisecondsSinceEpoch,
+      courseId: _selectedCourse?.id ?? -1,
+      name: fileName,
+      preferredBehaviour: 'immediatefeedback',
+      reviewCorrectness: 0x10000,
+    );
+    _questions = [];
+    _attemptId = null;
+    _isXmlPreviewMode = true;
+    _setLoading(true);
+    _error = null;
+    _log = [];
+    try {
+      _addLog('━━ Carregando quiz local do XML "$fileName" ━━');
+      _questions = MoodleXmlQuizParser.parseQuestions(
+        bytes,
+        token: user.token,
+        baseUrl: user.baseUrl,
+        onLog: _addLog,
+      );
+      _quizState = QuizStateEntity.empty();
+      _scores = [];
+      _addLog('━━ Concluido: ${_questions.length} questao(oes) prontas ━━');
+    } catch (e) {
+      _error = e.toString();
+      _addLog('ERRO ao ler XML: $_error');
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   void setDuration(int seconds) {
     _selectedDuration = seconds;
     notifyListeners();
@@ -244,6 +293,33 @@ class ProfessorController extends ChangeNotifier {
 
   Future<void> releaseQuestion(QuestionEntity q) async {
     final dlog = DebugLogger.instance;
+    if (_isXmlPreviewMode) {
+      final index = _questions.indexOf(q);
+      final page = index >= 0 ? index : _questions.length;
+      final now = DateTime.now();
+      _quizState = QuizStateEntity(
+        status: QuizStatus.active,
+        currentPage: page,
+        currentSlot: q.slot,
+        totalPages: _questions.length,
+        quizId: _selectedQuiz?.id ?? 0,
+        courseId: _selectedCourse?.id ?? 0,
+        quizTitle: _selectedQuiz?.name ?? 'Quiz XML',
+        roundId: 'xml-${now.millisecondsSinceEpoch}',
+        durationSeconds: _selectedDuration,
+        startOnFirstResponse: _startTimerOnFirstResponse,
+        timerStarted: !_startTimerOnFirstResponse,
+        startedAt: _startTimerOnFirstResponse ? null : now,
+        endsAt: _startTimerOnFirstResponse
+            ? null
+            : now.add(Duration(seconds: _selectedDuration)),
+      );
+      _addLog(
+          'XML preview: questao ${page + 1} marcada como ativa localmente.');
+      notifyListeners();
+      return;
+    }
+
     final user = _user;
     final courseId = _selectedCourse?.id;
     if (_selectedQuiz == null || user == null || courseId == null) {
@@ -298,6 +374,29 @@ class ProfessorController extends ChangeNotifier {
   }
 
   Future<void> extendQuestion(int extraSeconds) async {
+    if (_isXmlPreviewMode) {
+      final state = quizState;
+      if (!state.isActive) return;
+      final remaining = state.endsAt?.difference(DateTime.now()).inSeconds ?? 0;
+      final newDuration = (remaining < 0 ? 0 : remaining) + extraSeconds;
+      _quizState = QuizStateEntity(
+        status: QuizStatus.active,
+        currentPage: state.currentPage,
+        currentSlot: state.currentSlot,
+        totalPages: state.totalPages,
+        quizId: state.quizId,
+        courseId: state.courseId,
+        quizTitle: state.quizTitle,
+        roundId: state.roundId,
+        durationSeconds: newDuration,
+        timerStarted: true,
+        startedAt: DateTime.now(),
+        endsAt: DateTime.now().add(Duration(seconds: newDuration)),
+      );
+      notifyListeners();
+      return;
+    }
+
     final user = _user;
     final courseId = _selectedCourse?.id;
     final state = quizState;
@@ -332,6 +431,21 @@ class ProfessorController extends ChangeNotifier {
   }
 
   Future<void> stopQuestion() async {
+    if (_isXmlPreviewMode) {
+      _quizState = QuizStateEntity(
+        status: QuizStatus.closed,
+        currentPage: _quizState.currentPage,
+        currentSlot: _quizState.currentSlot,
+        totalPages: _quizState.totalPages,
+        quizId: _quizState.quizId,
+        courseId: _quizState.courseId,
+        quizTitle: _quizState.quizTitle,
+        roundId: _quizState.roundId,
+      );
+      notifyListeners();
+      return;
+    }
+
     final user = _user;
     final courseId = _selectedCourse?.id;
     if (user == null || courseId == null) return;
@@ -348,6 +462,21 @@ class ProfessorController extends ChangeNotifier {
   }
 
   Future<void> finishQuiz() async {
+    if (_isXmlPreviewMode) {
+      _quizState = QuizStateEntity(
+        status: QuizStatus.finished,
+        currentPage: _quizState.currentPage,
+        currentSlot: _quizState.currentSlot,
+        totalPages: _quizState.totalPages,
+        quizId: _quizState.quizId,
+        courseId: _quizState.courseId,
+        quizTitle: _quizState.quizTitle,
+        roundId: _quizState.roundId,
+      );
+      notifyListeners();
+      return;
+    }
+
     final user = _user;
     final courseId = _selectedCourse?.id;
     if (user == null || courseId == null) return;
@@ -364,6 +493,13 @@ class ProfessorController extends ChangeNotifier {
   }
 
   Future<void> resetQuiz() async {
+    if (_isXmlPreviewMode) {
+      _quizState = QuizStateEntity.empty();
+      _scores = [];
+      notifyListeners();
+      return;
+    }
+
     final user = _user;
     final courseId = _selectedCourse?.id;
     final quiz = _selectedQuiz;
@@ -372,9 +508,14 @@ class ProfessorController extends ChangeNotifier {
     try {
       await _quizRepo.resetQuiz(user, courseId);
       _scores = [];
-      _questions = [];
       _attemptId = null;
       _log = [];
+      if (_isXmlPreviewMode) {
+        _quizState = QuizStateEntity.empty();
+        await _refreshStateAfterWrite();
+        return;
+      }
+      _questions = [];
       // Recria a tentativa e recarrega questões para resolver qualquer
       // tentativa travada (ex: preview do Moodle) ou attempt deletado
       if (quiz != null) {
@@ -398,6 +539,7 @@ class ProfessorController extends ChangeNotifier {
   // ── Polling ────────────────────────────────────────────────────────────────
 
   void startPolling() {
+    if (_isXmlPreviewMode) return;
     _pollTimer?.cancel();
     _refreshState();
     // Polling mais curto para disparar rapidamente o cronômetro após a

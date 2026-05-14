@@ -271,6 +271,18 @@ class QuestionEngineWidget extends StatelessWidget {
           question.rightAnswerHtml.isNotEmpty) {
         surface.add(SizedBox(height: compact ? 8 : 12));
         surface.add(_buildRightAnswerCard(textStyle));
+      } else if (!_isAnswerMode &&
+          showCorrect &&
+          question.rightAnswerHtml.isEmpty) {
+        surface.add(SizedBox(height: compact ? 8 : 12));
+        surface.add(
+          _buildInfoBanner(
+            icon: Icons.rule_rounded,
+            color: AppTheme.warning,
+            message:
+                'O Moodle nao retornou o bloco de resposta correta para este tipo nesta tentativa/revisao.',
+          ),
+        );
       }
       return surface;
     }
