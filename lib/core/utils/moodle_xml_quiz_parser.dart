@@ -96,7 +96,7 @@ class MoodleXmlQuizParser {
     required String type,
     required int slot,
   }) {
-    final qName = 'q0:${slot}';
+    final qName = 'q0:$slot';
     final prompt = _applyFirstDatasetValues(
       _formattedText(question, 'questiontext'),
       question,
@@ -125,7 +125,7 @@ class MoodleXmlQuizParser {
     return '''
 <div class="que $type immediatefeedback notyetanswered">
   <div class="formulation">
-    <input type="hidden" name="${qName}:sequencecheck" value="1" />
+    <input type="hidden" name="$qName:sequencecheck" value="1" />
     <div class="qtext">$qtext</div>
     <div class="ablock">$body</div>
   </div>

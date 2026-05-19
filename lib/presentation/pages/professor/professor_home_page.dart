@@ -15,7 +15,6 @@ import '../../../domain/entities/quiz_state_entity.dart';
 import '../../controllers/auth_controller.dart';
 import '../../controllers/professor_controller.dart';
 import '../../../core/utils/fullscreen_button.dart';
-import '../../widgets/question_body_widget.dart';
 import '../../widgets/question_engine_widget.dart';
 import '../../widgets/timer_widget.dart';
 

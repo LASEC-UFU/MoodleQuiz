@@ -393,29 +393,32 @@ class QuestionEngineWidget extends StatelessWidget {
 
   List<Widget> _buildChoiceInputs() {
     final selected = selectedAnswers[question.inputBaseName];
-    final widgets = question.choices.asMap().entries.map((entry) {
-      final index = entry.key;
-      final choice = entry.value;
-      final letter = index < _letters.length ? _letters[index] : '${index + 1}';
-      final selectedByUser = selected == choice.value;
-      final isCorrectState = showCorrect && choice.isCorrect;
-      final isIncorrectState =
-          showCorrect && selectedByUser && !choice.isCorrect;
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: OptionButton(
-          label: letter,
-          text: choice.text,
-          htmlText: choice.htmlText,
-          isSelected: selectedByUser || isCorrectState,
-          isCorrectState: isCorrectState,
-          isIncorrectState: isIncorrectState,
-          isDisabled: _controlsDisabled,
-          onTap: () =>
-              onSelectAnswer?.call(question.inputBaseName, choice.value),
-        ),
-      );
-    }).toList();
+    final widgets = <Widget>[
+      ...question.choices.asMap().entries.map((entry) {
+        final index = entry.key;
+        final choice = entry.value;
+        final letter =
+            index < _letters.length ? _letters[index] : '${index + 1}';
+        final selectedByUser = selected == choice.value;
+        final isCorrectState = showCorrect && choice.isCorrect;
+        final isIncorrectState =
+            showCorrect && selectedByUser && !choice.isCorrect;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: OptionButton(
+            label: letter,
+            text: choice.text,
+            htmlText: choice.htmlText,
+            isSelected: selectedByUser || isCorrectState,
+            isCorrectState: isCorrectState,
+            isIncorrectState: isIncorrectState,
+            isDisabled: _controlsDisabled,
+            onTap: () =>
+                onSelectAnswer?.call(question.inputBaseName, choice.value),
+          ),
+        );
+      }),
+    ];
 
     // No Moodle Mobile, questões de escolha única permitem limpar seleção.
     if (!_controlsDisabled && selected != null && selected.isNotEmpty) {

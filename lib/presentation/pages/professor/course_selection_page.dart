@@ -112,21 +112,23 @@ class _Header extends StatelessWidget {
 Future<void> _importXmlQuiz(BuildContext context) async {
   final user = context.read<AuthController>().user;
   if (user == null) return;
+  final controller = context.read<ProfessorController>();
+  final router = GoRouter.of(context);
   final picked = await FilePicker.platform.pickFiles(
     type: FileType.custom,
     allowedExtensions: ['xml'],
     withData: true,
   );
+  if (!context.mounted) return;
   final file = picked?.files.single;
   final bytes = file?.bytes;
   if (file == null || bytes == null) return;
 
-  final router = GoRouter.of(context);
-  await context.read<ProfessorController>().selectQuizFromXml(
-        user,
-        bytes: bytes,
-        fileName: file.name,
-      );
+  await controller.selectQuizFromXml(
+    user,
+    bytes: bytes,
+    fileName: file.name,
+  );
   if (context.mounted) router.go(AppRouter.professor);
 }
 
