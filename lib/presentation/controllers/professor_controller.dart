@@ -29,6 +29,7 @@ class ProfessorController extends ChangeNotifier {
   List<MoodleQuiz> _quizzes = [];
   MoodleCourse? _selectedCourse;
   MoodleQuiz? _selectedQuiz;
+  int? _revealQuestionSlot;
 
   // ── Lista de questões carregadas do Moodle ─────────────────────────────────
   List<QuestionEntity> _questions = [];
@@ -59,6 +60,7 @@ class ProfessorController extends ChangeNotifier {
   List<MoodleQuiz> get quizzes => _quizzes;
   MoodleCourse? get selectedCourse => _selectedCourse;
   MoodleQuiz? get selectedQuiz => _selectedQuiz;
+  int? get revealQuestionSlot => _revealQuestionSlot;
   List<QuestionEntity> get questions => _questions;
   int? get attemptId => _attemptId;
   QuizStateEntity get quizState => _quizState;
@@ -70,6 +72,10 @@ class ProfessorController extends ChangeNotifier {
   List<String> get log => List.unmodifiable(_log);
   bool get isSetup => _selectedQuiz != null && _questions.isNotEmpty;
   bool get isXmlPreviewMode => _isXmlPreviewMode;
+
+  void setRevealQuestion(QuestionEntity question) {
+    _revealQuestionSlot = question.slot;
+  }
 
   Future<void> runConnectionDiagnostics({
     QuestionEntity? question,

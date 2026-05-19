@@ -26,16 +26,19 @@ class ProfessorRevealPage extends StatelessWidget {
         final state = prof.quizState;
 
         // Encontra a questão que estava ativa pelo slot (identificador único Moodle)
+        final targetSlot = prof.revealQuestionSlot ?? state.currentSlot;
         final QuestionEntity? question = prof.questions.isEmpty
             ? null
             : prof.questions.cast<QuestionEntity?>().firstWhere(
-                  (q) => q!.slot == state.currentSlot,
+                  (q) => q!.slot == targetSlot,
                   orElse: () => prof.questions.first,
                 );
 
         return _RevealScaffold(
           state: state,
           question: question,
+          questionIndex:
+              question == null ? -1 : prof.questions.indexOf(question),
         );
       },
     );
@@ -45,7 +48,12 @@ class ProfessorRevealPage extends StatelessWidget {
 class _RevealScaffold extends StatefulWidget {
   final dynamic state;
   final QuestionEntity? question;
-  const _RevealScaffold({required this.state, required this.question});
+  final int questionIndex;
+  const _RevealScaffold({
+    required this.state,
+    required this.question,
+    required this.questionIndex,
+  });
 
   @override
   State<_RevealScaffold> createState() => _RevealScaffoldState();
@@ -81,8 +89,8 @@ class _RevealScaffoldState extends State<_RevealScaffold> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        state.currentPage >= 0
-                            ? 'Gabarito — Questão ${state.currentPage + 1}'
+                        widget.questionIndex >= 0
+                            ? 'Gabarito — Questão ${widget.questionIndex + 1}'
                                 '${state.totalPages > 0 ? ' de ${state.totalPages}' : ''}'
                             : 'Gabarito',
                         style: const TextStyle(
