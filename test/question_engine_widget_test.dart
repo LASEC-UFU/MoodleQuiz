@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:moodle_quiz_live/core/utils/moodle_html_parser.dart';
@@ -53,5 +54,78 @@ void main() {
 
     expect(renderedText, contains('Enunciado recuperado'));
     expect(renderedText, contains('[1]'));
+  });
+
+  testWidgets('inline gap dropdown shows the selected option text',
+      (tester) async {
+    const question = QuestionEntity(
+      slot: 7,
+      page: 0,
+      text: '',
+      htmlText:
+          '<p>Fluxo: 1. Coletar -> <select name="q0:7_p1"><option value="0"></option><option value="1">eliminar erros grosseiros</option></select>.</p>',
+      displayHtml: '',
+      choices: [],
+      inputBaseName: 'q0:7_answer',
+      seqCheck: '1',
+      type: 'ddwtos',
+      gapInputData: GapInputData(
+        gapCount: 1,
+        inputNamePrefix: 'q0:7_p',
+        options: [
+          ParsedChoice(value: '1', text: 'eliminar erros grosseiros'),
+          ParsedChoice(value: '2', text: 'corrigir erro sistematico'),
+        ],
+      ),
+    );
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: QuestionEngineWidget(
+            question: question,
+            mode: QuestionEngineMode.answer,
+            selectedAnswers: {'q0:7_p1': '1'},
+            compact: true,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('eliminar erros grosseiros'), findsOneWidget);
+  });
+
+  testWidgets('inline gap prompt renders latex equations', (tester) async {
+    const question = QuestionEntity(
+      slot: 12,
+      page: 0,
+      text: '',
+      htmlText:
+          r'<p>Complete: no modelo \(y=f(x_1,x_2,...,x_n)\), coeficiente [[1]].</p>',
+      displayHtml: '',
+      choices: [],
+      inputBaseName: 'q0:12_answer',
+      seqCheck: '1',
+      type: 'gapselect',
+      gapInputData: GapInputData(
+        gapCount: 1,
+        inputNamePrefix: 'q0:12_p',
+        options: [ParsedChoice(value: '1', text: 'derivada parcial')],
+      ),
+    );
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: QuestionEngineWidget(
+            question: question,
+            mode: QuestionEngineMode.answer,
+            compact: true,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(Math), findsOneWidget);
   });
 }

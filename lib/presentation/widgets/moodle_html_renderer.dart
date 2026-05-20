@@ -18,59 +18,12 @@ class MoodleHtmlRenderer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final repairedHtml = _repairBrokenMoodleTexHtml(html);
-
     return HtmlWidget(
-      _withLatexTags(repairedHtml),
+      prepareHtml(html),
       textStyle: textStyle,
       customWidgetBuilder: (element) {
-        if (element.localName == 'span') {
-          final repaired = _repairedBrokenTexSpan(element);
-          if (repaired != null) {
-            return InlineCustomWidget(
-              child: Text(
-                repaired,
-                style: textStyle.copyWith(color: AppTheme.textPrimary),
-              ),
-            );
-          }
-        }
-
-        if (element.localName == 'img') {
-          final src = element.attributes['src'];
-          if (src == null || src.isEmpty) return null;
-          final latex = _latexFromImage(element, src);
-          if (latex != null) {
-            return _mathWidget(
-              latex,
-              display: _isDisplayLatexImage(element),
-            );
-          }
-
-          if (src.startsWith('data:') ||
-              src.contains('/pix/') ||
-              src.contains('theme/image.php')) {
-            return const SizedBox.shrink();
-          }
-
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: MoodleImage(
-              src: src,
-              alt: element.attributes['alt'],
-              maxHeight: 260,
-            ),
-          );
-        }
-
-        if (element.localName != 'mq-latex') return null;
-
-        final latex = element.attributes['data-latex'];
-        if (latex == null) return null;
-
-        final decoded = Uri.decodeComponent(latex);
-        final display = element.attributes['data-display'] == 'true';
-        return _mathWidget(decoded, display: display);
+        return buildMathWidgetForElement(element, textStyle) ??
+            buildImageWidgetForElement(element);
       },
       customStylesBuilder: (element) {
         if (element.localName == 'table') {
@@ -87,7 +40,74 @@ class MoodleHtmlRenderer extends StatelessWidget {
     );
   }
 
-  Widget _mathWidget(String latex, {required bool display}) {
+  static String prepareHtml(String html) {
+    return _withLatexTags(_repairBrokenMoodleTexHtml(html));
+  }
+
+  static Widget? buildMathWidgetForElement(
+    dom.Element element,
+    TextStyle textStyle,
+  ) {
+    if (element.localName == 'span') {
+      final repaired = _repairedBrokenTexSpan(element);
+      if (repaired != null) {
+        return InlineCustomWidget(
+          child: Text(
+            repaired,
+            style: textStyle.copyWith(color: AppTheme.textPrimary),
+          ),
+        );
+      }
+    }
+
+    if (element.localName == 'img') {
+      final src = element.attributes['src'];
+      if (src == null || src.isEmpty) return null;
+      final latex = _latexFromImage(element, src);
+      if (latex != null) {
+        return _mathWidget(
+          latex,
+          textStyle: textStyle,
+          display: _isDisplayLatexImage(element),
+        );
+      }
+
+      if (src.startsWith('data:') ||
+          src.contains('/pix/') ||
+          src.contains('theme/image.php')) {
+        return const SizedBox.shrink();
+      }
+    }
+
+    if (element.localName != 'mq-latex') return null;
+
+    final latex = element.attributes['data-latex'];
+    if (latex == null) return null;
+
+    final decoded = Uri.decodeComponent(latex);
+    final display = element.attributes['data-display'] == 'true';
+    return _mathWidget(decoded, textStyle: textStyle, display: display);
+  }
+
+  static Widget? buildImageWidgetForElement(dom.Element element) {
+    if (element.localName != 'img') return null;
+    final src = element.attributes['src'];
+    if (src == null || src.isEmpty) return null;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: MoodleImage(
+        src: src,
+        alt: element.attributes['alt'],
+        maxHeight: 260,
+      ),
+    );
+  }
+
+  static Widget _mathWidget(
+    String latex, {
+    required TextStyle textStyle,
+    required bool display,
+  }) {
     final normalized = _normalizeLatex(_repairLatex(latex));
     final math = Math.tex(
       normalized,

@@ -609,13 +609,19 @@ class QuestionEngineWidget extends StatelessWidget {
 
   Widget _buildGapInlinePrompt(TextStyle textStyle) {
     final gap = question.gapInputData!;
-    final html = _gapInlineHtml;
+    final html = MoodleHtmlRenderer.prepareHtml(_gapInlineHtml);
     if (html.trim().isEmpty) return Text(question.text, style: textStyle);
 
     return HtmlWidget(
       html,
       textStyle: textStyle,
       customWidgetBuilder: (element) {
+        final math = MoodleHtmlRenderer.buildMathWidgetForElement(
+          element,
+          textStyle,
+        );
+        if (math != null) return math;
+
         final gapNum = _gapNumberFromElement(element);
         if (gapNum == null || gapNum < 1 || gapNum > gap.gapCount) {
           return null;
@@ -908,7 +914,6 @@ class QuestionEngineWidget extends StatelessWidget {
     required String hint,
     required ValueChanged<String?> onChanged,
   }) {
-    final selected = options.any((o) => o.value == value) ? value : null;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       decoration: BoxDecoration(
@@ -916,28 +921,14 @@ class QuestionEngineWidget extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppTheme.bgCardAlt),
       ),
-      child: DropdownButton<String>(
-        value: selected,
+      child: _AnswerDropdown(
+        value: value,
+        options: options,
+        hint: hint,
+        compact: false,
         isExpanded: true,
-        underline: const SizedBox.shrink(),
-        dropdownColor: AppTheme.bgCard,
-        hint: Text(
-          hint,
-          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
-        ),
-        items: options
-            .map(
-              (option) => DropdownMenuItem<String>(
-                value: option.value,
-                child: Text(
-                  option.text,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: AppTheme.textPrimary),
-                ),
-              ),
-            )
-            .toList(),
-        onChanged: _controlsDisabled ? null : onChanged,
+        disabled: _controlsDisabled,
+        onChanged: onChanged,
       ),
     );
   }
@@ -948,7 +939,7 @@ class QuestionEngineWidget extends StatelessWidget {
     required String hint,
     required ValueChanged<String?> onChanged,
   }) {
-    final selected = options.any((o) => o.value == value) ? value : null;
+    final selected = _AnswerDropdown.selectedValue(value, options);
     return ConstrainedBox(
       constraints: BoxConstraints(
         minWidth: compact ? 96 : 118,
@@ -966,32 +957,14 @@ class QuestionEngineWidget extends StatelessWidget {
           ),
         ),
         child: DropdownButtonHideUnderline(
-          child: DropdownButton<String>(
+          child: _AnswerDropdown(
             value: selected,
+            options: options,
+            hint: hint,
+            compact: true,
             isExpanded: true,
-            isDense: true,
-            dropdownColor: AppTheme.bgCard,
-            hint: Text(
-              hint,
-              style: const TextStyle(
-                color: AppTheme.textSecondary,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            items: options
-                .map(
-                  (option) => DropdownMenuItem<String>(
-                    value: option.value,
-                    child: Text(
-                      option.text,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: AppTheme.textPrimary),
-                    ),
-                  ),
-                )
-                .toList(),
-            onChanged: _controlsDisabled ? null : onChanged,
+            disabled: _controlsDisabled,
+            onChanged: onChanged,
           ),
         ),
       ),
@@ -1491,6 +1464,109 @@ class _MarkerPoint {
   final double y;
 
   const _MarkerPoint(this.x, this.y);
+}
+
+class _AnswerDropdown extends StatefulWidget {
+  final String? value;
+  final List<ParsedChoice> options;
+  final String hint;
+  final bool compact;
+  final bool isExpanded;
+  final bool disabled;
+  final ValueChanged<String?> onChanged;
+
+  const _AnswerDropdown({
+    required this.value,
+    required this.options,
+    required this.hint,
+    required this.compact,
+    required this.isExpanded,
+    required this.disabled,
+    required this.onChanged,
+  });
+
+  static String? selectedValue(String? value, List<ParsedChoice> options) {
+    final normalized = value?.trim();
+    if (normalized == null || normalized.isEmpty) return null;
+    for (final option in options) {
+      if (option.value.trim() == normalized) return option.value;
+    }
+    return null;
+  }
+
+  @override
+  State<_AnswerDropdown> createState() => _AnswerDropdownState();
+}
+
+class _AnswerDropdownState extends State<_AnswerDropdown> {
+  String? _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = _AnswerDropdown.selectedValue(widget.value, widget.options);
+  }
+
+  @override
+  void didUpdateWidget(covariant _AnswerDropdown oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final next = _AnswerDropdown.selectedValue(widget.value, widget.options);
+    if (next != _selected) _selected = next;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButton<String>(
+      value: _selected,
+      isExpanded: widget.isExpanded,
+      isDense: widget.compact,
+      underline: const SizedBox.shrink(),
+      dropdownColor: AppTheme.bgCard,
+      hint: Text(
+        widget.hint,
+        style: TextStyle(
+          color: AppTheme.textSecondary,
+          fontSize: 13,
+          fontWeight: widget.compact ? FontWeight.w700 : FontWeight.w400,
+        ),
+      ),
+      selectedItemBuilder: (context) => widget.options
+          .map(
+            (option) => Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                option.text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          )
+          .toList(),
+      items: widget.options
+          .map(
+            (option) => DropdownMenuItem<String>(
+              value: option.value,
+              child: Text(
+                option.text,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: AppTheme.textPrimary),
+              ),
+            ),
+          )
+          .toList(),
+      onChanged: widget.disabled
+          ? null
+          : (value) {
+              setState(() => _selected =
+                  _AnswerDropdown.selectedValue(value, widget.options));
+              widget.onChanged(value);
+            },
+    );
+  }
 }
 
 class _QuestionUiSpec {
