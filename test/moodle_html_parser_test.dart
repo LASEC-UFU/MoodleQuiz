@@ -525,5 +525,38 @@ void main() {
       expect(data.choices.single.infinite, isTrue);
       expect(data.choices.single.noOfDrags, 12);
     });
+
+    test('builds ordering controls from static Moodle list fallback', () {
+      const html = '''
+<div class="que ordering deferredfeedback notyetanswered">
+  <div class="formulation">
+    <input type="hidden" name="q42:24:sequencecheck" value="1" />
+    <div class="qtext"><p>Ordene os elementos.</p></div>
+    <div class="ablock">
+      <ul class="answer">
+        <li>Declarar o resultado completo y ± U</li>
+        <li>Informar o fator k utilizado</li>
+        <li>Registrar a incerteza expandida U</li>
+      </ul>
+    </div>
+  </div>
+</div>
+''';
+
+      final parsed = MoodleHtmlParser.parse(
+        html: html,
+        attemptId: 42,
+        slot: 24,
+        token: '',
+        baseUrl: '',
+      );
+
+      final controls = parsed.answerControls.where((c) => c.isSelect).toList();
+      expect(parsed.type, 'ordering');
+      expect(controls, hasLength(3));
+      expect(controls.first.name, 'q42:24_answer0');
+      expect(controls.first.label, contains('Declarar'));
+      expect(controls.first.options.map((o) => o.value), ['1', '2', '3']);
+    });
   });
 }

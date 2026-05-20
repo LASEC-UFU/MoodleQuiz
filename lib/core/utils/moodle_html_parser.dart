@@ -212,7 +212,7 @@ class MoodleHtmlParser {
     final htmlType = _extractTypeFromHtml(normalizedHtml);
 
     final choices = _extractChoices(normalizedHtml, token, baseUrl);
-    final answerControls =
+    var answerControls =
         _extractAnswerControls(normalizedHtml, token, baseUrl);
 
     // Resolve o tipo final: prefere o tipo inferido do HTML; fallback para contagem de radios
@@ -242,6 +242,16 @@ class MoodleHtmlParser {
     final extractedBase = _extractInputBaseName(normalizedHtml);
     final hardcoded = 'q$attemptId:${slot}_answer';
     final inputBase = extractedBase ?? hardcoded;
+
+    if (type == 'ordering' && !answerControls.any((c) => c.isSelect)) {
+      final fallbackControls = _extractOrderingFallbackControls(
+        normalizedHtml,
+        inputBase,
+        token,
+        baseUrl,
+      );
+      if (fallbackControls.isNotEmpty) answerControls = fallbackControls;
+    }
 
     // Dados específicos por tipo
     MatchData? matchData;
@@ -1063,7 +1073,79 @@ class MoodleHtmlParser {
     return MatchData(subQuestions: subQuestions, options: options);
   }
 
+  static List<MoodleAnswerControl> _extractOrderingFallbackControls(
+    String html,
+    String inputBase,
+    String token,
+    String baseUrl,
+  ) {
+    final fragment = html_parser.parseFragment(html);
+    final selectors = [
+      '.answer li',
+      '.answer label',
+      '.sortablelist li',
+      '.sortable li',
+      '[data-region="answer"] li',
+      '.ablock li',
+    ];
+
+    final items = <_ChoiceContent>[];
+    final seen = <String>{};
+    for (final selector in selectors) {
+      for (final element in fragment.querySelectorAll(selector)) {
+        if (element.querySelector('select') != null) continue;
+        if (_isMoodleUiControl(element)) continue;
+
+        final clone = html_parser.parseFragment(element.outerHtml);
+        for (final el in clone.querySelectorAll(
+            'select, input, button, .accesshide, .sr-only, '
+            '.visually-hidden, .visuallyhidden')) {
+          el.remove();
+        }
+
+        final elementClones = clone.nodes.whereType<dom.Element>();
+        final elementClone =
+            elementClones.isEmpty ? null : elementClones.first;
+        final rawHtml = elementClone?.innerHtml ?? element.innerHtml;
+        final htmlText = _rewriteResourceUrls(rawHtml, token, baseUrl);
+        final text = _stripHtml(htmlText).trim();
+        final key = _normalizePlainText(text);
+        if (key.isEmpty || !seen.add(key)) continue;
+        items.add(_ChoiceContent(text: text, html: htmlText.trim()));
+      }
+      if (items.isNotEmpty) break;
+    }
+
+    if (items.length < 2) return const [];
+
+    final options = List<ParsedChoice>.generate(
+      items.length,
+      (index) => ParsedChoice(value: '${index + 1}', text: '${index + 1}'),
+      growable: false,
+    );
+
+    return List<MoodleAnswerControl>.generate(
+      items.length,
+      (index) => MoodleAnswerControl(
+        name: '${_orderingAnswerBase(inputBase)}$index',
+        type: 'select',
+        label: items[index].text,
+        htmlLabel: items[index].html,
+        options: options,
+      ),
+      growable: false,
+    );
+  }
+
   // ── Extração de dados de marcadores sobre imagem (ddmarker) ─────────────
+
+  static String _orderingAnswerBase(String inputBase) {
+    if (inputBase.endsWith('_answer')) return inputBase;
+    if (inputBase.endsWith('answer')) {
+      return '${inputBase.substring(0, inputBase.length - 'answer'.length)}_answer';
+    }
+    return '${inputBase}_answer';
+  }
 
   static DdMarkerData? _extractDdMarkerData(
       String html, String token, String baseUrl) {
