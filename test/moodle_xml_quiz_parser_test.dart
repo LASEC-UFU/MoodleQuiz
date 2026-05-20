@@ -19,6 +19,10 @@ void main() {
     expect(match.matchData?.subQuestions, isNotEmpty);
     expect(match.matchData?.subQuestions.first.correctValue, '1');
 
+    final ordering = questions.firstWhere((q) => q.type == 'ordering');
+    expect(ordering.answerControls.where((c) => c.isSelect), hasLength(8));
+    expect(ordering.displayHtml, isNot(contains('<li>')));
+
     final gapselect = questions.firstWhere((q) => q.type == 'gapselect');
     expect(gapselect.gapInputData?.gapCount, 4);
     expect(gapselect.answerControls.where((c) => c.isSelect), hasLength(4));

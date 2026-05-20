@@ -128,4 +128,72 @@ void main() {
 
     expect(find.byType(Math), findsOneWidget);
   });
+
+  testWidgets('ordering question can move items up and down', (tester) async {
+    const options = [
+      ParsedChoice(value: '1', text: '1'),
+      ParsedChoice(value: '2', text: '2'),
+      ParsedChoice(value: '3', text: '3'),
+    ];
+    const question = QuestionEntity(
+      slot: 8,
+      page: 0,
+      text: 'Ordene',
+      htmlText: '<p>Ordene</p>',
+      displayHtml: '',
+      choices: [],
+      inputBaseName: 'q0:8_answer',
+      seqCheck: '1',
+      type: 'ordering',
+      answerControls: [
+        MoodleAnswerControl(
+          name: 'q0:8_answer0',
+          type: 'select',
+          label: 'A',
+          options: options,
+        ),
+        MoodleAnswerControl(
+          name: 'q0:8_answer1',
+          type: 'select',
+          label: 'B',
+          options: options,
+        ),
+        MoodleAnswerControl(
+          name: 'q0:8_answer2',
+          type: 'select',
+          label: 'C',
+          options: options,
+        ),
+      ],
+    );
+    var selected = <String, String>{};
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setState) => QuestionEngineWidget(
+              question: question,
+              mode: QuestionEngineMode.answer,
+              selectedAnswers: selected,
+              compact: true,
+              onSelectAnswer: (name, value) {
+                setState(() {
+                  selected = {...selected, name: value};
+                });
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Descer').first);
+    await tester.pumpAndSettle();
+
+    expect(selected['q0:8_answer0'], '2');
+    expect(selected['q0:8_answer1'], '1');
+    expect(tester.getTopLeft(find.text('B')).dy,
+        lessThan(tester.getTopLeft(find.text('A')).dy));
+  });
 }

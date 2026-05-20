@@ -186,6 +186,9 @@ class QuestionEngineWidget extends StatelessWidget {
     if (question.isMatch && question.matchData != null) {
       return question.htmlText.isNotEmpty ? question.htmlText : question.text;
     }
+    if (question.isOrdering) {
+      return question.htmlText.isNotEmpty ? question.htmlText : question.text;
+    }
     if ((question.isGapSelect || question.isDdwtos) &&
         question.gapInputData != null) {
       return _gapPromptHtml;
@@ -1639,7 +1642,7 @@ class _OrderingInputState extends State<_OrderingInput> {
           .indexOf(a.key)
           .compareTo(widget.controls.indexOf(b.key));
     });
-    return entries.map((entry) => entry.key).toList(growable: false);
+    return entries.map((entry) => entry.key).toList(growable: true);
   }
 
   int? _rankForValue(String value, List<ParsedChoice> options) {

@@ -199,17 +199,19 @@ class MoodleXmlQuizParser {
   static String _orderingHtml(xml.XmlElement question, String qName) {
     final answers = question.findElements('answer').toList(growable: false);
     final labels = answers.map(_answerText).toList(growable: false);
-    final buffer = StringBuffer('<div class="answer ordering">');
+    final buffer = StringBuffer('<table class="answer ordering"><tbody>');
     for (var i = 0; i < labels.length; i++) {
-      buffer.write('<label>${labels[i]}</label>');
-      buffer.write('<select name="${qName}_answer$i">');
+      buffer.write('<tr>');
+      buffer.write('<td class="text">${labels[i]}</td>');
+      buffer.write('<td class="control"><select name="${qName}_answer$i">');
       buffer.write('<option value="0"></option>');
       for (var j = 0; j < labels.length; j++) {
         buffer.write('<option value="${j + 1}">${j + 1}</option>');
       }
-      buffer.write('</select>');
+      buffer.write('</select></td>');
+      buffer.write('</tr>');
     }
-    buffer.write('</div>');
+    buffer.write('</tbody></table>');
     return buffer.toString();
   }
 
