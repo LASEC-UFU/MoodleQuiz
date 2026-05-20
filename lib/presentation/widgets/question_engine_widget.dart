@@ -301,6 +301,12 @@ class QuestionEngineWidget extends StatelessWidget {
     }
 
     if (_isAnswerMode) {
+      final gap = question.gapInputData;
+      if ((question.isGapSelect || question.isDdwtos) &&
+          gap != null &&
+          _gapPromptHasInlineTargets) {
+        return const [];
+      }
       return [
         _buildInfoBanner(
           icon: Icons.info_outline_rounded,

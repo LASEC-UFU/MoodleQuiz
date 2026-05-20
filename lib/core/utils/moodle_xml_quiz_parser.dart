@@ -107,8 +107,8 @@ class MoodleXmlQuizParser {
       'calculatedmulti' =>
         _multichoiceHtml(question, qName),
       'match' => _matchHtml(question, qName),
-      'gapselect' => _gapSelectHtml(question, qName, prompt),
-      'ddwtos' => _gapSelectHtml(question, qName, prompt),
+      'gapselect' => _gapSelectHtml(question, qName, prompt, type),
+      'ddwtos' => _gapSelectHtml(question, qName, prompt, type),
       'ordering' => _orderingHtml(question, qName),
       'essay' => '<textarea name="${qName}_answer"></textarea>',
       'shortanswer' => '<input type="text" name="${qName}_answer" />',
@@ -120,7 +120,7 @@ class MoodleXmlQuizParser {
     };
 
     final qtext = (type == 'gapselect' || type == 'ddwtos')
-        ? _gapPromptWithSelects(question, qName, prompt)
+        ? _gapPromptWithSelects(question, qName, prompt, type)
         : prompt;
     return '''
 <div class="que $type immediatefeedback notyetanswered">
@@ -171,16 +171,18 @@ class MoodleXmlQuizParser {
   }
 
   static String _gapSelectHtml(
-      xml.XmlElement question, String qName, String prompt) {
-    return _gapPromptWithSelects(question, qName, prompt);
+      xml.XmlElement question, String qName, String prompt, String type) {
+    return _gapPromptWithSelects(question, qName, prompt, type);
   }
 
   static String _gapPromptWithSelects(
-      xml.XmlElement question, String qName, String prompt) {
+      xml.XmlElement question, String qName, String prompt, String type) {
     final options = _gapOptions(question);
     return prompt.replaceAllMapped(RegExp(r'\[\[(\d+)\]\]'), (match) {
       final gap = int.tryParse(match.group(1) ?? '') ?? 1;
-      final groupOptions = options.where((o) => o.group == gap).toList();
+      final groupOptions = type == 'ddwtos'
+          ? <_GapOption>[]
+          : options.where((o) => o.group == gap).toList();
       final visibleOptions = groupOptions.isEmpty ? options : groupOptions;
       final buffer = StringBuffer('<select name="${qName}_p$gap">');
       buffer.write('<option value="0"></option>');
@@ -270,7 +272,8 @@ class MoodleXmlQuizParser {
       }
     } else if (type == 'gapselect' || type == 'ddwtos') {
       final options = _gapOptions(question);
-      for (var i = 1; i <= options.length; i++) {
+      final gapCount = _gapCount(question);
+      for (var i = 1; i <= gapCount; i++) {
         final option = options.firstWhere(
           (o) => o.index == i,
           orElse: () => _GapOption(index: 0, group: 0, text: ''),
@@ -297,13 +300,23 @@ class MoodleXmlQuizParser {
     final result = <_GapOption>[];
     for (var i = 0; i < raw.length; i++) {
       final group = int.tryParse(_childText(raw[i], 'group')) ?? 1;
+      final no = int.tryParse(_childText(raw[i], 'no')) ?? (i + 1);
       result.add(_GapOption(
-        index: i + 1,
+        index: no,
         group: group,
         text: _textElement(raw[i]),
       ));
     }
     return result;
+  }
+
+  static int _gapCount(xml.XmlElement question) {
+    final prompt = _formattedText(question, 'questiontext');
+    final matches = RegExp(r'\[\[(\d+)\]\]').allMatches(prompt).toList();
+    if (matches.isEmpty) return 0;
+    return matches
+        .map((m) => int.tryParse(m.group(1) ?? '') ?? 0)
+        .fold<int>(0, max);
   }
 
   static String _applyFirstDatasetValues(String html, xml.XmlElement question) {
