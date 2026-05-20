@@ -381,6 +381,8 @@ class QuizRepositoryImpl implements IQuizRepository {
     log('Total bruto: ${allQuestions.length} questões em $pageCount página(s)');
     if (allQuestions.isEmpty) return allQuestions;
 
+    await _saveProbeAnswersForReview(user, attemptId, allQuestions, log);
+
     // 2. Finaliza a attempt para liberar revisão
     log('Finalizando attempt para obter revisão…');
     try {
@@ -424,10 +426,16 @@ class QuizRepositoryImpl implements IQuizRepository {
       final feedback = reviewHtml.isEmpty
           ? ''
           : MoodleHtmlParser.parseGeneralFeedback(reviewHtml);
-      final rightAnswerHtml = reviewHtml.isEmpty
+      var rightAnswerHtml = reviewHtml.isEmpty
           ? ''
           : MoodleHtmlParser.parseRightAnswerHtml(
               reviewHtml, user.token, user.baseUrl);
+      if (rightAnswerHtml.isEmpty && reviewHtml.isNotEmpty) {
+        rightAnswerHtml = _fallbackSelectRightAnswerHtml(
+          q,
+          MoodleHtmlParser.parseSelectedSelectAnswers(reviewHtml),
+        );
+      }
 
       // Questões sem alternativas de rádio: incluídas para somente leitura
       // (Numérica, Calculada, ShortAnswer, Match, GapSelect, Cloze…)
@@ -853,6 +861,158 @@ class QuizRepositoryImpl implements IQuizRepository {
   @override
   Future<void> setFinished(UserEntity user, int courseId) =>
       _state.setFinished(user.baseUrl, user.token, courseId);
+
+  Future<void> _saveProbeAnswersForReview(
+    UserEntity user,
+    int attemptId,
+    List<QuestionEntity> questions,
+    void Function(String) log,
+  ) async {
+    log('Salvando respostas de diagnostico para forcar revisao do Moodle...');
+
+    for (final question in questions) {
+      final probe = _probeAnswersForQuestion(question);
+      if (probe.isEmpty) continue;
+
+      final seqCheckKey =
+          question.inputBaseName.replaceFirst('answer', ':sequencecheck');
+      final submitKey =
+          question.inputBaseName.replaceFirst('answer', '-submit');
+      final answerData = {
+        ...probe,
+        seqCheckKey: question.seqCheck,
+        submitKey: '1',
+      };
+
+      try {
+        await _moodle.processAttempt(
+          user.baseUrl,
+          user.token,
+          attemptId,
+          answerData,
+          page: question.page,
+        );
+        log('  -> slot=${question.slot} resposta diagnostica salva');
+      } catch (e) {
+        log('  -> slot=${question.slot} nao aceitou resposta diagnostica: $e');
+      }
+    }
+  }
+
+  static Map<String, String> _probeAnswersForQuestion(QuestionEntity question) {
+    final answers = <String, String>{};
+
+    if (question.isMultiChoice && question.choices.isNotEmpty) {
+      answers[question.inputBaseName] = question.choices.first.value;
+      return answers;
+    }
+
+    if ((question.isNumerical || question.isShortAnswer) &&
+        question.answerInputName != null) {
+      answers[question.answerInputName!] =
+          question.isNumerical ? '999999999' : '__mq_probe__';
+      return answers;
+    }
+
+    if (question.isMatch && question.matchData != null) {
+      final options = question.matchData!.options;
+      if (options.isEmpty) return answers;
+      for (final sub in question.matchData!.subQuestions) {
+        answers[sub.inputName] = options.first.value;
+      }
+      return answers;
+    }
+
+    final gap = question.gapInputData;
+    if ((question.isGapSelect || question.isDdwtos) && gap != null) {
+      for (var i = 1; i <= gap.gapCount; i++) {
+        final options = gap.optionsForGap(i);
+        if (options.isNotEmpty) answers[gap.inputName(i)] = options.first.value;
+      }
+      return answers;
+    }
+
+    if (question.isOrdering) {
+      final controls = question.answerControls
+          .where((c) => c.isSelect && c.options.isNotEmpty)
+          .toList(growable: false);
+      for (var i = 0; i < controls.length; i++) {
+        final control = controls[i];
+        final rank = controls.length - i;
+        final option = control.options.firstWhere(
+          (o) => o.value.trim() == '$rank' || o.text.trim() == '$rank',
+          orElse: () => control.options.first,
+        );
+        answers[control.name] = option.value;
+      }
+      return answers;
+    }
+
+    for (final control in question.answerControls) {
+      if (!control.isAnswerable) continue;
+      if (control.isSelect && control.options.isNotEmpty) {
+        answers[control.name] = control.options.first.value;
+      } else if (control.isMultipleChoice) {
+        answers[control.name] = control.value.isEmpty ? '1' : control.value;
+      } else if (control.isText || control.isLongText) {
+        answers[control.name] = '999999999';
+      }
+    }
+
+    return answers;
+  }
+
+  static String _fallbackSelectRightAnswerHtml(
+    QuestionEntity question,
+    Map<String, ParsedChoice> selectedSelects,
+  ) {
+    if (selectedSelects.isEmpty) return '';
+
+    final items = <String>[];
+    final gap = question.gapInputData;
+    if ((question.isGapSelect || question.isDdwtos) && gap != null) {
+      for (var i = 1; i <= gap.gapCount; i++) {
+        final selected = selectedSelects[gap.inputName(i)];
+        if (selected == null) continue;
+        items.add(
+            '<li><strong>[$i]</strong> ${_escapeAnswerHtml(selected.text)}</li>');
+      }
+    } else if (question.isOrdering) {
+      final ranked = <int, String>{};
+      for (final control in question.answerControls) {
+        final selected = selectedSelects[control.name];
+        if (selected == null) continue;
+        final rank = int.tryParse(selected.text.trim()) ??
+            int.tryParse(selected.value.trim());
+        if (rank == null || rank <= 0) continue;
+        final label = control.label.trim().isNotEmpty
+            ? control.label
+            : _plainDiagnostic(control.htmlLabel);
+        if (label.trim().isNotEmpty) ranked[rank] = label.trim();
+      }
+      final ranks = ranked.keys.toList()..sort();
+      for (final rank in ranks) {
+        items.add(
+            '<li><strong>$rank.</strong> ${_escapeAnswerHtml(ranked[rank]!)}</li>');
+      }
+    } else {
+      for (final entry in selectedSelects.entries) {
+        items.add('<li>${_escapeAnswerHtml(entry.value.text)}</li>');
+      }
+    }
+
+    if (items.isEmpty) return '';
+    return '<div class="rightanswer">Resposta correta:<ol>${items.join()}</ol></div>';
+  }
+
+  static String _escapeAnswerHtml(String value) {
+    return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+  }
 
   static void _logGapPromptDiagnostics(
     void Function(String) log, {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/theme/app_theme.dart';
@@ -159,9 +160,12 @@ class QuestionEngineWidget extends StatelessWidget {
 
   Widget _buildQuestionPrompt(TextStyle textStyle) {
     final html = _promptHtml;
-    final content = html.isNotEmpty
-        ? MoodleHtmlRenderer(html: html, textStyle: textStyle)
-        : Text(question.text, style: textStyle);
+    final content = (question.isGapSelect || question.isDdwtos) &&
+            question.gapInputData != null
+        ? _buildGapInlinePrompt(textStyle)
+        : html.isNotEmpty
+            ? MoodleHtmlRenderer(html: html, textStyle: textStyle)
+            : Text(question.text, style: textStyle);
 
     if (compact) return content;
 
@@ -178,6 +182,9 @@ class QuestionEngineWidget extends StatelessWidget {
     }
     if (question.isDdImage && question.ddMarkerData != null) {
       return question.htmlText;
+    }
+    if (question.isMatch && question.matchData != null) {
+      return question.htmlText.isNotEmpty ? question.htmlText : question.text;
     }
     if ((question.isGapSelect || question.isDdwtos) &&
         question.gapInputData != null) {
@@ -249,7 +256,9 @@ class QuestionEngineWidget extends StatelessWidget {
         surface.add(_buildDdMarkerInputs());
       } else if ((question.isGapSelect || question.isDdwtos) &&
           question.gapInputData != null) {
-        surface.add(_buildGapInputs());
+        if (!_gapPromptHasInlineTargets) {
+          surface.add(_buildGapInputs());
+        }
       } else {
         final checkboxControls = _answerableControls
             .where((c) => c.isMultipleChoice)
@@ -311,6 +320,16 @@ class QuestionEngineWidget extends StatelessWidget {
   List<MoodleAnswerControl> get _orderingControls => _answerableControls
       .where((c) => c.isSelect && c.options.isNotEmpty)
       .toList();
+
+  Map<String, String> get _displaySelectedAnswers {
+    if (_isAnswerMode || !showCorrect || question.rightAnswerHtml.isEmpty) {
+      return selectedAnswers;
+    }
+    return {
+      ...selectedAnswers,
+      ..._correctAnswersFromRightAnswer(),
+    };
+  }
 
   List<MoodleAnswerControl> get _genericControls {
     final controls = _answerableControls.where((c) {
@@ -494,32 +513,32 @@ class QuestionEngineWidget extends StatelessWidget {
           final selected = selectedAnswers[sub.inputName] ??
               (!_isAnswerMode && showCorrect ? sub.correctValue : null);
           return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Row(
-                  children: [
-                    _badge('${index + 1}', false),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: sub.htmlText.isNotEmpty
-                          ? MoodleHtmlRenderer(
-                              html: sub.htmlText,
-                              textStyle: textStyle.copyWith(fontSize: 15),
-                            )
-                          : Text(sub.text, style: textStyle),
-                    ),
-                  ],
+                _badge('${index + 1}', false),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 5,
+                  child: sub.htmlText.isNotEmpty
+                      ? MoodleHtmlRenderer(
+                          html: sub.htmlText,
+                          textStyle: textStyle.copyWith(fontSize: 15),
+                        )
+                      : Text(sub.text, style: textStyle),
                 ),
-                const SizedBox(height: 8),
-                _dropdown(
-                  value: selected,
-                  options: matchData.options,
-                  hint: 'Escolha uma opcao...',
-                  onChanged: (value) => onSelectAnswer?.call(
-                    sub.inputName,
-                    value ?? '',
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 4,
+                  child: _dropdown(
+                    value: selected,
+                    options: matchData.options,
+                    hint: 'Escolha uma opcao...',
+                    onChanged: (value) => onSelectAnswer?.call(
+                      sub.inputName,
+                      value ?? '',
+                    ),
                   ),
                 ),
               ],
@@ -548,7 +567,7 @@ class QuestionEngineWidget extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: _dropdown(
-                    value: selectedAnswers[inputName],
+                    value: _displaySelectedAnswers[inputName],
                     options: gap.optionsForGap(gapNum),
                     hint: 'Preencha a lacuna [$gapNum]...',
                     onChanged: (value) => onSelectAnswer?.call(
@@ -563,6 +582,89 @@ class QuestionEngineWidget extends StatelessWidget {
         }),
       ),
     );
+  }
+
+  bool get _gapPromptHasInlineTargets {
+    final gap = question.gapInputData;
+    if (gap == null) return false;
+    final html = _gapInlineHtml;
+    return RegExp(r'\[\d+\]').hasMatch(html) ||
+        RegExp(r'<select\b', caseSensitive: false).hasMatch(html);
+  }
+
+  String get _gapInlineHtml {
+    final markerHtml = _gapPromptHtml;
+    if (_promptQuality(markerHtml) == _PromptQuality.visibleText) {
+      return markerHtml;
+    }
+    if (question.displayHtml.trim().isNotEmpty) return question.displayHtml;
+    return markerHtml;
+  }
+
+  Widget _buildGapInlinePrompt(TextStyle textStyle) {
+    final gap = question.gapInputData!;
+    final html = _gapInlineHtml;
+    if (html.trim().isEmpty) return Text(question.text, style: textStyle);
+
+    return HtmlWidget(
+      html,
+      textStyle: textStyle,
+      customWidgetBuilder: (element) {
+        final gapNum = _gapNumberFromElement(element);
+        if (gapNum == null || gapNum < 1 || gapNum > gap.gapCount) {
+          return null;
+        }
+        final inputName = gap.inputName(gapNum);
+        return InlineCustomWidget(
+          alignment: PlaceholderAlignment.middle,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            child: _inlineDropdown(
+              value: _displaySelectedAnswers[inputName],
+              options: gap.optionsForGap(gapNum),
+              hint: '[$gapNum]',
+              onChanged: (value) => onSelectAnswer?.call(
+                inputName,
+                value ?? '',
+              ),
+            ),
+          ),
+        );
+      },
+      customStylesBuilder: (element) {
+        if (element.localName == 'table') {
+          return {
+            'border-collapse': 'collapse',
+            'width': 'auto',
+            'max-width': '100%',
+          };
+        }
+        if (element.localName == 'td' || element.localName == 'th') {
+          return {'border': '1px solid #555', 'padding': '4px 8px'};
+        }
+        return null;
+      },
+    );
+  }
+
+  int? _gapNumberFromElement(dynamic element) {
+    final localName = element.localName?.toString().toLowerCase() ?? '';
+    if (localName != 'select' &&
+        localName != 'span' &&
+        localName != 'input' &&
+        localName != 'textarea') {
+      return null;
+    }
+    final name = element.attributes['name']?.toString() ?? '';
+    final fromName = RegExp(r'(?:_p|gap|blank)(\d+)$', caseSensitive: false)
+        .firstMatch(name)
+        ?.group(1);
+    if (fromName != null) return int.tryParse(fromName);
+
+    final text = element.text?.toString() ?? '';
+    final fromText = RegExp(r'\[(\d+)\]').firstMatch(text)?.group(1);
+    if (fromText != null) return int.tryParse(fromText);
+    return null;
   }
 
   Widget _buildDdMarkerInputs() {
@@ -591,12 +693,111 @@ class QuestionEngineWidget extends StatelessWidget {
   Widget _buildOrderingInputs(TextStyle textStyle) {
     return _OrderingInput(
       controls: _orderingControls,
-      selectedAnswers: selectedAnswers,
+      selectedAnswers: _displaySelectedAnswers,
       disabled: _controlsDisabled,
       compact: compact,
       textStyle: textStyle,
       onChanged: (inputName, value) => onSelectAnswer?.call(inputName, value),
     );
+  }
+
+  Map<String, String> _correctAnswersFromRightAnswer() {
+    final html = question.rightAnswerHtml;
+    if (html.trim().isEmpty) return const {};
+
+    final result = <String, String>{};
+    final plain = _normalizeAnswerText(_plainHtml(html));
+    final gap = question.gapInputData;
+    if ((question.isGapSelect || question.isDdwtos) && gap != null) {
+      for (var i = 1; i <= gap.gapCount; i++) {
+        final options = gap.optionsForGap(i);
+        final value = _valueWhoseTextAppearsIn(plain, options);
+        if (value != null) result[gap.inputName(i)] = value;
+      }
+    }
+
+    if (question.isOrdering) {
+      for (final control in _orderingControls) {
+        final label = _normalizeAnswerText(
+          control.label.isNotEmpty
+              ? control.label
+              : _plainHtml(control.htmlLabel),
+        );
+        if (label.isEmpty) continue;
+
+        final rank = _rankBeforeLabel(plain, label);
+        if (rank == null) continue;
+        final value = _valueForRank(control, rank);
+        if (value.isNotEmpty) result[control.name] = value;
+      }
+    }
+
+    return result;
+  }
+
+  String? _valueWhoseTextAppearsIn(
+    String plainRightAnswer,
+    List<ParsedChoice> options,
+  ) {
+    final sorted = [...options]
+      ..sort((a, b) => b.text.length.compareTo(a.text.length));
+    for (final option in sorted) {
+      final text = _normalizeAnswerText(option.text);
+      if (text.isNotEmpty && plainRightAnswer.contains(text)) {
+        return option.value;
+      }
+    }
+    return null;
+  }
+
+  int? _rankBeforeLabel(String plainRightAnswer, String normalizedLabel) {
+    final escaped = RegExp.escape(normalizedLabel);
+    final match =
+        RegExp(r'(?:^|\s)(\d+)\.?\s+' + escaped).firstMatch(plainRightAnswer);
+    return match == null ? null : int.tryParse(match.group(1) ?? '');
+  }
+
+  String _valueForRank(MoodleAnswerControl control, int rank) {
+    for (final option in control.options) {
+      if (option.value.trim() == '$rank' || option.text.trim() == '$rank') {
+        return option.value;
+      }
+    }
+    final index = rank - 1;
+    if (index >= 0 && index < control.options.length) {
+      return control.options[index].value;
+    }
+    return '';
+  }
+
+  static String _plainHtml(String html) {
+    return html
+        .replaceAll(
+            RegExp(r'<script\b[^>]*>.*?</script>',
+                caseSensitive: false, dotAll: true),
+            ' ')
+        .replaceAll(
+            RegExp(r'<style\b[^>]*>.*?</style>',
+                caseSensitive: false, dotAll: true),
+            ' ')
+        .replaceAll(RegExp(r'<[^>]+>'), ' ')
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&#160;', ' ')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'")
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  static String _normalizeAnswerText(String value) {
+    return value
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^\p{L}\p{N}%]+', unicode: true), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 
   Widget _buildGenericControls(List<MoodleAnswerControl> controls) {
@@ -731,6 +932,62 @@ class QuestionEngineWidget extends StatelessWidget {
             )
             .toList(),
         onChanged: _controlsDisabled ? null : onChanged,
+      ),
+    );
+  }
+
+  Widget _inlineDropdown({
+    required String? value,
+    required List<ParsedChoice> options,
+    required String hint,
+    required ValueChanged<String?> onChanged,
+  }) {
+    final selected = options.any((o) => o.value == value) ? value : null;
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        minWidth: compact ? 96 : 118,
+        maxWidth: compact ? 160 : 220,
+        minHeight: compact ? 34 : 38,
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: _controlsDisabled ? AppTheme.bgCard : AppTheme.bgDark,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: selected == null ? AppTheme.bgCardAlt : AppTheme.primary,
+            width: selected == null ? 1 : 1.5,
+          ),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            value: selected,
+            isExpanded: true,
+            isDense: true,
+            dropdownColor: AppTheme.bgCard,
+            hint: Text(
+              hint,
+              style: const TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            items: options
+                .map(
+                  (option) => DropdownMenuItem<String>(
+                    value: option.value,
+                    child: Text(
+                      option.text,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: AppTheme.textPrimary),
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: _controlsDisabled ? null : onChanged,
+          ),
+        ),
       ),
     );
   }
@@ -1266,12 +1523,12 @@ class _OrderingInput extends StatefulWidget {
 }
 
 class _OrderingInputState extends State<_OrderingInput> {
-  late List<_OrderingEntry> _ordered;
+  late List<MoodleAnswerControl> _ordered;
 
   @override
   void initState() {
     super.initState();
-    _ordered = _buildOrderedEntries();
+    _ordered = _buildOrderedControls();
   }
 
   @override
@@ -1279,31 +1536,28 @@ class _OrderingInputState extends State<_OrderingInput> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.controls != widget.controls ||
         oldWidget.selectedAnswers != widget.selectedAnswers) {
-      _ordered = _buildOrderedEntries();
+      _ordered = _buildOrderedControls();
     }
   }
 
-  List<_OrderingEntry> _buildOrderedEntries() {
+  List<MoodleAnswerControl> _buildOrderedControls() {
     final entries = widget.controls.asMap().entries.map((entry) {
-      final originalIndex = entry.key;
+      final index = entry.key;
       final control = entry.value;
-      final selected = widget.selectedAnswers[control.name] ?? '';
-      final rank =
-          _rankForValue(selected, control.options) ?? (originalIndex + 1);
-      return _OrderingEntry(
-        control: control,
-        originalIndex: originalIndex,
-        rank: rank,
+      return MapEntry(
+        control,
+        _rankForControl(control) ?? (index + 1),
       );
     }).toList();
 
     entries.sort((a, b) {
-      final byRank = a.rank.compareTo(b.rank);
+      final byRank = a.value.compareTo(b.value);
       if (byRank != 0) return byRank;
-      return a.originalIndex.compareTo(b.originalIndex);
+      return widget.controls
+          .indexOf(a.key)
+          .compareTo(widget.controls.indexOf(b.key));
     });
-
-    return entries;
+    return entries.map((entry) => entry.key).toList(growable: false);
   }
 
   int? _rankForValue(String value, List<ParsedChoice> options) {
@@ -1341,17 +1595,23 @@ class _OrderingInputState extends State<_OrderingInput> {
     return control.options.isNotEmpty ? control.options.first.value : '';
   }
 
-  void _onReorder(int oldIndex, int newIndex) {
+  int? _rankForControl(MoodleAnswerControl control) {
+    return _rankForValue(
+        widget.selectedAnswers[control.name] ?? '', control.options);
+  }
+
+  void _move(int index, int delta) {
     if (widget.disabled) return;
+    final nextIndex = index + delta;
+    if (nextIndex < 0 || nextIndex >= _ordered.length) return;
 
     setState(() {
-      if (newIndex > oldIndex) newIndex -= 1;
-      final item = _ordered.removeAt(oldIndex);
-      _ordered.insert(newIndex, item);
+      final item = _ordered.removeAt(index);
+      _ordered.insert(nextIndex, item);
     });
 
     for (var i = 0; i < _ordered.length; i++) {
-      final control = _ordered[i].control;
+      final control = _ordered[i];
       widget.onChanged(control.name, _valueForRank(control, i + 1));
     }
   }
@@ -1367,7 +1627,7 @@ class _OrderingInputState extends State<_OrderingInput> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Arraste os itens para definir a ordem final.',
+            'Use as setas para ajustar a ordem final dos itens.',
             style: TextStyle(
               color: AppTheme.textSecondary,
               fontSize: widget.compact ? 11 : 12,
@@ -1375,87 +1635,84 @@ class _OrderingInputState extends State<_OrderingInput> {
             ),
           ),
           const SizedBox(height: 10),
-          ReorderableListView.builder(
-            itemCount: _ordered.length,
-            shrinkWrap: true,
-            buildDefaultDragHandles: false,
-            physics: const NeverScrollableScrollPhysics(),
-            onReorder: _onReorder,
-            itemBuilder: (context, index) {
-              final entry = _ordered[index];
-              final control = entry.control;
-              final labelWidget = control.htmlLabel.isNotEmpty
-                  ? MoodleHtmlRenderer(
-                      html: control.htmlLabel,
-                      textStyle: widget.textStyle.copyWith(fontSize: 15),
-                    )
-                  : Text(
-                      control.label.isNotEmpty
-                          ? control.label
-                          : 'Item ${index + 1}',
-                      style: widget.textStyle.copyWith(fontSize: 15),
-                    );
-
-              return Container(
-                key: ValueKey(control.name),
-                margin: const EdgeInsets.only(bottom: 8),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppTheme.bgDark,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppTheme.bgCardAlt),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 30,
-                      height: 30,
-                      decoration: BoxDecoration(
-                        color: AppTheme.primary,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        '${index + 1}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(child: labelWidget),
-                    const SizedBox(width: 10),
-                    ReorderableDragStartListener(
-                      index: index,
-                      enabled: !widget.disabled,
-                      child: Icon(
-                        Icons.drag_indicator_rounded,
-                        color: widget.disabled
-                            ? AppTheme.textSecondary.withValues(alpha: 0.4)
-                            : AppTheme.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
+          Column(
+            children: List.generate(_ordered.length, (index) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _orderingTile(index),
               );
-            },
+            }),
           ),
         ],
       ),
     );
   }
-}
 
-class _OrderingEntry {
-  final MoodleAnswerControl control;
-  final int originalIndex;
-  final int rank;
+  Widget _orderingTile(int index) {
+    final control = _ordered[index];
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppTheme.bgDark,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppTheme.bgCardAlt),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.drag_handle_rounded,
+            color: AppTheme.textSecondary.withValues(alpha: 0.8),
+          ),
+          const SizedBox(width: 10),
+          Expanded(child: _orderingLabel(control, null)),
+          const SizedBox(width: 8),
+          Tooltip(
+            message: 'Subir',
+            child: IconButton(
+              onPressed:
+                  widget.disabled || index == 0 ? null : () => _move(index, -1),
+              icon: const Icon(Icons.keyboard_arrow_up_rounded),
+              color: AppTheme.textPrimary,
+              disabledColor: AppTheme.textSecondary.withValues(alpha: 0.35),
+              constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+              padding: EdgeInsets.zero,
+            ),
+          ),
+          Tooltip(
+            message: 'Descer',
+            child: IconButton(
+              onPressed: widget.disabled || index == _ordered.length - 1
+                  ? null
+                  : () => _move(index, 1),
+              icon: const Icon(Icons.keyboard_arrow_down_rounded),
+              color: AppTheme.textPrimary,
+              disabledColor: AppTheme.textSecondary.withValues(alpha: 0.35),
+              constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+              padding: EdgeInsets.zero,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-  const _OrderingEntry({
-    required this.control,
-    required this.originalIndex,
-    required this.rank,
-  });
+  Widget _orderingLabel(MoodleAnswerControl control, Color? color) {
+    if (control.htmlLabel.isNotEmpty) {
+      return MoodleHtmlRenderer(
+        html: control.htmlLabel,
+        textStyle: widget.textStyle.copyWith(
+          fontSize: 15,
+          color: color ?? AppTheme.textPrimary,
+        ),
+      );
+    }
+    return Text(
+      control.label.isNotEmpty ? control.label : 'Item',
+      overflow: TextOverflow.ellipsis,
+      style: widget.textStyle.copyWith(
+        fontSize: 15,
+        color: color ?? AppTheme.textPrimary,
+      ),
+    );
+  }
 }

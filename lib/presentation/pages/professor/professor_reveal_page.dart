@@ -99,6 +99,38 @@ class _RevealScaffoldState extends State<_RevealScaffold> {
                             fontSize: 17),
                       ),
                     ),
+                    if (question != null) ...[
+                      const SizedBox(width: 8),
+                      FilterChip(
+                        selected: _showCorrectAnswer,
+                        onSelected: (value) =>
+                            setState(() => _showCorrectAnswer = value),
+                        avatar: Icon(
+                          _showCorrectAnswer
+                              ? Icons.check_circle_rounded
+                              : Icons.visibility_rounded,
+                          size: 16,
+                          color: _showCorrectAnswer
+                              ? AppTheme.success
+                              : AppTheme.textSecondary,
+                        ),
+                        label: const Text('Resposta correta'),
+                        selectedColor: AppTheme.success.withValues(alpha: 0.18),
+                        backgroundColor: AppTheme.bgCardAlt,
+                        side: BorderSide(
+                          color: _showCorrectAnswer
+                              ? AppTheme.success
+                              : AppTheme.bgCardAlt,
+                        ),
+                        labelStyle: TextStyle(
+                          color: _showCorrectAnswer
+                              ? AppTheme.success
+                              : AppTheme.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                     if (hasFeedback)
                       TextButton.icon(
                         onPressed: () =>
@@ -143,10 +175,7 @@ class _RevealScaffoldState extends State<_RevealScaffold> {
               ),
 
               // ── Checkbox mostrar resposta correta ─────────────────
-              if (question != null &&
-                  (question.isInteractive ||
-                      question.rightAnswerHtml.isNotEmpty ||
-                      question.generalFeedback.isNotEmpty))
+              if (question != null)
                 Padding(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 20, vertical: 10),

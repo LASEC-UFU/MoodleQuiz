@@ -801,6 +801,34 @@ class MoodleHtmlParser {
     return result;
   }
 
+  /// Extrai selects que o Moodle devolve ja preenchidos na revisao.
+  /// Usado como fallback para gapselect, ddwtos e ordering quando a revisao
+  /// nao traz um bloco `.rightanswer` separado.
+  static Map<String, ParsedChoice> parseSelectedSelectAnswers(
+      String reviewHtml) {
+    final result = <String, ParsedChoice>{};
+    final fragment = html_parser.parseFragment(reviewHtml);
+
+    for (final select in fragment.querySelectorAll('select')) {
+      final name = select.attributes['name'] ?? '';
+      if (name.isEmpty || !_isAnswerFieldName(name)) continue;
+
+      final selected =
+          select.querySelector('option[selected], option[selected="selected"]');
+      if (selected == null) continue;
+
+      final value = selected.attributes['value'] ?? '';
+      if (value.isEmpty || value == '-1' || value == '0') continue;
+
+      final text = _stripHtml(selected.innerHtml).trim();
+      if (text.isEmpty) continue;
+
+      result[name] = ParsedChoice(value: value, text: text);
+    }
+
+    return result;
+  }
+
   /// Extrai o feedback geral da questão do HTML de revisão.
   static String parseGeneralFeedback(String reviewHtml) {
     final content = _extractTag(reviewHtml, 'generalfeedback') ?? '';
