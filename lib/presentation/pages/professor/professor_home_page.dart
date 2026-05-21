@@ -16,6 +16,7 @@ import '../../controllers/auth_controller.dart';
 import '../../controllers/professor_controller.dart';
 import '../../../core/utils/fullscreen_button.dart';
 import '../../widgets/question_engine_widget.dart';
+import '../../widgets/moodle_html_renderer.dart';
 import '../../widgets/timer_widget.dart';
 
 /// Painel do professor – controle de questões + status do quiz.
@@ -28,35 +29,42 @@ class ProfessorHomePage extends StatefulWidget {
 
 class _ProfessorHomePageState extends State<ProfessorHomePage> {
   int _questionIndex = 0; // índice da questão atualmente selecionada
+  bool _showQuestionThumbnails = false;
   late ProfessorController _prof;
-  QuizStatus? _prevStatus;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _prof = context.read<ProfessorController>();
-      _prevStatus = _prof.quizState.status;
-      _prof.addListener(_onProfessorStateChanged);
+      if (mounted) {
+        setState(() {
+          _questionIndex = _prof.selectedQuestionIndex;
+          _showQuestionThumbnails = _prof.showQuestionThumbnails;
+        });
+      }
       _prof.startPolling();
     });
   }
 
   /// Quando a questão passa de ativa → encerrada, avança automaticamente
   /// para a próxima questão na lista (se existir).
-  void _onProfessorStateChanged() {
-    final status = _prof.quizState.status;
-    if (_prevStatus == QuizStatus.active &&
-        status != QuizStatus.active &&
-        _questionIndex < _prof.questions.length - 1) {
-      setState(() => _questionIndex += 1);
-    }
-    _prevStatus = status;
+  void _selectQuestion(ProfessorController prof, int index) {
+    if (index < 0 || index >= prof.questions.length) return;
+    prof.setSelectedQuestionIndex(index);
+    setState(() => _questionIndex = index);
+    prof.logQuestionDiagnostics(prof.questions[index], index);
+  }
+
+  void _moveQuestion(ProfessorController prof, int delta) {
+    if (prof.questions.isEmpty) return;
+    final next = (_questionIndex + delta).clamp(0, prof.questions.length - 1);
+    if (next == _questionIndex) return;
+    _selectQuestion(prof, next);
   }
 
   @override
   void dispose() {
-    _prof.removeListener(_onProfessorStateChanged);
     _prof.stopPolling();
     super.dispose();
   }
@@ -65,7 +73,21 @@ class _ProfessorHomePageState extends State<ProfessorHomePage> {
   Widget build(BuildContext context) {
     return Consumer2<ProfessorController, AuthController>(
       builder: (context, prof, auth, _) {
-        return Scaffold(
+        return Focus(
+          autofocus: true,
+          onKeyEvent: (node, event) {
+            if (event is! KeyDownEvent) return KeyEventResult.ignored;
+            if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+              _moveQuestion(prof, -1);
+              return KeyEventResult.handled;
+            }
+            if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+              _moveQuestion(prof, 1);
+              return KeyEventResult.handled;
+            }
+            return KeyEventResult.ignored;
+          },
+          child: Scaffold(
           body: Container(
             decoration: const BoxDecoration(gradient: AppTheme.bgGradient),
             child: SafeArea(
@@ -74,27 +96,25 @@ class _ProfessorHomePageState extends State<ProfessorHomePage> {
                       prof: prof,
                       auth: auth,
                       questionIndex: _questionIndex,
-                      onIndexChanged: (i) {
-                        setState(() => _questionIndex = i);
-                        if (i >= 0 && i < prof.questions.length) {
-                          prof.logQuestionDiagnostics(prof.questions[i], i);
-                        }
-                      },
+                      showQuestionThumbnails: _showQuestionThumbnails,
+                      onToggleQuestionThumbnails: () => setState(
+                        () {
+                          _showQuestionThumbnails = !_showQuestionThumbnails;
+                          prof.setShowQuestionThumbnails(
+                              _showQuestionThumbnails);
+                        },
+                      ),
+                      onIndexChanged: (i) => _selectQuestion(prof, i),
                     )
                   : _MobileLayout(
                       prof: prof,
                       auth: auth,
                       questionIndex: _questionIndex,
-                      onIndexChanged: (i) {
-                        setState(() => _questionIndex = i);
-                        if (i >= 0 && i < prof.questions.length) {
-                          prof.logQuestionDiagnostics(prof.questions[i], i);
-                        }
-                      },
+                      onIndexChanged: (i) => _selectQuestion(prof, i),
                     ),
             ),
           ),
-        );
+        ));
       },
     );
   }
@@ -106,12 +126,16 @@ class _DesktopLayout extends StatelessWidget {
   final ProfessorController prof;
   final AuthController auth;
   final int questionIndex;
+  final bool showQuestionThumbnails;
+  final VoidCallback onToggleQuestionThumbnails;
   final void Function(int) onIndexChanged;
 
   const _DesktopLayout({
     required this.prof,
     required this.auth,
     required this.questionIndex,
+    required this.showQuestionThumbnails,
+    required this.onToggleQuestionThumbnails,
     required this.onIndexChanged,
   });
 
@@ -120,14 +144,25 @@ class _DesktopLayout extends StatelessWidget {
     return Row(
       children: [
         // Painel lateral – lista de questões
-        SizedBox(
-          width: 320,
-          child: _QuestionListPanel(
-            questions: prof.questions,
-            selectedIndex: questionIndex,
-            quizState: prof.quizState,
-            onSelect: onIndexChanged,
-          ),
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          width: showQuestionThumbnails ? 320 : 56,
+          child: showQuestionThumbnails
+              ? _QuestionListPanel(
+                  questions: prof.questions,
+                  selectedIndex: questionIndex,
+                  quizState: prof.quizState,
+                  onSelect: onIndexChanged,
+                  onToggleVisibility: onToggleQuestionThumbnails,
+                )
+              : _CollapsedQuestionListHandle(
+                  onShow: onToggleQuestionThumbnails,
+                  questions: prof.questions,
+                  selectedIndex: questionIndex,
+                  quizState: prof.quizState,
+                  onSelect: onIndexChanged,
+                ),
         ),
         const VerticalDivider(width: 1, color: AppTheme.bgCard),
         // Painel principal – controles
@@ -136,6 +171,7 @@ class _DesktopLayout extends StatelessWidget {
             prof: prof,
             auth: auth,
             selectedIndex: questionIndex,
+            onIndexChanged: onIndexChanged,
           ),
         ),
       ],
@@ -187,6 +223,7 @@ class _MobileLayout extends StatelessWidget {
                   prof: prof,
                   auth: auth,
                   selectedIndex: questionIndex,
+                  onIndexChanged: onIndexChanged,
                 ),
               ],
             ),
@@ -249,6 +286,19 @@ class _ProfessorAppBar extends StatelessWidget {
             onPressed: () => context.go(AppRouter.professorQrCode),
           ),
           IconButton(
+            icon: const Icon(Icons.fact_check_rounded, color: AppTheme.accent),
+            tooltip: 'Mostrar Gabarito',
+            onPressed: prof.questions.isEmpty
+                ? null
+                : () {
+                    final index = prof.selectedQuestionIndex
+                        .clamp(0, prof.questions.length - 1);
+                    final question = prof.questions[index];
+                    prof.setRevealQuestion(question);
+                    context.push(AppRouter.professorReveal);
+                  },
+          ),
+          IconButton(
             icon: const Icon(Icons.bar_chart_rounded, color: AppTheme.accent),
             tooltip: 'Ver Ranking',
             onPressed: () => context.push(AppRouter.professorRank),
@@ -275,12 +325,14 @@ class _QuestionListPanel extends StatelessWidget {
   final int selectedIndex;
   final QuizStateEntity quizState;
   final void Function(int) onSelect;
+  final VoidCallback? onToggleVisibility;
 
   const _QuestionListPanel({
     required this.questions,
     required this.selectedIndex,
     required this.quizState,
     required this.onSelect,
+    this.onToggleVisibility,
   });
 
   @override
@@ -300,14 +352,21 @@ class _QuestionListPanel extends StatelessWidget {
 
     return ListView.builder(
       padding: const EdgeInsets.all(12),
-      itemCount: questions.length,
+      itemCount: questions.length + (onToggleVisibility == null ? 0 : 1),
       itemBuilder: (_, i) {
-        final q = questions[i];
+        if (onToggleVisibility != null && i == 0) {
+          return _QuestionListHeader(
+            questionCount: questions.length,
+            onToggleVisibility: onToggleVisibility!,
+          );
+        }
+        final questionOffset = onToggleVisibility == null ? i : i - 1;
+        final q = questions[questionOffset];
         final isActive = quizState.currentPage == q.page && quizState.isActive;
-        final isSelected = i == selectedIndex;
+        final isSelected = questionOffset == selectedIndex;
 
         return GestureDetector(
-          onTap: () => onSelect(i),
+          onTap: () => onSelect(questionOffset),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             margin: const EdgeInsets.only(bottom: 8),
@@ -336,7 +395,7 @@ class _QuestionListPanel extends StatelessWidget {
                   ),
                   child: Center(
                     child: Text(
-                      '${i + 1}',
+                      '${questionOffset + 1}',
                       style: GoogleFonts.poppins(
                         fontWeight: FontWeight.w800,
                         color: isActive ? Colors.white : AppTheme.primary,
@@ -365,7 +424,7 @@ class _QuestionListPanel extends StatelessWidget {
               ],
             ),
           )
-              .animate(delay: Duration(milliseconds: i * 40))
+              .animate(delay: Duration(milliseconds: questionOffset * 40))
               .fadeIn()
               .slideX(begin: -0.1, duration: 300.ms),
         );
@@ -376,15 +435,170 @@ class _QuestionListPanel extends StatelessWidget {
 
 // ── Painel de controle ────────────────────────────────────────────────────────
 
+class _QuestionListHeader extends StatelessWidget {
+  final int questionCount;
+  final VoidCallback onToggleVisibility;
+
+  const _QuestionListHeader({
+    required this.questionCount,
+    required this.onToggleVisibility,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '$questionCount questoes',
+              style: const TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          Tooltip(
+            message: 'Ocultar miniaturas',
+            child: IconButton(
+              onPressed: onToggleVisibility,
+              icon: const Icon(Icons.keyboard_double_arrow_left_rounded),
+              color: AppTheme.textSecondary,
+              constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+              padding: EdgeInsets.zero,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CollapsedQuestionListHandle extends StatelessWidget {
+  final VoidCallback onShow;
+  final List<QuestionEntity> questions;
+  final int selectedIndex;
+  final QuizStateEntity quizState;
+  final void Function(int) onSelect;
+
+  const _CollapsedQuestionListHandle({
+    required this.onShow,
+    required this.questions,
+    required this.selectedIndex,
+    required this.quizState,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppTheme.bgDark.withValues(alpha: 0.35),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Tooltip(
+              message: 'Mostrar miniaturas',
+              child: IconButton(
+                onPressed: onShow,
+                icon: const Icon(Icons.keyboard_double_arrow_right_rounded),
+                color: AppTheme.primary,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: questions.isEmpty
+                ? Center(
+                    child: Text(
+                      '-',
+                      style: GoogleFonts.poppins(
+                        color: AppTheme.textSecondary,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    itemCount: questions.length,
+                    itemBuilder: (context, index) {
+                      final q = questions[index];
+                      final isActive =
+                          quizState.currentPage == q.page && quizState.isActive;
+                      final isSelected = index == selectedIndex;
+                      final color = isActive
+                          ? AppTheme.success
+                          : isSelected
+                              ? AppTheme.primary
+                              : AppTheme.textSecondary;
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Tooltip(
+                          message: 'Questão ${index + 1}',
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(8),
+                            onTap: () => onSelect(index),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 160),
+                              width: 38,
+                              height: 34,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: isSelected || isActive
+                                    ? color.withValues(alpha: 0.14)
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: isSelected || isActive
+                                      ? color.withValues(alpha: 0.75)
+                                      : AppTheme.bgCardAlt,
+                                ),
+                              ),
+                              child: Text(
+                                '${index + 1}',
+                                style: GoogleFonts.poppins(
+                                  color: color,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          const SizedBox(height: 8),
+          Tooltip(
+            message: 'Mostrar miniaturas',
+            child: IconButton(
+              onPressed: onShow,
+              icon: const Icon(Icons.keyboard_double_arrow_right_rounded),
+              color: AppTheme.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ControlPanel extends StatefulWidget {
   final ProfessorController prof;
   final AuthController auth;
   final int selectedIndex;
+  final void Function(int) onIndexChanged;
 
   const _ControlPanel({
     required this.prof,
     required this.auth,
     required this.selectedIndex,
+    required this.onIndexChanged,
   });
 
   @override
@@ -393,6 +607,7 @@ class _ControlPanel extends StatefulWidget {
 
 class _ControlPanelState extends State<_ControlPanel> {
   bool _showCorrectAnswer = false;
+  bool _showFeedback = false;
 
   @override
   Widget build(BuildContext context) {
@@ -411,71 +626,11 @@ class _ControlPanelState extends State<_ControlPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // AppBar só no desktop
-          if (Responsive.isDesktop(context))
-            _ProfessorAppBar(auth: auth, prof: prof),
-
-          // ── Status atual ─────────────────────────────────────────────
-          _StatusCard(state: state),
-          const SizedBox(height: 16),
-
-          // ── Timer da questão ativa ───────────────────────────────────
-          if (state.isActive && state.isTimerPending) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: AppTheme.cardDecoration(),
-              child: const Row(
-                children: [
-                  Icon(Icons.hourglass_top_rounded,
-                      color: AppTheme.warning, size: 22),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Aguardando a primeira resposta para iniciar o cronômetro.',
-                      style: TextStyle(
-                        color: AppTheme.textSecondary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
-          if (state.isActive && state.endsAt != null) ...[
-            TimerWidget(
-              endsAt: state.endsAt!,
-              onTimeUp: () => prof.stopQuestion(),
-            ),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: prof.isLoading ? null : () => prof.extendQuestion(15),
-              icon: const Icon(Icons.add_alarm_rounded, color: AppTheme.accent),
-              label:
-                  const Text('+15s', style: TextStyle(color: AppTheme.accent)),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppTheme.accent),
-                minimumSize: const Size(double.infinity, 44),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
-
-          // ── Seletor de tempo ─────────────────────────────────────────
-          _DurationSelector(
-            value: prof.selectedDuration,
-            onChange: prof.setDuration,
-            enabled: !state.isActive,
-          ),
-          const SizedBox(height: 12),
-          _StartTimerOption(
-            value: prof.startTimerOnFirstResponse,
-            enabled: !state.isActive,
-            onChanged: prof.setStartTimerOnFirstResponse,
+          _ProfessorTopSection(
+            prof: prof,
+            auth: auth,
+            state: state,
+            scores: prof.scores,
           ),
           const SizedBox(height: 16),
 
@@ -485,6 +640,13 @@ class _ControlPanelState extends State<_ControlPanel> {
               question: selectedQ,
               index: selectedIndex,
               showCorrect: _showCorrectAnswer,
+              showFeedback: _showFeedback,
+              onPrevious: selectedIndex > 0
+                  ? () => widget.onIndexChanged(selectedIndex - 1)
+                  : null,
+              onNext: selectedIndex < questions.length - 1
+                  ? () => widget.onIndexChanged(selectedIndex + 1)
+                  : null,
             ),
             const SizedBox(height: 8),
             Row(
@@ -510,12 +672,61 @@ class _ControlPanelState extends State<_ControlPanel> {
                         TextStyle(color: AppTheme.textSecondary, fontSize: 12),
                   ),
                 ),
+                const Spacer(),
+                OutlinedButton.icon(
+                  onPressed: selectedQ.generalFeedback.trim().isEmpty
+                      ? null
+                      : () => setState(() => _showFeedback = !_showFeedback),
+                  icon: Icon(
+                    _showFeedback
+                        ? Icons.visibility_off_rounded
+                        : Icons.feedback_rounded,
+                    size: 16,
+                  ),
+                  label: Text(_showFeedback ? 'Ocultar feedback' : 'Feedback'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _showFeedback
+                        ? AppTheme.warning
+                        : AppTheme.textSecondary,
+                    side: BorderSide(
+                      color: _showFeedback
+                          ? AppTheme.warning
+                          : AppTheme.textSecondary,
+                    ),
+                    minimumSize: const Size(0, 34),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 16),
           ],
 
           // ── Botões de ação ───────────────────────────────────────────
+          if (state.isActive)
+            _ActionButton(
+              label: 'Encerrar Questão',
+              icon: Icons.stop_circle_rounded,
+              color: AppTheme.danger,
+              loading: prof.isLoading,
+              onPressed: prof.stopQuestion,
+            )
+          else
+            _ActionButton(
+              label: selectedQ != null
+                  ? 'Liberar Questão ${selectedIndex + 1}'
+                  : 'Selecione uma questão',
+              icon: Icons.play_circle_fill_rounded,
+              color: AppTheme.success,
+              loading: prof.isLoading,
+              onPressed: (selectedQ != null && !prof.isLoading)
+                  ? () => prof.releaseQuestion(selectedQ)
+                  : null,
+            ),
+
+          const SizedBox(height: 12),
+
           Row(
             children: [
               Expanded(
@@ -559,85 +770,27 @@ class _ControlPanelState extends State<_ControlPanel> {
                   ),
                 ),
               ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed:
+                      prof.isLoading ? null : () => _confirmReset(context, prof),
+                  icon: const Icon(Icons.refresh_rounded,
+                      color: AppTheme.danger, size: 18),
+                  label: const Text('Reiniciar Quiz',
+                      style: TextStyle(color: AppTheme.danger)),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: AppTheme.danger),
+                    minimumSize: const Size(double.infinity, 44),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
             ],
           ),
 
           const SizedBox(height: 12),
-
-          if (state.isActive)
-            _ActionButton(
-              label: 'Encerrar Questão',
-              icon: Icons.stop_circle_rounded,
-              color: AppTheme.danger,
-              loading: prof.isLoading,
-              onPressed: prof.stopQuestion,
-            )
-          else
-            _ActionButton(
-              label: selectedQ != null
-                  ? 'Liberar Questão ${selectedIndex + 1}'
-                  : 'Selecione uma questão',
-              icon: Icons.play_circle_fill_rounded,
-              color: AppTheme.success,
-              loading: prof.isLoading,
-              onPressed: (selectedQ != null && !prof.isLoading)
-                  ? () => prof.releaseQuestion(selectedQ)
-                  : null,
-            ),
-
-          const SizedBox(height: 12),
-
-          // ── Mostrar Gabarito (quando questão encerrada) ───────────────
-          const SizedBox(height: 4),
-          ElevatedButton.icon(
-            onPressed: selectedQ == null
-                ? null
-                : () {
-                    prof.setRevealQuestion(selectedQ);
-                    context.push(AppRouter.professorReveal);
-                  },
-            icon: const Icon(Icons.fact_check_rounded),
-            label: Text(
-              selectedQ != null
-                  ? 'Mostrar Gabarito da Questão ${selectedIndex + 1}'
-                  : 'Selecione uma questão',
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.accent,
-              disabledBackgroundColor: AppTheme.bgCardAlt,
-              minimumSize: const Size(double.infinity, 52),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
-
-          const SizedBox(height: 4),
-
-          // ── Ver Ranking ──────────────────────────────────────────────
-          OutlinedButton.icon(
-            onPressed: () => context.push(AppRouter.professorRank),
-            icon: const Icon(Icons.leaderboard_rounded, color: AppTheme.accent),
-            label: const Text('Ver Ranking Completo',
-                style: TextStyle(color: AppTheme.accent)),
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: AppTheme.accent),
-              minimumSize: const Size(double.infinity, 48),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          // ── Reset quiz ───────────────────────────────────────────────
-          TextButton.icon(
-            onPressed:
-                prof.isLoading ? null : () => _confirmReset(context, prof),
-            icon: const Icon(Icons.refresh_rounded,
-                color: AppTheme.textSecondary, size: 18),
-            label: const Text('Reiniciar Quiz',
-                style: TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
-          ),
 
           // ── Erro ─────────────────────────────────────────────────────
           if (prof.error != null) ...[
@@ -661,11 +814,6 @@ class _ControlPanelState extends State<_ControlPanel> {
             _CollapsibleLogPanel(log: prof.log),
           ],
 
-          // ── Mini ranking ─────────────────────────────────────────────
-          if (prof.scores.isNotEmpty) ...[
-            const SizedBox(height: 24),
-            _MiniRanking(scores: prof.scores),
-          ],
         ],
       ),
     );
@@ -700,6 +848,169 @@ class _ControlPanelState extends State<_ControlPanel> {
 }
 
 // ── Sub-widgets ───────────────────────────────────────────────────────────────
+
+class _ProfessorTopSection extends StatelessWidget {
+  final ProfessorController prof;
+  final AuthController auth;
+  final QuizStateEntity state;
+  final List<dynamic> scores;
+
+  const _ProfessorTopSection({
+    required this.prof,
+    required this.auth,
+    required this.state,
+    required this.scores,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final controls = _TopControlsColumn(
+      prof: prof,
+      auth: auth,
+      state: state,
+      scores: scores,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide =
+            Responsive.isDesktop(context) && constraints.maxWidth >= 760;
+
+        if (!isWide) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const _CompactQrCard(),
+              const SizedBox(height: 12),
+              controls,
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Expanded(flex: 7, child: _CompactQrCard()),
+            const SizedBox(width: 16),
+            Expanded(flex: 22, child: controls),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _TopControlsColumn extends StatelessWidget {
+  final ProfessorController prof;
+  final AuthController auth;
+  final QuizStateEntity state;
+  final List<dynamic> scores;
+
+  const _TopControlsColumn({
+    required this.prof,
+    required this.auth,
+    required this.state,
+    required this.scores,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (Responsive.isDesktop(context))
+          _ProfessorAppBar(auth: auth, prof: prof),
+        _StatusCard(state: state),
+        const SizedBox(height: 16),
+        if (state.isActive && state.isTimerPending) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: AppTheme.cardDecoration(),
+            child: const Row(
+              children: [
+                Icon(Icons.hourglass_top_rounded,
+                    color: AppTheme.warning, size: 22),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Aguardando a primeira resposta para iniciar o cronômetro.',
+                    style: TextStyle(
+                      color: AppTheme.textSecondary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+        if (state.isActive && state.endsAt != null) ...[
+          TimerWidget(
+            endsAt: state.endsAt!,
+            onTimeUp: () => prof.stopQuestion(),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: prof.isLoading ? null : () => prof.extendQuestion(15),
+            icon: const Icon(Icons.add_alarm_rounded, color: AppTheme.accent),
+            label: const Text('+15s', style: TextStyle(color: AppTheme.accent)),
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: AppTheme.accent),
+              minimumSize: const Size(double.infinity, 44),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+        _DurationSelector(
+          value: prof.selectedDuration,
+          onChange: prof.setDuration,
+          enabled: !state.isActive,
+        ),
+        const SizedBox(height: 12),
+        _StartTimerOption(
+          value: prof.startTimerOnFirstResponse,
+          enabled: !state.isActive,
+          onChanged: prof.setStartTimerOnFirstResponse,
+        ),
+        if (scores.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          _MiniRanking(scores: scores),
+        ],
+      ],
+    );
+  }
+}
+
+class _CompactQrCard extends StatelessWidget {
+  const _CompactQrCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: AspectRatio(
+        aspectRatio: 1,
+        child: Image.asset(
+          'assets/qrcode.png',
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => const Icon(
+            Icons.qr_code_2_rounded,
+            color: AppTheme.textSecondary,
+            size: 96,
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _StatusCard extends StatelessWidget {
   final QuizStateEntity state;
@@ -827,10 +1138,16 @@ class _SelectedQuestionCard extends StatefulWidget {
   final QuestionEntity question;
   final int index;
   final bool showCorrect;
+  final bool showFeedback;
+  final VoidCallback? onPrevious;
+  final VoidCallback? onNext;
   const _SelectedQuestionCard({
     required this.question,
     required this.index,
     this.showCorrect = false,
+    this.showFeedback = false,
+    this.onPrevious,
+    this.onNext,
   });
 
   @override
@@ -846,8 +1163,11 @@ class _SelectedQuestionCardState extends State<_SelectedQuestionCard> {
     final question = widget.question;
     final previewText = _questionPreviewText(question);
 
-    return Container(
-      padding: const EdgeInsets.all(16),
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Container(
+      padding: const EdgeInsets.fromLTRB(52, 16, 52, 16),
       decoration: AppTheme.cardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -894,15 +1214,17 @@ class _SelectedQuestionCardState extends State<_SelectedQuestionCard> {
                   const SizedBox(height: 8),
                 ],
               ),
-              secondChild: QuestionEngineWidget(
-                question: question,
-                mode: QuestionEngineMode.preview,
-                showCorrect: widget.showCorrect,
-                compact: true,
-                selectedAnswers: _selectedAnswers,
-                onSelectAnswer: (name, value) =>
-                    setState(() => _selectedAnswers[name] = value),
-              ),
+              secondChild: widget.showFeedback
+                  ? _QuestionFeedbackView(question: question)
+                  : QuestionEngineWidget(
+                      question: question,
+                      mode: QuestionEngineMode.preview,
+                      showCorrect: widget.showCorrect,
+                      compact: true,
+                      selectedAnswers: _selectedAnswers,
+                      onSelectAnswer: (name, value) =>
+                          setState(() => _selectedAnswers[name] = value),
+                    ),
               crossFadeState: _expanded
                   ? CrossFadeState.showSecond
                   : CrossFadeState.showFirst,
@@ -925,6 +1247,20 @@ class _SelectedQuestionCardState extends State<_SelectedQuestionCard> {
           ),
         ],
       ),
+        ),
+        _QuestionNavArrow(
+          alignment: Alignment.centerLeft,
+          icon: Icons.chevron_left_rounded,
+          tooltip: 'Questão anterior',
+          onPressed: widget.onPrevious,
+        ),
+        _QuestionNavArrow(
+          alignment: Alignment.centerRight,
+          icon: Icons.chevron_right_rounded,
+          tooltip: 'Próxima questão',
+          onPressed: widget.onNext,
+        ),
+      ],
     );
   }
 
@@ -938,6 +1274,89 @@ class _SelectedQuestionCardState extends State<_SelectedQuestionCard> {
       }
     }
     return question.text.trim();
+  }
+}
+
+class _QuestionFeedbackView extends StatelessWidget {
+  final QuestionEntity question;
+
+  const _QuestionFeedbackView({required this.question});
+
+  @override
+  Widget build(BuildContext context) {
+    final feedback = question.generalFeedback.trim();
+    if (feedback.isEmpty) {
+      return const Text(
+        'Esta questão não possui feedback cadastrado.',
+        style: TextStyle(
+          color: AppTheme.textSecondary,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+        ),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.warning.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppTheme.warning.withValues(alpha: 0.35)),
+      ),
+      child: MoodleHtmlRenderer(
+        html: feedback,
+        textStyle: const TextStyle(
+          color: AppTheme.textPrimary,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          height: 1.4,
+        ),
+      ),
+    );
+  }
+}
+
+class _QuestionNavArrow extends StatelessWidget {
+  final Alignment alignment;
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onPressed;
+
+  const _QuestionNavArrow({
+    required this.alignment,
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: Align(
+        alignment: alignment,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Tooltip(
+            message: tooltip,
+            child: IconButton(
+              onPressed: onPressed,
+              icon: Icon(icon, size: 30),
+              color: AppTheme.textSecondary,
+              disabledColor: AppTheme.textSecondary.withValues(alpha: 0.25),
+              style: IconButton.styleFrom(
+                backgroundColor: AppTheme.bgDark.withValues(alpha: 0.45),
+                disabledBackgroundColor:
+                    AppTheme.bgDark.withValues(alpha: 0.18),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

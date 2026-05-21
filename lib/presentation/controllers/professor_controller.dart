@@ -43,6 +43,8 @@ class ProfessorController extends ChangeNotifier {
   bool _isLoading = false;
   bool _isXmlPreviewMode = false;
   bool _isRefreshing = false; // guard contra chamadas simultâneas ao GSheets
+  int _selectedQuestionIndex = 0;
+  bool _showQuestionThumbnails = false;
   String? _error;
   List<String> _log = [];
   Timer? _pollTimer;
@@ -72,6 +74,20 @@ class ProfessorController extends ChangeNotifier {
   List<String> get log => List.unmodifiable(_log);
   bool get isSetup => _selectedQuiz != null && _questions.isNotEmpty;
   bool get isXmlPreviewMode => _isXmlPreviewMode;
+  int get selectedQuestionIndex => _selectedQuestionIndex;
+  bool get showQuestionThumbnails => _showQuestionThumbnails;
+
+  void setSelectedQuestionIndex(int index) {
+    if (_questions.isEmpty) {
+      _selectedQuestionIndex = 0;
+      return;
+    }
+    _selectedQuestionIndex = index.clamp(0, _questions.length - 1);
+  }
+
+  void setShowQuestionThumbnails(bool value) {
+    _showQuestionThumbnails = value;
+  }
 
   void setRevealQuestion(QuestionEntity question) {
     _revealQuestionSlot = question.slot;
@@ -195,6 +211,7 @@ class ProfessorController extends ChangeNotifier {
     _selectedQuiz = null;
     _quizzes = [];
     _questions = [];
+    _selectedQuestionIndex = 0;
     _isXmlPreviewMode = false;
     _setLoading(true);
     _error = null;
@@ -211,6 +228,7 @@ class ProfessorController extends ChangeNotifier {
   Future<void> selectQuiz(UserEntity user, MoodleQuiz quiz) async {
     _selectedQuiz = quiz;
     _questions = [];
+    _selectedQuestionIndex = 0;
     _isXmlPreviewMode = false;
     _setLoading(true);
     _error = null;
@@ -262,6 +280,7 @@ class ProfessorController extends ChangeNotifier {
       reviewCorrectness: 0x10000,
     );
     _questions = [];
+    _selectedQuestionIndex = 0;
     _attemptId = null;
     _isXmlPreviewMode = true;
     _setLoading(true);
@@ -275,6 +294,7 @@ class ProfessorController extends ChangeNotifier {
         baseUrl: user.baseUrl,
         onLog: _addLog,
       );
+      _selectedQuestionIndex = 0;
       _quizState = QuizStateEntity.empty();
       _scores = [];
       _addLog('━━ Concluido: ${_questions.length} questao(oes) prontas ━━');
@@ -639,6 +659,7 @@ class ProfessorController extends ChangeNotifier {
         onLog: _addLog,
       );
       _questions = questions;
+      _selectedQuestionIndex = 0;
       _addLog('Múltipla escolha prontas: ${questions.length}');
     } catch (e) {
       _addLog('ERRO em loadQuestionsWithAnswers: $e');

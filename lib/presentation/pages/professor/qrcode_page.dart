@@ -69,7 +69,7 @@ class _QrCodeContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final studentUrl = AppConfig.studentUrl;
     final screenWidth = MediaQuery.of(context).size.width;
-    final qrSize = (screenWidth * 0.5).clamp(200.0, 480.0);
+    final qrSize = (screenWidth * 0.65).clamp(260.0, 624.0);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
